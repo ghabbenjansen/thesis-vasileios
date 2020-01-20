@@ -2,12 +2,12 @@
 /workspace.xml
 
 # Jupyter Notebook
-.ipynb_checkpoints
+../.ipynb_checkpoints
 
 # Environments
-venv/
+../venv/**
 
 # Datasets
-Datasets/CICIDS2017/
-Datasets/CTU13/
-Datasets/CTU_mixed/
+../Datasets/CICIDS2017/**
+../Datasets/CTU13/**
+../Datasets/CTU_mixed/**
