@@ -163,13 +163,13 @@ if __name__ == '__main__':
 
         # split the data according to their labels
         anomalous = data[data['label'] == 'Botnet']
-        anomalous = anomalous.reset_index(drop=True)
+        anomalous = anomalous.reset_index(drop=True).set_index('date')
 
         normal = data[data['label'] == 'LEGITIMATE']
-        normal = normal.reset_index(drop=True)
+        normal = normal.reset_index(drop=True).set_index('date')
 
         background = data[data['label'] == 'Background']
-        background = background.reset_index(drop=True)
+        background = background.reset_index(drop=True).set_index('date')
 
         # save the separated data
         anomalous.to_pickle('/'.join(filepath.split('/')[0:3]) + '/netflow_anomalous.pkl')
@@ -218,14 +218,14 @@ if __name__ == '__main__':
         # in case of the mixed CTU flows drop also the deep packet data
         if flag == 'CTU-mixed':
             data.drop(columns=['srcUdata', 'dstUdata', 'Label'], inplace=True)
-            mask = (data['date'] >= given_dates[0]) & (data['date'] <= given_dates[1]) if len(given_dates) == 2 else \
-                data['date'] >= given_dates[0]
+            mask = (data['StartTime'] >= given_dates[0]) & (data['StartTime'] <= given_dates[1]) \
+                if len(given_dates) == 2 else data['StartTime'] >= given_dates[0]
             # the rows that agree with the mask are anomalous
             anomalous = data.loc[mask]
-            anomalous = anomalous.reset_index(drop=True)
+            anomalous = anomalous.reset_index(drop=True).set_index('StartTime')
 
             normal = data.loc[~mask]
-            normal = normal.reset_index(drop=True)
+            normal = normal.reset_index(drop=True).set_index('StartTime')
 
             # save the separated data
             anomalous.to_pickle('/'.join(filepath.split('/')[0:3]) + '/binetflow_anomalous.pkl')
@@ -233,13 +233,13 @@ if __name__ == '__main__':
         else:
             # split the data according to their labels
             anomalous = data[data['Label'].str.contains("Botnet")]
-            anomalous = anomalous.reset_index(drop=True)
+            anomalous = anomalous.reset_index(drop=True).set_index('StartTime')
 
             normal = data[data['Label'].str.contains("Normal")]
-            normal = normal.reset_index(drop=True)
+            normal = normal.reset_index(drop=True).set_index('StartTime')
 
             background = data[data['Label'].str.contains("Background")]
-            background = background.reset_index(drop=True)
+            background = background.reset_index(drop=True).set_index('StartTime')
 
             # save the separated data
             anomalous.to_pickle('/'.join(filepath.split('/')[0:3]) + '/binetflow_anomalous.pkl')
