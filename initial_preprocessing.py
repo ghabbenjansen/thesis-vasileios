@@ -261,6 +261,6 @@ if __name__ == '__main__':
                 print('---------------- Stats for background flows ----------------')
                 print(background[continuous_features].describe())
     else:
-        # TODO: Decide if i will use any of the Canadian datasets
+        # TODO: Decide if i will use any of the rest datasets
         pass
 
