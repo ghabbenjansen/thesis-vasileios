@@ -17,8 +17,7 @@ def preprocess_unidirectional_data(filepath):
     column_names = ['date', 'duration', 'protocol', 'src_ip', 'src_port', 'dst_ip', 'dst_port', 'flags', 'tos',
                     'packets', 'bytes', 'flows', 'label']
 
-    fout.write(','.join(column_names))
-    fout.write('\n')
+    fout.write(','.join(column_names) + '\n')
     for i, line in enumerate(lines[1:]):
         elements = []
         columns = line.split()
@@ -42,9 +41,7 @@ def preprocess_unidirectional_data(filepath):
             else:
                 elements += [columns[ind]]
 
-        fout.write(','.join(elements))
-        fout.write('\n')
-
+        fout.write(','.join(elements) + '\n')
         if i % 10000:
             print(str(i) + ' lines have been processed...')
     fout.close()
@@ -76,47 +73,35 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, background=True, exp
     # na_values: Additional strings to recognize as NA/NaN
     # parse_field: The columns to parse with the dateparse function
     # dateparse: Function to use for converting a sequence of string columns to an array of datetime instances
+    delimiter = ','
+    header = None
+    skiprows = 1
+    skipfooter = 0
+    na_values = []
+    parse_field = ['date']
+    engine = 'python'
 
     # Unidirectional Netflow data from CTU-13 dataset
     if flag == 'CTU-uni':
-        delimiter = ','
-        header = None
         names = ['date', 'duration', 'protocol', 'src_ip', 'src_port', 'dst_ip', 'dst_port', 'flags', 'packets',
                  'bytes', 'label']
         usecols = [_ for _ in range(0, 8)] + [9, 10, 12]
-        skiprows = 1
-        skipfooter = 0
-        na_values = []
         dateparse = lambda x: pd.datetime.strptime(x, '%Y-%m-%d %H:%M:%S.%f')
-        parse_field = ['date']
     # Bidirectional Netflow data from CTU-13 dataset
     elif flag == 'CTU-bi':
-        delimiter = ','
-        header = None
         names = ['date', 'duration', 'protocol', 'src_ip', 'src_port', 'direction', 'dst_ip', 'dst_port', 'state',
                  'packets', 'bytes', 'src_bytes', 'label']
         usecols = [_ for _ in range(0, 9)] + [_ for _ in range(11, 15)]
-        skiprows = 1
-        skipfooter = 0
-        na_values = []
         dateparse = lambda x: pd.datetime.strptime(x, '%Y/%m/%d %H:%M:%S.%f')
-        parse_field = ['date']
     # Bidirectional Netflow data from the mixed CTU dataset
     elif flag == 'CTU-mixed':
-        delimiter = ','
-        header = None
         names = ['date', 'duration', 'protocol', 'src_ip', 'src_port', 'direction', 'dst_ip', 'dst_port', 'state',
                  'packets', 'bytes', 'src_bytes', 'label']
         usecols = [_ for _ in range(0, 9)] + [_ for _ in range(11, 14)] + [16]
-        skiprows = 1
-        skipfooter = 0
-        na_values = []
         dateparse = lambda x: pd.datetime.strptime(x, '%Y/%m/%d %H:%M:%S.%f')
-        parse_field = ['date']
     # Zeek flow data from IOT-23 dataset
     elif flag == 'IOT':
         delimiter = '\s+'
-        header = None
         names = ['date', 'src_ip', 'src_port', 'dst_ip', 'dst_port', 'protocol', 'service', 'duration',
                  'orig_bytes', 'resp_bytes', 'state', 'missed_bytes', 'orig_packets', 'orig_ip_bytes', 'resp_packets',
                  'resp_ip_bytes', 'label', 'detailed_label']
@@ -125,44 +110,29 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, background=True, exp
         skipfooter = 1
         na_values = ['-']
         dateparse = lambda x: pd.to_datetime(x, unit='s')
-        parse_field = ['date']
     # Netflow data from UNSW-NB15 dataset
     elif flag == 'UNSW':
-        delimiter = ','
-        header = None
         names = ['src_ip', 'src_port', 'dst_ip', 'dst_port', 'protocol', 'state', 'duration', 'src_bytes',
                  'dst_bytes', 'missed_src_bytes', 'missed_dst_bytes', 'service', 'src_packets', 'dst_packets',
                  'start_time', 'end_time', 'detailed_label', 'label']
         usecols = [_ for _ in range(0, 9)] + [_ for _ in range(11, 14)] + [16, 17, 28, 29, 47, 48]
         na_values = ['-']
         skiprows = []
-        skipfooter = 0
         dateparse = lambda x: pd.to_datetime(x, unit='s')
         parse_field = ['start_time', 'end_time']
     # Netflow data from CICIDS2017 dataset
     elif flag == 'CICIDS':
-        delimiter = ','
-        header = None
         names = ['src_ip', 'src_port', 'dst_ip', 'dst_port', 'protocol', 'date', 'duration', 'total_fwd_packets',
                  'total_bwd_packets', 'total_len_fwd_packets', 'total_len_pwd_packets', 'label']
         usecols = [_ for _ in range(1, 12)] + [84]
-        na_values = []
-        skiprows = [0]
-        skipfooter = 0
         dateparse = lambda x: pd.to_datetime(x, dayfirst=True)
-        parse_field = ['date']
     # Netflow data from CIDDS dataset
     else:
-        delimiter = ','
-        header = None
         names = ['date', 'duration', 'protocol', 'src_ip', 'src_port', 'dst_ip', 'dst_port', 'packets', 'bytes',
                  'flags', 'label', 'attack_type', 'attack_id', 'attack_desc']
         usecols = [_ for _ in range(0, 9)] + [10] + [_ for _ in range(12, 16)]
         na_values = ['---']
-        skiprows = 1
-        skipfooter = 0
         dateparse = lambda x: pd.to_datetime(x)
-        parse_field = ['date']
 
     # a simple try-except loop to catch any tokenizing errors in the data (e.g. the FILTER_LEGITIMATE field in the
     # unidirectional flows - for now these lines are ignored) in case the explanatory flag is True
@@ -173,12 +143,13 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, background=True, exp
             # read the data into a dataframe according to the background flag
             data = pd.read_csv(filepath, delimiter=delimiter, header=header, names=names, parse_dates=parse_field,
                                date_parser=dateparse, usecols=usecols, na_values=na_values, error_bad_lines=expl,
-                               skiprows=skiprows, skipfooter=skipfooter) if background else \
+                               engine=engine, skiprows=skiprows, skipfooter=skipfooter) if background else \
                 pd.concat(remove_background(chunk) for chunk in pd.read_csv(filepath, chunksize=100000,
                                                                             delimiter=delimiter,
                                                                             parse_dates=parse_field,
                                                                             date_parser=dateparse,
                                                                             error_bad_lines=expl,
+                                                                            engine=engine,
                                                                             skiprows=skiprows,
                                                                             skipfooter=skipfooter))
             cont = False
@@ -213,10 +184,10 @@ def remove_background(df):
 
 if __name__ == '__main__':
     # filepath = input("Enter the desired filepath: ")
-    filepath = 'Datasets/CTU_mixed/CTU_mixed_capture_1.binetflow.txt'
+    filepath = 'Datasets/IOT23/Malware-Capture-8-1/conn.log.labeled.txt'
 
     # Choose between the flags CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT
-    flag = 'CTU-mixed'
+    flag = 'IOT'
     # while True:
     #     flag = input("Enter the desired flag (CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT): ")
     #     if flag in ['CTU-uni', 'CTU-bi', 'CTU-mixed', 'CICIDS', 'CIDDS', 'UNSW', 'IOT']:
@@ -352,6 +323,36 @@ if __name__ == '__main__':
         # save the separated data
         anomalous.to_pickle('/'.join(filepath.split('/')[0:3]) + '/zeek_anomalous.pkl')
         normal.to_pickle('/'.join(filepath.split('/')[0:3]) + '/zeek_normal.pkl')
+    elif flag == 'UNSW':
+        # TODO: check how to handle NaN values
+        # parse packets, bytes, and ports as integers instead of strings
+        data['src_port'] = data['src_port'].astype(int)
+        data['dst_port'] = data['dst_port'].astype(int)
+        data['src_bytes'] = data['src_bytes'].astype(int)
+        data['dst_bytes'] = data['dst_bytes'].astype(int)
+        data['missed_src_bytes'] = data['missed_src_bytes'].astype(int)
+        data['missed_dst_bytes'] = data['missed_dst_bytes'].astype(int)
+        data['src_packets'] = data['src_packets'].astype(int)
+        data['dst_packets'] = data['dst_packets'].astype(int)
+
+        # parse duration as float
+        data['duration'] = data['duration'].astype(float)
+
+        # add the numerical representation of the categorical data
+        data['protocol_num'] = pd.Categorical(data['protocol'], categories=data['protocol'].unique()).codes
+        data['service_num'] = pd.Categorical(data['service'], categories=data['service'].unique()).codes
+        data['state_num'] = pd.Categorical(data['state'], categories=data['state'].unique()).codes
+
+        # split the data according to their labels
+        anomalous = data[data['label'] == '1']
+        anomalous = anomalous.reset_index(drop=True)
+
+        normal = data[data['label'] == '0']
+        normal = normal.reset_index(drop=True)
+
+        # save the separated data
+        anomalous.to_pickle('/'.join(filepath.split('/')[0:2]) + '/' + filepath.split('.')[-1] + '_anomalous.pkl')
+        normal.to_pickle('/'.join(filepath.split('/')[0:2]) + '/' + filepath.split('.')[-1] + '_normal.pkl')
     elif flag == 'CICIDS':
         # TODO: check how to handle NaN values
         # parse packets, bytes, and ports as integers instead of strings
@@ -382,36 +383,30 @@ if __name__ == '__main__':
                             '_anomalous.pkl')
         normal.to_pickle('/'.join(filepath.split('/')[0:2]) + '/' + filepath.split('/')[2].split('.')[0] +
                          '_normal.pkl')
-    elif flag == 'CIDDS':
-        # TODO: Preprocessing for the CIDDS dataset
-        pass
     else:
         # TODO: check how to handle NaN values
         # parse packets, bytes, and ports as integers instead of strings
         data['src_port'] = data['src_port'].astype(int)
         data['dst_port'] = data['dst_port'].astype(int)
-        data['src_bytes'] = data['src_bytes'].astype(int)
-        data['dst_bytes'] = data['dst_bytes'].astype(int)
-        data['missed_src_bytes'] = data['missed_src_bytes'].astype(int)
-        data['missed_dst_bytes'] = data['missed_dst_bytes'].astype(int)
-        data['src_packets'] = data['src_packets'].astype(int)
-        data['dst_packets'] = data['dst_packets'].astype(int)
+        data['packets'] = data['packets'].astype(int)
+        data['bytes'] = data['bytes'].astype(int)
 
         # parse duration as float
         data['duration'] = data['duration'].astype(float)
 
         # add the numerical representation of the categorical data
         data['protocol_num'] = pd.Categorical(data['protocol'], categories=data['protocol'].unique()).codes
-        data['service_num'] = pd.Categorical(data['service'], categories=data['service'].unique()).codes
-        data['state_num'] = pd.Categorical(data['state'], categories=data['state'].unique()).codes
+        data['flags_num'] = pd.Categorical(data['flags'], categories=data['flags'].unique()).codes
 
         # split the data according to their labels
-        anomalous = data[data['label'] == '1']
+        anomalous = data[data['label'] != 'normal']    # To remember: In this dataset there are multiple abnormal labels
         anomalous = anomalous.reset_index(drop=True)
 
-        normal = data[data['label'] == '0']
+        normal = data[data['label'] == 'normal']
         normal = normal.reset_index(drop=True)
 
         # save the separated data
-        anomalous.to_pickle('/'.join(filepath.split('/')[0:2]) + '/' + filepath.split('.')[-1] + '_anomalous.pkl')
-        normal.to_pickle('/'.join(filepath.split('/')[0:2]) + '/' + filepath.split('.')[-1] + '_normal.pkl')
+        anomalous.to_pickle('/'.join(filepath.split('/')[0:5]) + '/' + filepath.split('/')[5].split('.')[0] +
+                            '_anomalous.pkl')
+        normal.to_pickle('/'.join(filepath.split('/')[0:5]) + '/' + filepath.split('/')[5].split('.')[0] +
+                         '_normal.pkl')
