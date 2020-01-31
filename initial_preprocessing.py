@@ -319,7 +319,7 @@ if __name__ == '__main__':
         # fill appropriately columns that contain too many NaN values and remove the rows that still have NaN values
         data['detailed_label'].fillna('missing', inplace=True)
         data['duration'] = data['duration'].fillna(data.groupby(['src_ip', 'dst_ip'])['duration'].transform('mean'))
-        data['duration'].fillna(0, inplace=True)    # we could also set a negative value
+        data['duration'].fillna(0.00001, inplace=True)    # we could also set a negative value
         # data.dropna(inplace=True) # the other option is to drop the rows with NaN values or drop the whole column
 
         # parse packets, bytes, and ports as integers instead of strings
