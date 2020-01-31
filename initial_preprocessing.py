@@ -184,10 +184,10 @@ def remove_background(df):
 
 if __name__ == '__main__':
     # filepath = input("Enter the desired filepath: ")
-    filepath = 'Datasets/CIDDS/CIDDS-001/traffic/ExternalServer/CIDDS-001-external-week3.csv'
+    filepath = 'Datasets/IOT23/Benign-Soomfy-Doorlock/conn.log.labeled.txt'
 
     # Choose between the flags CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT
-    flag = 'CIDDS'
+    flag = 'IOT'
     # while True:
     #     flag = input("Enter the desired flag (CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT): ")
     #     if flag in ['CTU-uni', 'CTU-bi', 'CTU-mixed', 'CICIDS', 'CIDDS', 'UNSW', 'IOT']:
@@ -342,10 +342,12 @@ if __name__ == '__main__':
         anomalous = data[data['label'] == 'Malicious']
         anomalous = anomalous.reset_index(drop=True)
         anomalous.sort_values(by=['date'], inplace=True)
+        anomalous = anomalous.reset_index(drop=True)
 
-        normal = data[data['label'] == 'Benign']
+        normal = data[data['label'].str.lower() == 'benign']
         normal = normal.reset_index(drop=True)
         normal.sort_values(by=['date'], inplace=True)
+        normal = normal.reset_index(drop=True)
 
         # save the separated data
         anomalous.to_pickle('/'.join(filepath.split('/')[0:3]) + '/zeek_anomalous.pkl')
