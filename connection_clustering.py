@@ -32,25 +32,48 @@ def select_connections(init_data, threshold=100):
     return sel_data
 
 
-def outlier_removal(data, flag):
+def outlier_removal(data, flag, feat=None):
     """
-    Function for removing outliers from the dataset either by checking the z-score (flag=1) or by checking the
-    interquartile range (flag=2)
+    Function for removing outliers from the dataset by checking the z-score (flag=1), the interquartile range (flag=2),
+    or using the GLOSH outlier detection algorithm (flag=3)
     :param data: the data to be examined
     :param flag: the method to be used for outlier removal
+    :param feat: the features to be taken into account
     :return: the data without the identified outliers
     """
+    temp = data if feat is None else data[feat]
+
     if flag == 1:
         # remove outliers using the z-score method
-        z = np.abs(stats.zscore(data))
-        data = data[(z < 3).all(axis=1)]
-    else:
+        z = np.abs(stats.zscore(temp))
+        return data[(z < 3).all(axis=1)]
+    elif flag == 2:
         # remove outliers using the IQR method
-        q1 = data.quantile(0.25)
-        q3 = data.quantile(0.75)
+        q1 = temp.quantile(0.25)
+        q3 = temp.quantile(0.75)
         iqr = q3 - q1
-        data = data[~((data < (q1 - 1.5 * iqr)) | (data > (q3 + 1.5 * iqr))).any(axis=1)]
-    return data
+        return data[~((temp < (q1 - 1.5 * iqr)) | (temp > (q3 + 1.5 * iqr))).any(axis=1)]
+    else:
+        # TODO: fix indexing of the outliers
+        clusterer = hdbscan.HDBSCAN(min_cluster_size=20).fit(temp)
+        threshold = pd.Series(clusterer.outlier_scores_).quantile(0.9)
+        return data[np.where(clusterer.outlier_scores_ <= threshold)[0]]
+
+
+def cluster_data(x, method='kmeans', k=2, c=100, function_kwds=None):
+    """
+    Function that fits the desired clustering method on the training data
+    :param x: the training data
+    :param method: the type of method (kmeans | hdbscan)
+    :param k: the number of clusters if kmeans is selected
+    :param c: the minimum cluster size if hdbscan is selected
+    :param function_kwds: some function keywords (only for hdbscan currently)
+    :return: the fitted clustering model
+    """
+    if function_kwds is None:
+        function_kwds = {}
+    return KMeans(k).fit(x) if method == 'kmeans' else hdbscan.HDBSCAN(algorithm='boruvka_kdtree', min_cluster_size=c,
+                                                                       **function_kwds).fit(x)
 
 
 def visualize_high_dimensional_data(data, labels):
@@ -71,6 +94,13 @@ def visualize_high_dimensional_data(data, labels):
 
 
 def print_results(predicted, real, real_spec):
+    """
+    Function for printing the distribution of the real sample labels in the predicted clusters
+    :param predicted: the predicted cluster labels of each sample
+    :param real: the real labels of each sample (0 for benign, 1 for malicious)
+    :param real_spec: the specific labels of each sample (TODO:a more informational mapping to be added)
+    :return: prints the results
+    """
     results_dict = {}
     result_spec_dict = {}
     for i in range(len(predicted)):
@@ -113,17 +143,40 @@ if __name__ == '__main__':
     phillips = pd.read_pickle('Datasets/IOT23/Benign-Phillips-HUE/zeek_normal.pkl')
 
     # prepare benign data from each device for clustering
-    sel_soomfy = select_connections(soomfy)
-    soomfy_data = sel_soomfy[['src_port', 'protocol_num', 'orig_packets_per_s', 'resp_packets_per_s', 'duration']]
-    sel_amazon = select_connections(amazon)
-    amazon_data = sel_amazon[['src_port', 'protocol_num', 'orig_packets_per_s', 'resp_packets_per_s', 'duration']]
-    sel_phillips = select_connections(phillips)
-    phillips_data = sel_phillips[['src_port', 'protocol_num', 'orig_packets_per_s', 'resp_packets_per_s', 'duration']]
+    sel_soomfy = select_connections(soomfy, 10)  # lower threshold for soomfy since less data is available
+    sel_amazon = select_connections(amazon)  # higher threshold for amazon since more data is available
+    sel_phillips = select_connections(phillips, 50)
+
+    # apply outlier removal to the benign flows
+    soomfy_data = outlier_removal(sel_soomfy, 3, ['duration', 'orig_packets', 'orig_ip_bytes', 'orig_packets_per_s',
+                                                  'orig_bytes_per_s'])
+    amazon_data = outlier_removal(sel_amazon, 3, ['duration', 'orig_packets', 'orig_ip_bytes', 'resp_packets',
+                                                  'resp_ip_bytes', 'protocol_num', 'state_num', 'orig_packets_per_s',
+                                                  'resp_packets_per_s', 'orig_bytes_per_s', 'resp_bytes_per_s'])
+    phillips_data = outlier_removal(sel_phillips, 3, ['duration', 'orig_ip_bytes', 'resp_ip_bytes', 'orig_packets_per_s',
+                                                      'resp_packets_per_s', 'orig_bytes_per_s', 'resp_bytes_per_s'])
+
+    # set the parameters to use
+    selected = ['src_port', 'dst_port', 'protocol_num', 'orig_ip_bytes', 'resp_ip_bytes', 'duration']
+
+    # initialize the clustering algorithms for the benign samples
+    soomfy_clusters = cluster_data(soomfy_data[selected].values, method='hdbscan', c=30,
+                                   function_kwds={'allow_single_cluster': True, 'prediction_data': True})
+    print('Number of clusters identified for soomfy: ' + str(soomfy_clusters.labels_.max() + 1) + ' with ' +
+          str(sum(soomfy_clusters.labels_ == 0)))
+    amazon_clusters = cluster_data(amazon_data[selected].values, method='hdbscan', c=100,
+                                   function_kwds={'allow_single_cluster': True, 'prediction_data': True})
+    print('Number of clusters identified for amazon: ' + str(amazon_clusters.labels_.max() + 1) + ' with ' +
+          str(sum(amazon_clusters.labels_ == 0)))
+    phillips_clusters = cluster_data(phillips_data[selected].values, method='hdbscan', c=50,
+                                     function_kwds={'allow_single_cluster': True, 'prediction_data': True})
+    print('Number of clusters identified for phillips: ' + str(phillips_clusters.labels_.max() + 1) + ' with ' +
+          str(sum(phillips_clusters.labels_ == 0)))
 
     # filepath_normal, filepath_malicious = input("Enter the desired filepaths (normal anomalous) separated by space: ").\
     #     split()
-    filepath_normal = 'Datasets/IOT23/Malware-Capture-1-1/zeek_normal.pkl'
-    filepath_malicious = 'Datasets/IOT23/Malware-Capture-1-1/zeek_anomalous.pkl'
+    filepath_normal = 'Datasets/IOT23/Malware-Capture-8-1/zeek_normal.pkl'
+    filepath_malicious = 'Datasets/IOT23/Malware-Capture-8-1/zeek_anomalous.pkl'
     normal = pd.read_pickle(filepath_normal)
     anomalous = pd.read_pickle(filepath_malicious)
 
@@ -131,7 +184,7 @@ if __name__ == '__main__':
     mixed = pd.concat([normal, anomalous], ignore_index=True).sort_values(by='date').reset_index().drop(
         columns='index')
     sel_mixed = select_connections(mixed)
-    mixed_data = sel_mixed[['src_port', 'protocol_num', 'orig_packets_per_s', 'resp_packets_per_s', 'duration']]
+    mixed_data = sel_mixed[selected]
 
     rem = int(input('Select method for outlier removal (0: none | 1: z | 2: iqr): '))
     if rem:
@@ -142,30 +195,31 @@ if __name__ == '__main__':
     y = sel_mixed['label_num'].values
     y_spec = sel_mixed['detailed_label_num'].values
 
+    # Visualize the dataset using TSNE
     # visualize_high_dimensional_data(x, y)
 
-    # initialize the clustering algorithms
-    hdbscan_boruvka = hdbscan.HDBSCAN(algorithm='boruvka_kdtree', min_cluster_size=200)
-    hdbscan_boruvka.fit(x)
-    print('Number of clusters identified: ' + str(hdbscan_boruvka.labels_.max() + 1))
-    print_results(hdbscan_boruvka.labels_, y, y_spec)
+    # find clusters based on the fitted models for the benign devices
+    for cl, iot in zip([soomfy_clusters, amazon_clusters, phillips_clusters], ['soomfy', 'amazon', 'phillips']):
+        print('--------------------------- Trying to fit ' + iot + ' clusters on the data ---------------------------')
+        test_labels, strengths = hdbscan.approximate_predict(cl, x)
+        print_results(test_labels, y, y_spec)
 
-    # apply the elbow method for k-Means
-    print('----------------------- Finding optimal number of clusters for k-Means -----------------------')
-    Sum_of_squared_distances = []
-    for k in range(1, 15):
-        km = KMeans(n_clusters=k)
-        km = km.fit(x)
-        Sum_of_squared_distances.append(km.inertia_)
-
-    plt.figure()
-    plt.plot(range(1, 15), Sum_of_squared_distances, 'bx-')
-    plt.xlabel('k')
-    plt.ylabel('Sum_of_squared_distances')
-    plt.title('Elbow Method For Optimal k')
-    plt.grid()
-    plt.show()
-
-    k = int(input('Enter your preferred number of clusters: '))
-    k_means = KMeans(k).fit(x)
-    print_results(k_means.labels_, y, y_spec)
+    # # apply the elbow method for k-Means
+    # print('----------------------- Finding optimal number of clusters for k-Means -----------------------')
+    # Sum_of_squared_distances = []
+    # for k in range(1, 15):
+    #     km = KMeans(n_clusters=k)
+    #     km = km.fit(x)
+    #     Sum_of_squared_distances.append(km.inertia_)
+    #
+    # plt.figure()
+    # plt.plot(range(1, 15), Sum_of_squared_distances, 'bx-')
+    # plt.xlabel('k')
+    # plt.ylabel('Sum_of_squared_distances')
+    # plt.title('Elbow Method For Optimal k')
+    # plt.grid()
+    # plt.show()
+    #
+    # k = int(input('Enter your preferred number of clusters: '))
+    # k_means = KMeans(k).fit(x)
+    # print_results(k_means.labels_, y, y_spec)
