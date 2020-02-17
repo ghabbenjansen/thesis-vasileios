@@ -32,29 +32,29 @@ def select_connections(init_data, threshold=100):
     return sel_data
 
 
-def outlier_removal(data, flag, feat=None, label=None):
+def outlier_removal(data, method="z-score", feat=None, label=None):
     """
     Function for removing outliers from the dataset by checking the z-score (flag=1), the interquartile range (flag=2),
     or using the GLOSH outlier detection algorithm (flag=3)
     :param data: the data to be examined
-    :param flag: the method to be used for outlier removal
+    :param method: the method to be used for outlier removal
     :param feat: the features to be taken into account
     :param label: label of the dataset (needed for the GLOSH case)
     :return: the data without the identified outliers
     """
     temp = data if feat is None else data[feat]
 
-    if flag == 1:
+    if method == "z-score":
         # remove outliers using the z-score method
         z = np.abs(stats.zscore(temp))
         return data[(z < 3).all(axis=1)]
-    elif flag == 2:
+    elif method == "iqr":
         # remove outliers using the IQR method
         q1 = temp.quantile(0.25)
         q3 = temp.quantile(0.75)
         iqr = q3 - q1
         return data[~((temp < (q1 - 1.5 * iqr)) | (temp > (q3 + 1.5 * iqr))).any(axis=1)]
-    else:
+    elif method == "glosh":
         clusterer = hdbscan.HDBSCAN(min_cluster_size=20).fit(temp)
         plt.figure()
         sns.distplot(clusterer.outlier_scores_[np.isfinite(clusterer.outlier_scores_)], rug=True)
@@ -62,8 +62,16 @@ def outlier_removal(data, flag, feat=None, label=None):
         plt.xlabel('Outlier score')
         plt.grid()
         plt.show()
-        threshold = pd.Series(clusterer.outlier_scores_).quantile(0.95)
+        threshold = pd.Series(clusterer.outlier_scores_).quantile(0.9)
         return data.iloc[np.where(clusterer.outlier_scores_ <= threshold)[0]]
+    elif method == "rolling_median":
+        roll_medians = pd.DataFrame()
+        for col in temp.columns.values.tolist():
+            roll_medians[col] = temp[col].rolling(3).median().fillna(method='bfill').fillna(method='ffill')
+        normal_idx = np.abs(temp - roll_medians) < 3
+        return data[np.rint(normal_idx.mean(axis=1)).astype(bool)]
+    else:
+        return data
 
 
 def cluster_data(x, method='kmeans', k=2, c=100, function_kwds=None):
@@ -144,51 +152,19 @@ def print_results(predicted, real, real_spec):
 
 
 if __name__ == '__main__':
-    soomfy = pd.read_pickle('Datasets/IOT23/Benign-Soomfy-Doorlock/zeek_normal.pkl')
-    amazon = pd.read_pickle('Datasets/IOT23/Benign-Amazon-Echo/zeek_normal.pkl')
-    phillips = pd.read_pickle('Datasets/IOT23/Benign-Phillips-HUE/zeek_normal.pkl')
+    # First choose the way of clustering
+    ans = input('Choose how to cluster the data\n'
+                '0: create clusters based on the benign IOT datasets and fit these clusters on the mixed datasets'
+                '\n1: cluster the mixed datasets directly\nGive an answer: ')
 
-    # prepare benign data from each device for clustering
-    sel_soomfy = select_connections(soomfy, 10)  # lower threshold for soomfy since less data is available
-    sel_amazon = select_connections(amazon)  # higher threshold for amazon since more data is available
-    sel_phillips = select_connections(phillips, 10)
-
-    # apply outlier removal to the benign flows
-    removal_method = 3
-    data_name = 'Soomfy doorlock' if removal_method == 3 else None
-    soomfy_data = outlier_removal(sel_soomfy, removal_method, ['duration', 'orig_packets', 'orig_ip_bytes',
-                                                               'orig_packets_per_s', 'orig_bytes_per_s'], data_name)
-    data_name = 'Amazon echo' if removal_method == 3 else None
-    amazon_data = outlier_removal(sel_amazon, removal_method, ['duration', 'orig_packets', 'orig_ip_bytes',
-                                                               'resp_packets', 'resp_ip_bytes', 'protocol_num',
-                                                               'state_num', 'orig_packets_per_s', 'resp_packets_per_s',
-                                                               'orig_bytes_per_s', 'resp_bytes_per_s'], data_name)
-    data_name = 'Phillips hue' if removal_method == 3 else None
-    phillips_data = outlier_removal(sel_phillips, removal_method, ['duration', 'orig_ip_bytes', 'resp_ip_bytes',
-                                                                   'orig_packets_per_s', 'resp_packets_per_s',
-                                                                   'orig_bytes_per_s', 'resp_bytes_per_s'], data_name)
-
-    # set the parameters to use
+    # initialize the parameters to use
     selected = ['src_port', 'dst_port', 'protocol_num', 'orig_ip_bytes', 'resp_ip_bytes', 'duration']
-
-    # initialize the clustering algorithms for the benign samples
-    soomfy_clusters = cluster_data(soomfy_data[selected].values, method='hdbscan', c=30,
-                                   function_kwds={'allow_single_cluster': True, 'prediction_data': True})
-    print('Number of clusters identified for soomfy: ' + str(soomfy_clusters.labels_.max() + 1) + ' with ' +
-          str(sum(soomfy_clusters.labels_ == 0)))
-    amazon_clusters = cluster_data(amazon_data[selected].values, method='hdbscan', c=100,
-                                   function_kwds={'allow_single_cluster': True, 'prediction_data': True})
-    print('Number of clusters identified for amazon: ' + str(amazon_clusters.labels_.max() + 1) + ' with ' +
-          str(sum(amazon_clusters.labels_ == 0)))
-    phillips_clusters = cluster_data(phillips_data[selected].values, method='hdbscan', c=50,
-                                     function_kwds={'allow_single_cluster': True, 'prediction_data': True})
-    print('Number of clusters identified for phillips: ' + str(phillips_clusters.labels_.max() + 1) + ' with ' +
-          str(sum(phillips_clusters.labels_ == 0)))
+    outlier_dict = {0: 'none', 1: 'z-score', 2: 'iqr', 3: 'glosh', 4: 'rolling-median'}
 
     # filepath_normal, filepath_malicious = input("Enter the desired filepaths (normal anomalous) separated by space: ").\
     #     split()
-    filepath_normal = 'Datasets/IOT23/Malware-Capture-34-1/zeek_normal.pkl'
-    filepath_malicious = 'Datasets/IOT23/Malware-Capture-34-1/zeek_anomalous.pkl'
+    filepath_normal = 'Datasets/IOT23/Malware-Capture-1-1/zeek_normal.pkl'
+    filepath_malicious = 'Datasets/IOT23/Malware-Capture-1-1/zeek_anomalous.pkl'
     normal = pd.read_pickle(filepath_normal)
     anomalous = pd.read_pickle(filepath_malicious)
 
@@ -196,27 +172,81 @@ if __name__ == '__main__':
     mixed = pd.concat([normal, anomalous], ignore_index=True).sort_values(by='date').reset_index().drop(
         columns='index')
     sel_mixed = select_connections(mixed)
-    mixed_data = sel_mixed[selected]
 
-    rem = int(input('Select method for outlier removal (0: none | 1: z | 2: iqr): '))
-    if rem:
-        mixed_data = outlier_removal(mixed_data, rem)
+    if not ans:
+        soomfy = pd.read_pickle('Datasets/IOT23/Benign-Soomfy-Doorlock/zeek_normal.pkl')
+        amazon = pd.read_pickle('Datasets/IOT23/Benign-Amazon-Echo/zeek_normal.pkl')
+        phillips = pd.read_pickle('Datasets/IOT23/Benign-Phillips-HUE/zeek_normal.pkl')
 
-    x = mixed_data.values
-    # TODO: assign correct labels when the outliers are removed
-    y = sel_mixed['label_num'].values
-    y_spec = sel_mixed['detailed_label_num'].values
+        # prepare benign data from each device for clustering
+        sel_soomfy = select_connections(soomfy, 10)
+        sel_amazon = select_connections(amazon)
+        sel_phillips = select_connections(phillips, 10)
 
-    # Visualize the dataset using TSNE
-    # visualize_high_dimensional_data(x, y)
+        # apply outlier removal to the benign flows
+        removal_method = outlier_dict[int(input(
+                'Select method for outlier removal (0: none | 1: z-score | 2: iqr | 3: GLOSH | 4: rolling-median): '))]
+        data_name = 'Soomfy doorlock' if removal_method == "glosh" else None
+        soomfy_data = outlier_removal(sel_soomfy, removal_method, ['duration', 'orig_packets', 'orig_ip_bytes',
+                                                                   'orig_packets_per_s', 'orig_bytes_per_s'], data_name)
+        data_name = 'Amazon echo' if removal_method == "glosh" else None
+        amazon_data = outlier_removal(sel_amazon, removal_method, ['duration', 'orig_packets', 'orig_ip_bytes',
+                                                                   'resp_packets', 'resp_ip_bytes', 'protocol_num',
+                                                                   'state_num', 'orig_packets_per_s',
+                                                                   'resp_packets_per_s', 'orig_bytes_per_s',
+                                                                   'resp_bytes_per_s'], data_name)
+        data_name = 'Phillips hue' if removal_method == "glosh" else None
+        phillips_data = outlier_removal(sel_phillips, removal_method, ['duration', 'orig_ip_bytes', 'resp_ip_bytes',
+                                                                       'orig_packets_per_s', 'resp_packets_per_s',
+                                                                       'orig_bytes_per_s', 'resp_bytes_per_s'],
+                                        data_name)
 
-    # find clusters based on the fitted models for the benign devices
-    for cl, iot in zip([soomfy_clusters, amazon_clusters, phillips_clusters], ['soomfy', 'amazon', 'phillips']):
-        print('--------------------------- Trying to fit ' + iot + ' clusters on the data ---------------------------')
-        test_labels, strengths = hdbscan.approximate_predict(cl, x)
-        print_results(test_labels, y, y_spec)
+        # initialize the clustering algorithms for the benign samples
+        soomfy_clusters = cluster_data(soomfy_data[selected].values, method='hdbscan', c=30,
+                                       function_kwds={'allow_single_cluster': True, 'prediction_data': True})
+        print('Number of clusters identified for soomfy: ' + str(soomfy_clusters.labels_.max() + 1) + ' with ' +
+              str(sum(soomfy_clusters.labels_ == 0)))
+        amazon_clusters = cluster_data(amazon_data[selected].values, method='hdbscan', c=100,
+                                       function_kwds={'allow_single_cluster': True, 'prediction_data': True})
+        print('Number of clusters identified for amazon: ' + str(amazon_clusters.labels_.max() + 1) + ' with ' +
+              str(sum(amazon_clusters.labels_ == 0)))
+        phillips_clusters = cluster_data(phillips_data[selected].values, method='hdbscan', c=50,
+                                         function_kwds={'allow_single_cluster': True, 'prediction_data': True})
+        print('Number of clusters identified for phillips: ' + str(phillips_clusters.labels_.max() + 1) + ' with ' +
+              str(sum(phillips_clusters.labels_ == 0)))
 
-    # # apply the elbow method for k-Means
+        mixed_data = sel_mixed[selected]
+        x = mixed_data.values
+        y = sel_mixed['label_num'].values
+        y_spec = sel_mixed['detailed_label_num'].values
+
+        # Visualize the dataset using TSNE
+        # visualize_high_dimensional_data(x, y)
+
+        # find clusters based on the fitted models for the benign devices
+        for cl, iot in zip([soomfy_clusters, amazon_clusters, phillips_clusters], ['soomfy', 'amazon', 'phillips']):
+            print(
+                '--------------------------- Trying to fit ' + iot + ' clusters on the data ---------------------------')
+            test_labels, strengths = hdbscan.approximate_predict(cl, x)
+            print_results(test_labels, y, y_spec)
+    else:
+        # first apply outlier removal
+        removal_method = outlier_dict[
+            int(input(
+                'Select method for outlier removal (0: none | 1: z-score | 2: iqr | 3: GLOSH | 4: rolling-median): '))]
+        data_name = filepath_normal.split('/')[2] if removal_method == "glosh" else None
+        mixed_data = outlier_removal(sel_mixed, removal_method, selected, data_name)
+
+        # then cluster the remaining data
+        mixed_clusters = cluster_data(mixed_data[selected].values, method='hdbscan', c=150)
+        y = mixed_data['label_num'].values
+        y_spec = mixed_data['detailed_label_num'].values
+
+        # and print the results of this clustering
+        print('Number of identified clusters: ' + str(max(mixed_clusters.labels_)+1))
+        print_results(mixed_clusters.labels_, y, y_spec)
+
+    # apply the elbow method for k-Means
     # print('----------------------- Finding optimal number of clusters for k-Means -----------------------')
     # Sum_of_squared_distances = []
     # for k in range(1, 15):
