@@ -6,9 +6,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import stats
 import seaborn as sns
+from sklearn.preprocessing import RobustScaler
+from sklearn.ensemble import IsolationForest
 
 
-def select_connections(init_data, threshold=100):
+def select_connections(init_data, threshold=50):
     """
     Function for keeping only the flows with at least a threshold number of source-destination IP pairs in the data.
     Also some extra features are added, while the numerical representation of labels and detailed labels is introduced
@@ -42,6 +44,7 @@ def outlier_removal(data, method="z-score", feat=None, label=None):
     :param label: label of the dataset (needed for the GLOSH case)
     :return: the data without the identified outliers
     """
+    # TODO: maybe add Amazon's Robust Random Cut Forest algorithm
     temp = data if feat is None else data[feat]
 
     if method == "z-score":
@@ -55,7 +58,7 @@ def outlier_removal(data, method="z-score", feat=None, label=None):
         iqr = q3 - q1
         return data[~((temp < (q1 - 1.5 * iqr)) | (temp > (q3 + 1.5 * iqr))).any(axis=1)]
     elif method == "glosh":
-        clusterer = hdbscan.HDBSCAN(min_cluster_size=20).fit(temp)
+        clusterer = hdbscan.HDBSCAN(min_cluster_size=20, metric='manhattan').fit(RobustScaler().fit_transform(temp))
         plt.figure()
         sns.distplot(clusterer.outlier_scores_[np.isfinite(clusterer.outlier_scores_)], rug=True)
         plt.title('Outlier score distribution for ' + label + ' data')
@@ -64,6 +67,10 @@ def outlier_removal(data, method="z-score", feat=None, label=None):
         plt.show()
         threshold = pd.Series(clusterer.outlier_scores_).quantile(0.9)
         return data.iloc[np.where(clusterer.outlier_scores_ <= threshold)[0]]
+    elif method == "isolation-forest":
+        clf = IsolationForest(random_state=1)
+        preds = clf.fit_predict(temp)
+        return data[(preds+1).astype(bool)]
     elif method == "rolling_median":
         roll_medians = pd.DataFrame()
         for col in temp.columns.values.tolist():
@@ -87,6 +94,7 @@ def cluster_data(x, method='kmeans', k=2, c=100, function_kwds=None):
     if function_kwds is None:
         function_kwds = {}
     return KMeans(k).fit(x) if method == 'kmeans' else hdbscan.HDBSCAN(algorithm='boruvka_kdtree', min_cluster_size=c,
+                                                                       metric='manhattan', cluster_selection_epsilon=0.75,
                                                                        **function_kwds).fit(x)
 
 
@@ -153,13 +161,13 @@ def print_results(predicted, real, real_spec):
 
 if __name__ == '__main__':
     # First choose the way of clustering
-    ans = input('Choose how to cluster the data\n'
+    ans = int(input('Choose how to cluster the data\n'
                 '0: create clusters based on the benign IOT datasets and fit these clusters on the mixed datasets'
-                '\n1: cluster the mixed datasets directly\nGive an answer: ')
+                '\n1: cluster the mixed datasets directly\nGive an answer: '))
 
     # initialize the parameters to use
     selected = ['src_port', 'dst_port', 'protocol_num', 'orig_ip_bytes', 'resp_ip_bytes', 'duration']
-    outlier_dict = {0: 'none', 1: 'z-score', 2: 'iqr', 3: 'glosh', 4: 'rolling-median'}
+    outlier_dict = {0: 'none', 1: 'z-score', 2: 'iqr', 3: 'glosh', 4: 'isolation-forest', 5: 'rolling-median'}
 
     # filepath_normal, filepath_malicious = input("Enter the desired filepaths (normal anomalous) separated by space: ").\
     #     split()
@@ -185,7 +193,8 @@ if __name__ == '__main__':
 
         # apply outlier removal to the benign flows
         removal_method = outlier_dict[int(input(
-                'Select method for outlier removal (0: none | 1: z-score | 2: iqr | 3: GLOSH | 4: rolling-median): '))]
+                'Select method for outlier removal (0: none | 1: z-score | 2: iqr | 3: GLOSH | 4: isolation-forest | '
+                '5: rolling-median): '))]
         data_name = 'Soomfy doorlock' if removal_method == "glosh" else None
         soomfy_data = outlier_removal(sel_soomfy, removal_method, ['duration', 'orig_packets', 'orig_ip_bytes',
                                                                    'orig_packets_per_s', 'orig_bytes_per_s'], data_name)
@@ -210,7 +219,7 @@ if __name__ == '__main__':
                                        function_kwds={'allow_single_cluster': True, 'prediction_data': True})
         print('Number of clusters identified for amazon: ' + str(amazon_clusters.labels_.max() + 1) + ' with ' +
               str(sum(amazon_clusters.labels_ == 0)))
-        phillips_clusters = cluster_data(phillips_data[selected].values, method='hdbscan', c=50,
+        phillips_clusters = cluster_data(phillips_data[selected].values, method='hdbscan', c=20,
                                          function_kwds={'allow_single_cluster': True, 'prediction_data': True})
         print('Number of clusters identified for phillips: ' + str(phillips_clusters.labels_.max() + 1) + ' with ' +
               str(sum(phillips_clusters.labels_ == 0)))
@@ -233,7 +242,8 @@ if __name__ == '__main__':
         # first apply outlier removal
         removal_method = outlier_dict[
             int(input(
-                'Select method for outlier removal (0: none | 1: z-score | 2: iqr | 3: GLOSH | 4: rolling-median): '))]
+                'Select method for outlier removal (0: none | 1: z-score | 2: iqr | 3: GLOSH | 4: isolation-forest | '
+                '5: rolling-median): '))]
         data_name = filepath_normal.split('/')[2] if removal_method == "glosh" else None
         mixed_data = outlier_removal(sel_mixed, removal_method, selected, data_name)
 
