@@ -32,13 +32,14 @@ def select_connections(init_data, threshold=100):
     return sel_data
 
 
-def outlier_removal(data, flag, feat=None):
+def outlier_removal(data, flag, feat=None, label=None):
     """
     Function for removing outliers from the dataset by checking the z-score (flag=1), the interquartile range (flag=2),
     or using the GLOSH outlier detection algorithm (flag=3)
     :param data: the data to be examined
     :param flag: the method to be used for outlier removal
     :param feat: the features to be taken into account
+    :param label: label of the dataset (needed for the GLOSH case)
     :return: the data without the identified outliers
     """
     temp = data if feat is None else data[feat]
@@ -54,10 +55,15 @@ def outlier_removal(data, flag, feat=None):
         iqr = q3 - q1
         return data[~((temp < (q1 - 1.5 * iqr)) | (temp > (q3 + 1.5 * iqr))).any(axis=1)]
     else:
-        # TODO: fix indexing of the outliers
         clusterer = hdbscan.HDBSCAN(min_cluster_size=20).fit(temp)
-        threshold = pd.Series(clusterer.outlier_scores_).quantile(0.9)
-        return data[np.where(clusterer.outlier_scores_ <= threshold)[0]]
+        plt.figure()
+        sns.distplot(clusterer.outlier_scores_[np.isfinite(clusterer.outlier_scores_)], rug=True)
+        plt.title('Outlier score distribution for ' + label + ' data')
+        plt.xlabel('Outlier score')
+        plt.grid()
+        plt.show()
+        threshold = pd.Series(clusterer.outlier_scores_).quantile(0.95)
+        return data.iloc[np.where(clusterer.outlier_scores_ <= threshold)[0]]
 
 
 def cluster_data(x, method='kmeans', k=2, c=100, function_kwds=None):
@@ -145,16 +151,22 @@ if __name__ == '__main__':
     # prepare benign data from each device for clustering
     sel_soomfy = select_connections(soomfy, 10)  # lower threshold for soomfy since less data is available
     sel_amazon = select_connections(amazon)  # higher threshold for amazon since more data is available
-    sel_phillips = select_connections(phillips, 50)
+    sel_phillips = select_connections(phillips, 10)
 
     # apply outlier removal to the benign flows
-    soomfy_data = outlier_removal(sel_soomfy, 3, ['duration', 'orig_packets', 'orig_ip_bytes', 'orig_packets_per_s',
-                                                  'orig_bytes_per_s'])
-    amazon_data = outlier_removal(sel_amazon, 3, ['duration', 'orig_packets', 'orig_ip_bytes', 'resp_packets',
-                                                  'resp_ip_bytes', 'protocol_num', 'state_num', 'orig_packets_per_s',
-                                                  'resp_packets_per_s', 'orig_bytes_per_s', 'resp_bytes_per_s'])
-    phillips_data = outlier_removal(sel_phillips, 3, ['duration', 'orig_ip_bytes', 'resp_ip_bytes', 'orig_packets_per_s',
-                                                      'resp_packets_per_s', 'orig_bytes_per_s', 'resp_bytes_per_s'])
+    removal_method = 3
+    data_name = 'Soomfy doorlock' if removal_method == 3 else None
+    soomfy_data = outlier_removal(sel_soomfy, removal_method, ['duration', 'orig_packets', 'orig_ip_bytes',
+                                                               'orig_packets_per_s', 'orig_bytes_per_s'], data_name)
+    data_name = 'Amazon echo' if removal_method == 3 else None
+    amazon_data = outlier_removal(sel_amazon, removal_method, ['duration', 'orig_packets', 'orig_ip_bytes',
+                                                               'resp_packets', 'resp_ip_bytes', 'protocol_num',
+                                                               'state_num', 'orig_packets_per_s', 'resp_packets_per_s',
+                                                               'orig_bytes_per_s', 'resp_bytes_per_s'], data_name)
+    data_name = 'Phillips hue' if removal_method == 3 else None
+    phillips_data = outlier_removal(sel_phillips, removal_method, ['duration', 'orig_ip_bytes', 'resp_ip_bytes',
+                                                                   'orig_packets_per_s', 'resp_packets_per_s',
+                                                                   'orig_bytes_per_s', 'resp_bytes_per_s'], data_name)
 
     # set the parameters to use
     selected = ['src_port', 'dst_port', 'protocol_num', 'orig_ip_bytes', 'resp_ip_bytes', 'duration']
@@ -175,8 +187,8 @@ if __name__ == '__main__':
 
     # filepath_normal, filepath_malicious = input("Enter the desired filepaths (normal anomalous) separated by space: ").\
     #     split()
-    filepath_normal = 'Datasets/IOT23/Malware-Capture-8-1/zeek_normal.pkl'
-    filepath_malicious = 'Datasets/IOT23/Malware-Capture-8-1/zeek_anomalous.pkl'
+    filepath_normal = 'Datasets/IOT23/Malware-Capture-34-1/zeek_normal.pkl'
+    filepath_malicious = 'Datasets/IOT23/Malware-Capture-34-1/zeek_anomalous.pkl'
     normal = pd.read_pickle(filepath_normal)
     anomalous = pd.read_pickle(filepath_malicious)
 
