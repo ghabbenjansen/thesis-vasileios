@@ -159,6 +159,32 @@ def print_results(predicted, real, real_spec):
             print(str(kk) + ': ' + str(vv))
 
 
+def select_clusters(predictions, criterion='top'):
+    """
+    Function for selecting the flows to comprise the bening training set of the system from the clustered ones
+    :param predictions: a numpy array with the cluster labels of each flow
+    :param criterion: the criterion to be used to select the clusters (TODO: add more robust criteria)
+    :return: the boolean mask of the selected flows
+    """
+    # create a dict with the number of flows in each cluster - exclude the outliers/noise cluster of -1
+    cnt_dict = dict([(i, list(predictions).count(i)) for i in range(np.max(predictions)+1)])
+    # retrieve the total number of flows in the clusters
+    tot_flows = sum([v for v in cnt_dict.values()])
+    # the clusters' indices to be kept
+    clusters_indices = []
+    # if criterion equals to 'top' then keep the flows belonging to the most popular clusters and accounting for the
+    # top 30% of the total flows clustered
+    if criterion == 'top':
+        s = 0
+        for k, v in sorted(cnt_dict.items(), key=lambda item: item[1], reverse=True):
+            if s <= int(0.3*tot_flows):
+                clusters_indices += [k]
+                s += v
+    else:
+        clusters_indices = [max(cnt_dict, key=cnt_dict.get)]
+    return np.isin(predictions, clusters_indices)
+
+
 if __name__ == '__main__':
     # First choose the way of clustering
     ans = int(input('Choose how to cluster the data\n'
@@ -238,6 +264,8 @@ if __name__ == '__main__':
                 '--------------------------- Trying to fit ' + iot + ' clusters on the data ---------------------------')
             test_labels, strengths = hdbscan.approximate_predict(cl, x)
             print_results(test_labels, y, y_spec)
+
+        # TODO: check how to find clusters in this case
     else:
         # first apply outlier removal
         removal_method = outlier_dict[
@@ -255,6 +283,16 @@ if __name__ == '__main__':
         # and print the results of this clustering
         print('Number of identified clusters: ' + str(max(mixed_clusters.labels_)+1))
         print_results(mixed_clusters.labels_, y, y_spec)
+
+        # finally select the flows to be later used for training
+        fin_selected_data = mixed_data[select_clusters(mixed_clusters.labels_, criterion='top')]
+
+        # check the impurity value of the selected flows
+        print(fin_selected_data['label_num'].value_counts())
+
+        # and save the selected dataframe of flows to pickle for further use
+        fin_selected_data.to_pickle('/'.join(filepath_normal.split('/')[0:2] + ['training', 'train_set.pkl']))
+
 
     # apply the elbow method for k-Means
     # print('----------------------- Finding optimal number of clusters for k-Means -----------------------')
