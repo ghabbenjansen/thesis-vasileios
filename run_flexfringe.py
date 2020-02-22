@@ -1,5 +1,4 @@
 import subprocess
-import sys
 import graphviz
 
 # TODO: change the filepath from hardcoded to input setting
