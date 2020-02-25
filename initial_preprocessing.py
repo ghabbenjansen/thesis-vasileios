@@ -184,7 +184,7 @@ def remove_background(df):
 
 if __name__ == '__main__':
     # filepath = input("Enter the desired filepath: ")
-    filepath = 'Datasets/IOT23/Malware-Capture-8-1/conn.log.labeled.txt'
+    filepath = 'Datasets/IOT23/Malware-Capture-60-1/conn.log.labeled.txt'
 
     # Choose between the flags CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT
     flag = 'IOT'
@@ -318,7 +318,7 @@ if __name__ == '__main__':
 
         # fill appropriately columns that contain too many NaN values and remove the rows that still have NaN values
         data['detailed_label'].fillna('missing', inplace=True)
-        data['duration'] = data['duration'].fillna(data.groupby(['src_ip', 'dst_ip'])['duration'].transform('mean'))
+        data['duration'] = data['duration'].fillna(data.groupby(['src_ip', 'dst_ip'])['duration'].transform('median'))
         data['duration'].fillna(0.00001, inplace=True)    # we could also set a negative value
         # data.dropna(inplace=True) # the other option is to drop the rows with NaN values or drop the whole column
 
