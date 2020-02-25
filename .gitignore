@@ -131,6 +131,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# DOT files
+*.dot
+
 # Datasets
 Datasets/CICIDS2017/
 Datasets/CTU13/
@@ -138,3 +141,4 @@ Datasets/CTU_mixed/
 Datasets/CIDDS/
 Datasets/UNSW-NB15/
 Datasets/IOT23/
+outputs/

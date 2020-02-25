@@ -10,7 +10,7 @@ def convert2flexfringe_format(win_data):
     :param win_data: the windowed dataframe
     :return: a list of the events in the trace with features separated by comma in each event
     """
-    return list(map(lambda x: ','.join(x), win_data.to_numpy().tolist()))
+    return list(map(lambda x: ','.join(map(lambda t: str(int(t)), x)), win_data.to_numpy().tolist()))
 
 
 def aggregate_in_windows(data, window):
@@ -68,27 +68,39 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
     start_date = data['date'].iloc[0]
     end_date = start_date + DateOffset(seconds=window)
     traces = []     # list of lists
+    cnt = 0
+    tot = len(data.index)   # just for progress visualization purposes
 
     # iterate through the input dataframe until the end date is greater than the last date recorded
     while end_date < data['date'].iloc[-1]:
         # retrieve the window of interest
         time_mask = (data['date'] >= start_date) & (data['date'] <= end_date)
-        windowed_data = data[time_mask]     # TODO: not sure about its validity - To check it
-        # create aggregated features if needed (currently with a hard-coded window length)
-        if aggregation:
-            windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True),
-                                                 min(10, int(len(windowed_data.index))))
-            selected = windowed_data.columns.values
-        # extract the trace of this window and add it to the traces' list
-        traces += [convert2flexfringe_format(windowed_data[selected])]
+        windowed_data = data[time_mask]
+        if len(windowed_data.index.tolist()) != 0:
+            # create aggregated features if needed (currently with a hard-coded window length)
+            if aggregation:
+                windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True),
+                                                     min(10, int(len(windowed_data.index))))
+                selected = windowed_data.columns.values
+            # extract the trace of this window and add it to the traces' list
+            traces += [convert2flexfringe_format(windowed_data[selected])]
+            # update the progress variable
+            cnt = windowed_data.index.tolist()[-1]
         # increment the window limits
         start_date += DateOffset(seconds=stride)
         end_date = start_date + DateOffset(seconds=window)
 
-    # create the traces' file in the needed format
-    f = open(out_filepath + "training_traces.txt", "w")
-    f.write(str(len(traces)) + ' ' + '100:' + str(len(selected)))
-    for trace in traces:
-        f.write('1 ' + str(len(trace)) + ' 0:' + ' 0:'.join(trace))
-    f.close()
+        # show progress
+        # if int((cnt / tot) * 100) // 10 != 0 and int((cnt / tot) * 100) % 10 == 0:
+        # print(str(int((cnt / tot) * 100)) + '% of the data processed...')
+        print(str(cnt) + '  rows processed...')
 
+    print('Finished with rolling windows!!!')
+    print('Starting writing traces to file...')
+    # create the traces' file in the needed format
+    f = open(out_filepath + "/training_traces.txt", "w")
+    f.write(str(len(traces)) + ' ' + '100:' + str(len(selected)) + '\n')
+    for trace in traces:
+        f.write('1 ' + str(len(trace)) + ' 0:' + ' 0:'.join(trace) + '\n')
+    f.close()
+    print('Traces written successfully to file!!!')
