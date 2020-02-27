@@ -2,6 +2,8 @@ import pandas as pd
 from pandas.tseries.offsets import DateOffset
 from copy import deepcopy
 from scipy.stats import mode
+from model import ModelNode, Model
+import re
 
 
 def convert2flexfringe_format(win_data):
@@ -104,3 +106,93 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
         f.write('1 ' + str(len(trace)) + ' 0:' + ' 0:'.join(trace) + '\n')
     f.close()
     print('Traces written successfully to file!!!')
+
+
+def parse_dot(dot_path):
+    """
+
+    :param dot_path:
+    :return:
+    """
+    with open(dot_path, "r") as f:
+        dot_string = f.read()
+    model = Model()
+    state_regex = "(?P<src_state>.+) \[label=\"(?P<state_info>(.+))\".*\];$"
+    info_regex = "((?P<identifier>(fin|symb|attr)\(\d+\)):\[+(?P<values>.+)\]+)+"
+    transition_regex = "(?P<src_state>.+) -> (?P<dst_state>.+) (\[label=\"(?P<transition_cond>(.+))\".*\])*;$"
+    cond_regex = "((?P<sym>\d+)(?P<ineq_symbol>(<|>|<=|>=|==))(?P<boundary>\d+))+"
+
+    for line in dot_string.split('\n'):
+        state_matcher = re.match(state_regex, line.strip())
+        # if a new state is found while parsing
+        if state_matcher is not None:
+            src_state = state_matcher.group("src_state")    # find the state number
+            # and initialize all its parameters
+            attributes = {}
+            fin = 0
+            tot = 0
+            dst_nodes = []
+            cond_dict = {}
+            # find the state information while parsing
+            state_info = state_matcher.group("state_info")
+            if state_info != 'root':
+                # if the state is not the root one retrieve the state's information
+                for info_matcher in re.finditer(info_regex, state_info):
+                    identifier = info_matcher.group("identifier")
+                    id_values = info_matcher.group("values")
+                    if 'fin' in identifier:
+                        fin = int(id_values)
+                    elif 'symb' in identifier:
+                        tot = fin + int(id_values)
+                    else:
+                        attributes[re.findall(r'\d+', identifier)[0]] = list(map(float, id_values.split(',')[:-1]))
+            else:
+                # otherwise set the state's name to root
+                src_state = 'root'
+
+        transition_matcher = re.match(transition_regex, line.strip())
+        # if a transition is identified while parsing (should be in the premises of the previously identified state)
+        if transition_matcher is not None:
+            src_state_1 = transition_matcher.group("src_state")
+            if src_state_1 == 'I':
+                src_state_1 = 'root'
+            # just consistency check that we are still parsing the same state as before
+            if src_state != src_state_1:
+                print('Something went wrong - Different source states in a state!!!')
+                return -1
+            # identify the destination state and add it to the list of destinations
+            dst_state = transition_matcher.group("dst_state")
+            dst_nodes += [dst_state]  # should exist given that transitions come after the identification of a new state
+            # check for the transitions' conditions only if the current state is not the root
+            if src_state_1 != 'I':
+                transition_conditions = transition_matcher.group("transition_cond")
+                for condition_matcher in re.finditer(cond_regex, transition_conditions):
+                    attribute = condition_matcher.group("sym")
+                    inequality_symbol = condition_matcher.group("ineq_symbol")
+                    boundary = condition_matcher.group("boundary")
+                    # the condition dictonary should be initialized from the state identification stage
+                    if dst_state not in cond_dict.keys():
+                        cond_dict[dst_state] = []
+                    cond_dict[dst_state] += [attribute, inequality_symbol, int(boundary)]
+        try:
+            if state_matcher is None and transition_matcher is not None:
+                label_to_put = src_state
+                attributes_to_put = attributes
+                fin_to_put = fin
+                tot_to_put = tot
+                del dst_nodes_to_put
+                del condistions_to_put
+            if state_matcher is not None and transition_matcher is None:
+                dst_nodes_to_put = dst_nodes
+                condistions_to_put = cond_dict
+            model.add_node(ModelNode(label_to_put, attributes_to_put, fin_to_put, tot_to_put, dst_nodes_to_put,
+                                     condistions_to_put))
+        except Exception as err:
+            print(repr(err))
+            pass
+    return model
+
+
+if __name__ == '__main__':
+    dot_filepath = '/Users/vserentellos/Documents/dfasat/outputs/final.dot'
+    parse_dot(dot_filepath)
