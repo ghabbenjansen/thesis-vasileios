@@ -110,22 +110,31 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
 
 def parse_dot(dot_path):
     """
-
-    :param dot_path:
-    :return:
+    Function for parsing dot files describing multivariate models produced through FlexFringe
+    :param dot_path: the path to the dot file
+    :return: the parsed model
     """
     with open(dot_path, "r") as f:
         dot_string = f.read()
+    # initialize the model
     model = Model()
-    state_regex = "(?P<src_state>.+) \[label=\"(?P<state_info>(.+))\".*\];$"
-    info_regex = "((?P<identifier>(fin|symb|attr)\(\d+\)):\[+(?P<values>.+)\]+)+"
-    transition_regex = "(?P<src_state>.+) -> (?P<dst_state>.+) (\[label=\"(?P<transition_cond>(.+))\".*\])*;$"
-    cond_regex = "((?P<sym>\d+)(?P<ineq_symbol>(<|>|<=|>=|==))(?P<boundary>\d+))+"
-
-    for line in dot_string.split('\n'):
-        state_matcher = re.match(state_regex, line.strip())
+    # regular expression for parsing a state as well as its contained info
+    state_regex = r"(?P<src_state>\d+) \[\s*label=\"(?P<state_info>(.+))\".*\];$"
+    # regular expression for parsing a state's contained info
+    info_regex = r"((?P<identifier>(fin|symb|attr)+\(\d+\)):\[*(?P<values>(\d|,)+)\]*)+"
+    # regular expression for parsing the transitions of a state, as well as the firing conditions
+    transition_regex = r"(?P<src_state>.+) -> (?P<dst_state>\d+)( \[label=\"(?P<transition_cond>(.+))\".*\])*;$"
+    # regular expression for parsing the conditions firing a transition
+    cond_regex = r"((?P<sym>\d+) (?P<ineq_symbol>(<|>|<=|>=|==)) (?P<boundary>\d+))+"
+    # boolean flag used for adding states in the model
+    cached = False
+    for line in re.split(r'\n\t+', dot_string):     # split the dot file in meaningful lines
+        state_matcher = re.match(state_regex, line, re.DOTALL)
         # if a new state is found while parsing
         if state_matcher is not None:
+            # check if there is a state pending and, if there is, update the model
+            if cached:
+                model.add_node(ModelNode(src_state, attributes, fin, tot, dst_nodes, cond_dict))
             src_state = state_matcher.group("src_state")    # find the state number
             # and initialize all its parameters
             attributes = {}
@@ -140,21 +149,22 @@ def parse_dot(dot_path):
                 for info_matcher in re.finditer(info_regex, state_info):
                     identifier = info_matcher.group("identifier")
                     id_values = info_matcher.group("values")
-                    if 'fin' in identifier:
+                    if 'fin' in identifier:     # the number of times the state was final
                         fin = int(id_values)
-                    elif 'symb' in identifier:
-                        tot = fin + int(id_values)
+                    elif 'symb' in identifier:  # the number of times the state was visited
+                        tot = fin + int(id_values[:-1])
                     else:
+                        # the quantiles of each attribute
                         attributes[re.findall(r'\d+', identifier)[0]] = list(map(float, id_values.split(',')[:-1]))
             else:
-                # otherwise set the state's name to root
+                # otherwise set the state's name to root (because for some reason 3 labels are used for the root node)
                 src_state = 'root'
 
-        transition_matcher = re.match(transition_regex, line.strip())
+        transition_matcher = re.match(transition_regex, line, re.DOTALL)
         # if a transition is identified while parsing (should be in the premises of the previously identified state)
         if transition_matcher is not None:
-            src_state_1 = transition_matcher.group("src_state")
-            if src_state_1 == 'I':
+            src_state_1 = transition_matcher.group("src_state")     # the source state number
+            if src_state_1 == 'I':  # again the same problem as above
                 src_state_1 = 'root'
             # just consistency check that we are still parsing the same state as before
             if src_state != src_state_1:
@@ -164,35 +174,27 @@ def parse_dot(dot_path):
             dst_state = transition_matcher.group("dst_state")
             dst_nodes += [dst_state]  # should exist given that transitions come after the identification of a new state
             # check for the transitions' conditions only if the current state is not the root
-            if src_state_1 != 'I':
+            if src_state_1 != 'root':
+                # find the transition's conditions while parsing
                 transition_conditions = transition_matcher.group("transition_cond")
                 for condition_matcher in re.finditer(cond_regex, transition_conditions):
-                    attribute = condition_matcher.group("sym")
-                    inequality_symbol = condition_matcher.group("ineq_symbol")
-                    boundary = condition_matcher.group("boundary")
+                    attribute = condition_matcher.group("sym")  # the attribute contained in the condition
+                    inequality_symbol = condition_matcher.group("ineq_symbol")  # the inequality symbol
+                    boundary = condition_matcher.group("boundary")  # the numeric limit in the condition
+                    # and update the conditions' dictionary
                     # the condition dictonary should be initialized from the state identification stage
                     if dst_state not in cond_dict.keys():
                         cond_dict[dst_state] = []
-                    cond_dict[dst_state] += [attribute, inequality_symbol, int(boundary)]
-        try:
-            if state_matcher is None and transition_matcher is not None:
-                label_to_put = src_state
-                attributes_to_put = attributes
-                fin_to_put = fin
-                tot_to_put = tot
-                del dst_nodes_to_put
-                del condistions_to_put
-            if state_matcher is not None and transition_matcher is None:
-                dst_nodes_to_put = dst_nodes
-                condistions_to_put = cond_dict
-            model.add_node(ModelNode(label_to_put, attributes_to_put, fin_to_put, tot_to_put, dst_nodes_to_put,
-                                     condistions_to_put))
-        except Exception as err:
-            print(repr(err))
-            pass
+                    cond_dict[dst_state] += [attribute, inequality_symbol, float(boundary)]
+            # set the cached flag to True after the first state is fully identified
+            cached = True
+
+    # one more node addition for the last state in the file to be added
+    model.add_node(ModelNode(src_state, attributes, fin, tot, dst_nodes, cond_dict))
     return model
 
 
 if __name__ == '__main__':
     dot_filepath = '/Users/vserentellos/Documents/dfasat/outputs/final.dot'
-    parse_dot(dot_filepath)
+    model = parse_dot(dot_filepath)
+    print('Done')

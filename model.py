@@ -1,4 +1,16 @@
+import operator
+import numpy as np
+
+
 class ModelNode:
+    inequality_mapping = {
+        '<': operator.lt,
+        '>': operator.gt,
+        '<=': operator.le,
+        '>=': operator.ge,
+        '==': operator.eq
+    }
+
     def __init__(self, label, attributes, fin, total, dst_nodes, tran_conditions):
         """
         Init function for the ModelNode class used to assign values to some necessary variables when a node is created
@@ -15,6 +27,17 @@ class ModelNode:
         self.total = total
         self.dst_nodes = dst_nodes
         self.tran_conditions = tran_conditions
+
+    def evaluate_transition(self, dst_node_label, input_attributes):
+        """
+        Function for evaluating if a transition from a source to a destination state under the provided input attributes'
+        values can be fired
+        :param dst_node_label: the label of the destination state
+        :param input_attributes: the input attributes' values
+        :return: a boolean value denoting the ability to fire the transition
+        """
+        return all([self.inequality_mapping[condition[1]](input_attributes[condition[0]], condition[2])
+                    for condition in self.tran_conditions[dst_node_label]])
 
 
 class Model:
@@ -46,3 +69,13 @@ class Model:
         del self.nodes_dict[node_label]
         return 0
 
+    def fire_transition(self, src_node_label, input_attributes):
+        """
+        Function for finding the destination state given the source state and some input attributes' values
+        :param src_node_label: the label of the source state
+        :param input_attributes: the input attributes' values
+        :return: the label of the destination state
+        """
+        destinations = [(dst_node, self.nodes_dict[src_node_label].evaluate_transition(dst_node, input_attributes))
+                        for dst_node in self.nodes_dict[src_node_label].tran_conditions.keys()]
+        return destinations[np.where(destinations)[0][0]][0]
