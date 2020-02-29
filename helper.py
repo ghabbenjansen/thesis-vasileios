@@ -194,7 +194,41 @@ def parse_dot(dot_path):
     return model
 
 
+def traces2list(traces_path):
+    """
+    Function for converting the trace file into a list of traces ready for further processing
+    :param traces_path: the filepath of the traces
+    :return: the list of the traces as a list of lists (each trace) of lists (each record in each trace)
+    """
+    traces = []
+    with open(traces_path, "r") as fp:
+        # skip first line
+        line = fp.readline()
+        while line:
+            line = fp.readline()
+            # split lines by spaces
+            tokens = line.split()
+            # gather the records of each trace and keep only the record values and map them to float
+            traces += [[list(map(float, t.split(':')[1].split(','))) for t in tokens[2:]]]
+    return traces
+
+
+def run_traces_on_model(traces_path, model):
+    """
+
+    :param traces_path:
+    :param model:
+    :return:
+    """
+    traces = traces2list(traces_path)
+    for trace in traces:
+        label = 'root'
+        for record in trace:
+            label = model.fire_transition(label, dict(zip([str(i) for i in range(len(record))], record)))
+    return 0
+
+
 if __name__ == '__main__':
-    dot_filepath = '/Users/vserentellos/Documents/dfasat/outputs/final.dot'
-    model = parse_dot(dot_filepath)
+    traces_filepath = 'Datasets/IOT23/training/training_traces.txt'
+    traces = traces2list(traces_filepath)
     print('Done')
