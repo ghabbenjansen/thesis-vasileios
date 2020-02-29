@@ -50,6 +50,14 @@ class ModelNode:
         """
         self.observed_attributes = dict(zip(self.attributes.keys(), len(self.attributes.keys()) * [[]]))
 
+    def attributes2dataset(self):
+        """
+        Function for converting the observed attributes dict to a numpy array to be processed
+        like a dataset (m examples x n attributes)
+        :return: the dataset as a numpy array
+        """
+        return np.array(list(self.observed_attributes.values())).transpose()
+
 
 class Model:
     def __init__(self):

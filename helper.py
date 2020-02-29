@@ -6,6 +6,18 @@ from model import ModelNode, Model
 import re
 
 
+def set_windowing_vars(in_filepath):
+    """
+    Function for automatically calculating the time window and stride to be used for creating the traces
+    :param in_filepath: the relative path of the input dataframe
+    :return: a tuple with the calculated time window and stride
+    """
+    data = pd.read_pickle(in_filepath)
+    # find the median of the time differences in the dataframe and use it to calculate the needed windowing variables
+    median_time_diff = data['date'].sort_values().diff().median()
+    return 50 * median_time_diff, 10 * median_time_diff
+
+
 def convert2flexfringe_format(win_data):
     """
     Function to convert the windowed data into a trace in the format accepted by the multivariate version of flexfringe
@@ -66,9 +78,12 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
     """
     data = pd.read_pickle(in_filepath)
 
+    # create an anonymous function for increasing timestamps given the type of the window (int or Timedelta)
+    time_inc = lambda x, w: x + DateOffset(seconds=w) if type(window) == int else x + w
+
     # set the initial start and end dates, as well as the empty traces' list
     start_date = data['date'].iloc[0]
-    end_date = start_date + DateOffset(seconds=window)
+    end_date = time_inc(start_date, window)
     traces = []     # list of lists
     cnt = 0
     tot = len(data.index)   # just for progress visualization purposes
@@ -89,13 +104,13 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
             # update the progress variable
             cnt = windowed_data.index.tolist()[-1]
         # increment the window limits
-        start_date += DateOffset(seconds=stride)
-        end_date = start_date + DateOffset(seconds=window)
+        start_date = time_inc(start_date, stride)
+        end_date = time_inc(start_date, window)
 
         # show progress
-        # if int((cnt / tot) * 100) // 10 != 0 and int((cnt / tot) * 100) % 10 == 0:
-        # print(str(int((cnt / tot) * 100)) + '% of the data processed...')
-        print(str(cnt) + '  rows processed...')
+        if int((cnt / tot) * 100) // 10 != 0 and int((cnt / tot) * 100) % 10 == 0:
+            print(str(int((cnt / tot) * 100)) + '% of the data processed...')
+        # print(str(cnt) + '  rows processed...')
 
     print('Finished with rolling windows!!!')
     print('Starting writing traces to file...')

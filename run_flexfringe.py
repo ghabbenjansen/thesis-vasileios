@@ -61,13 +61,14 @@ if __name__ == '__main__':
 
         # extract the traces and save them in the traces_filepath - the window and the stride sizes of the sliding
         # window can be also specified
-        helper.extract_traces(training_filepath, traces_filepath, selected, window=60, stride=30)
+        window, stride = helper.set_windowing_vars(training_filepath)
+        helper.extract_traces(training_filepath, traces_filepath, selected, window=window, stride=stride)
     else:
         # in case no traces_filepath has been provided (for example if it has already been created) provide one
         traces_filepath = input('Give the path to the input file for flexfringe: ')
 
     # and set the flags for flexfringe
-    extra_args = input('Give any flag arguments for flexfinge in a key value way separated by comma in between (e.g. '
+    extra_args = input('Give any flag arguments for flexfinge in a key value way separated by comma in between e.g. '
                        'key1:value1,ke2:value2,...: ').split(',')
 
     # run flexfringe to produce the automaton and plot it
