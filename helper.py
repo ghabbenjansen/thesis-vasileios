@@ -215,17 +215,20 @@ def traces2list(traces_path):
 
 def run_traces_on_model(traces_path, model):
     """
-
-    :param traces_path:
-    :param model:
-    :return:
+    Function for running a trace file on the provided model and storing the observed attributes' values on it
+    :param traces_path: the filepath to the traces' file
+    :param model: the given model
+    :return: the updated model
     """
     traces = traces2list(traces_path)
     for trace in traces:
-        label = 'root'
+        # first fire the transition from root node
+        label = model.fire_transition('root', dict())   # TODO: check if the empty dict will work
         for record in trace:
-            label = model.fire_transition(label, dict(zip([str(i) for i in range(len(record))], record)))
-    return 0
+            observed = dict(zip([str(i) for i in range(len(record))], record))
+            model.update_attributes(label, observed)
+            label = model.fire_transition(label, observed)
+    return model
 
 
 if __name__ == '__main__':

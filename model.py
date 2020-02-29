@@ -27,6 +27,9 @@ class ModelNode:
         self.total = total
         self.dst_nodes = dst_nodes
         self.tran_conditions = tran_conditions
+        # observed attributes is used to store the values observed for each attribute when a trace file is run on the
+        # model
+        self.observed_attributes = dict(zip(self.attributes.keys(), len(self.attributes.keys()) * [[]]))
 
     def evaluate_transition(self, dst_node_label, input_attributes):
         """
@@ -36,8 +39,16 @@ class ModelNode:
         :param input_attributes: the input attributes' values
         :return: a boolean value denoting the ability to fire the transition
         """
+        # TODO: check validity in case there are no transition conditions
         return all([self.inequality_mapping[condition[1]](input_attributes[condition[0]], condition[2])
                     for condition in self.tran_conditions[dst_node_label]])
+
+    def reset_observed_attributes(self):
+        """
+        Function for resetting the observed attributes of the node
+        :return:
+        """
+        self.observed_attributes = dict(zip(self.attributes.keys(), len(self.attributes.keys()) * [[]]))
 
 
 class Model:
@@ -79,3 +90,21 @@ class Model:
         destinations = [(dst_node, self.nodes_dict[src_node_label].evaluate_transition(dst_node, input_attributes))
                         for dst_node in self.nodes_dict[src_node_label].tran_conditions.keys()]
         return destinations[np.where(destinations)[0][0]][0]
+
+    def update_attributes(self, label, observed):
+        """
+        Function for adding newly observed values for each attribute in the observed_attributes dict of each node
+        :param label: the label of the node
+        :param observed: the dictionary with the attributes' values to be added
+        :return:
+        """
+        for attribute, obs_value in observed.items():
+            self.nodes_dict[label].observed_attributes[attribute] += obs_value
+
+    def reset_attributes(self):
+        """
+        Function for resetting all observed_attributes values in all nodes
+        :return:
+        """
+        for node_label in self.nodes_dict.keys():
+            self.nodes_dict[node_label].reset_observed_attributes()
