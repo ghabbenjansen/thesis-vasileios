@@ -1,5 +1,10 @@
 import operator
 import numpy as np
+import pandas as pd
+import hdbscan
+from sklearn.cluster import KMeans
+from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import RobustScaler
 
 
 class ModelNode:
@@ -54,9 +59,19 @@ class ModelNode:
         """
         Function for converting the observed attributes dict to a numpy array to be processed
         like a dataset (m examples x n attributes)
-        :return: the dataset as a numpy array
+        :return: the dataset as a dataframe
         """
-        return np.array(list(self.observed_attributes.values())).transpose()
+        return pd.DataFrame.from_dict(self.observed_attributes)
+
+    def fit_clusters_on_observed(self, clustering_method='k-means'):
+        x = self.attributes2dataset()
+        if clustering_method == "glosh":
+            clusterer = hdbscan.HDBSCAN(min_cluster_size=20, metric='manhattan').fit(RobustScaler().fit_transform(x))
+        elif clustering_method == "isolation-forest":
+            clusterer = IsolationForest(random_state=1).fit(x)
+        else:
+            clusterer = KMeans(n_clusters=2).fit(x)
+        return clusterer
 
 
 class Model:
