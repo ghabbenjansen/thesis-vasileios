@@ -53,8 +53,7 @@ if __name__ == '__main__':
     if not with_trace:
         # set the needed filepaths
         training_filepath = input('Give the relative path of the dataframe to be used for training: ')
-        traces_filepath = input('Give the relative filepath of the directory in which the traces in the flexfringe '
-                                'format will be saved: ')
+        traces_filepath = '/'.join(training_filepath.split('/')) + '/training/' + training_filepath.split('/')[2] + '-'
 
         # set the features to be used in the multivariate modelling
         selected = ['src_port', 'dst_port', 'protocol_num', 'orig_ip_bytes', 'resp_ip_bytes']
@@ -72,5 +71,5 @@ if __name__ == '__main__':
                        'key1:value1,ke2:value2,...: ').split(',')
 
     # run flexfringe to produce the automaton and plot it
-    data = flexfringe(traces_filepath+'/training_traces.txt', **dict([arg.split(':') for arg in extra_args]))
+    data = flexfringe(traces_filepath, **dict([arg.split(':') for arg in extra_args]))
     show(data)

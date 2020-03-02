@@ -120,7 +120,7 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
     print('Finished with rolling windows!!!')
     print('Starting writing traces to file...')
     # create the traces' file in the needed format
-    f = open(out_filepath + "/training_traces.txt", "w")
+    f = open(out_filepath + "traces.txt", "w")
     f.write(str(len(traces)) + ' ' + '100:' + str(len(selected)) + '\n')
     for trace in traces:
         f.write('1 ' + str(len(trace)) + ' 0:' + ' 0:'.join(trace) + '\n')
