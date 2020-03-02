@@ -35,6 +35,7 @@ class ModelNode:
         # observed attributes is used to store the values observed for each attribute when a trace file is run on the
         # model
         self.observed_attributes = dict(zip(self.attributes.keys(), len(self.attributes.keys()) * [[]]))
+        self.testing_attributes = dict(zip(self.attributes.keys(), len(self.attributes.keys()) * [[]]))
 
     def evaluate_transition(self, dst_node_label, input_attributes):
         """
@@ -55,23 +56,54 @@ class ModelNode:
         """
         self.observed_attributes = dict(zip(self.attributes.keys(), len(self.attributes.keys()) * [[]]))
 
-    def attributes2dataset(self):
+    def reset_testing_attributes(self):
         """
-        Function for converting the observed attributes dict to a numpy array to be processed
+        Function for resetting the testing attributes of the node
+        :return:
+        """
+        self.testing_attributes = dict(zip(self.attributes.keys(), len(self.attributes.keys()) * [[]]))
+
+    def attributes2dataset(self, input_attributes):
+        """
+        Function for converting some given attributes dict to a dataframe to be processed
         like a dataset (m examples x n attributes)
+        :param input_attributes: the input attributes' values
         :return: the dataset as a dataframe
         """
-        return pd.DataFrame.from_dict(self.observed_attributes)
+        return pd.DataFrame.from_dict(input_attributes)
 
     def fit_clusters_on_observed(self, clustering_method='k-means'):
-        x = self.attributes2dataset()
-        if clustering_method == "glosh":
-            clusterer = hdbscan.HDBSCAN(min_cluster_size=20, metric='manhattan').fit(RobustScaler().fit_transform(x))
+        """
+        Function for fitting clusters on the data points observed at each state/node
+        :param clustering_method: the clustering method to be used (currently k-means | hdbscan | Isolation Forest)
+        :return: the fitted cluster estimator
+        """
+        x_train = self.attributes2dataset(self.observed_attributes)
+        if clustering_method == "hdbscan":
+            # TODO: maybe add an outlier detection layer (GLOSH) before the actual clustering
+            clusterer = hdbscan.HDBSCAN(min_cluster_size=20, metric='manhattan', prediction_data=True).\
+                fit(RobustScaler().fit_transform(x_train))
         elif clustering_method == "isolation-forest":
-            clusterer = IsolationForest(random_state=1).fit(x)
+            clusterer = IsolationForest(random_state=1).fit(x_train)
         else:
-            clusterer = KMeans(n_clusters=2).fit(x)
+            clusterer = KMeans(n_clusters=2).fit(x_train)
         return clusterer
+
+    def predict_on_clusters(self, clusterer, clustering_method='k-means'):
+        """
+        Function for predicting the cluster labels on the testing traces of the node given a fitted cluster estimator
+        :param clusterer: the fitted cluster estimator
+        :param clustering_method: the clustering method to be used (currently k-means | hdbscan | Isolation Forest)
+        :return: the predicted labels
+        """
+        x_test = self.attributes2dataset(self.testing_attributes)
+        if clustering_method == "hdbscan":
+            test_labels, _ = hdbscan.approximate_predict(clusterer, x_test.values)
+        elif clustering_method == "isolation-forest":
+            test_labels = clusterer.predict(x_test.values)
+        else:
+            test_labels = clusterer.predict(x_test.values)
+        return test_labels
 
 
 class Model:
@@ -114,20 +146,30 @@ class Model:
                         for dst_node in self.nodes_dict[src_node_label].tran_conditions.keys()]
         return destinations[np.where(destinations)[0][0]][0]
 
-    def update_attributes(self, label, observed):
+    def update_attributes(self, label, observed, attribute_type='train'):
         """
         Function for adding newly observed values for each attribute in the observed_attributes dict of each node
         :param label: the label of the node
         :param observed: the dictionary with the attributes' values to be added
+        :param attribute_type: the type of the observed attributes ('train' | 'test')
         :return:
         """
-        for attribute, obs_value in observed.items():
-            self.nodes_dict[label].observed_attributes[attribute] += obs_value
+        if attribute_type == 'train':
+            for attribute, obs_value in observed.items():
+                self.nodes_dict[label].observed_attributes[attribute] += obs_value
+        else:
+            for attribute, obs_value in observed.items():
+                self.nodes_dict[label].testing_attributes[attribute] += obs_value
 
-    def reset_attributes(self):
+    def reset_attributes(self, attribute_type='train'):
         """
         Function for resetting all observed_attributes values in all nodes
+        :param attribute_type: the type of the observed attributes ('train' | 'test')
         :return:
         """
-        for node_label in self.nodes_dict.keys():
-            self.nodes_dict[node_label].reset_observed_attributes()
+        if attribute_type == 'train':
+            for node_label in self.nodes_dict.keys():
+                self.nodes_dict[node_label].reset_observed_attributes()
+        else:
+            for node_label in self.nodes_dict.keys():
+                self.nodes_dict[node_label].reset_testing_attributes()
