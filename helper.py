@@ -27,17 +27,20 @@ def convert2flexfringe_format(win_data):
     return list(map(lambda x: ','.join(map(lambda t: str(int(t)), x)), win_data.to_numpy().tolist()))
 
 
-def aggregate_in_windows(data, window):
+def aggregate_in_windows(data, window, timed=False):
     """
     Function for aggregating specific features of a dataframe in rolling windows of length window
     Currently the following features are taken into account: source port, destination ip/port, originator's bytes,
     responder's bytes, duration, and protocol
     :param data: the input dataframe
     :param window: the window length
+    :param timed: boolean flag specifying if aggregation window should take into account the timestamps
     :return: a dataframe with the aggregated features
     """
-    # TODO: maybe roll the window on timestamps instead of indices
     old_column_names = deepcopy(data.columns.values)
+    # if the timed flag is True then timestamps are used as indices
+    if timed:
+        data.set_index('date', inplace=True)
     if 'orig_ip_bytes' in old_column_names:
         data['median_orig_bytes'] = data['orig_ip_bytes'].rolling(window).median()
         data['var_orig_bytes'] = data['orig_ip_bytes'].rolling(window).var()
@@ -48,15 +51,15 @@ def aggregate_in_windows(data, window):
         data['median_duration'] = data['duration'].rolling(window).median()
         data['var_duration'] = data['duration'].rolling(window).var()
     if 'dst_ip' in old_column_names:
-        data['unique_dst_ips'] = data['dst_ip'].rolling(window).apply(pd.nunique)
+        data['unique_dst_ips'] = data['dst_ip'].rolling(window).apply(lambda x: len(set(x)))
     if 'src_port' in old_column_names:
-        data['unique_src_ports'] = data['src_port'].rolling(window).apply(pd.nunique)
+        data['unique_src_ports'] = data['src_port'].rolling(window).apply(lambda x: len(set(x)))
         data['var_src_ports'] = data['src_port'].rolling(window).var()
     if 'dst_port' in old_column_names:
-        data['unique_dst_ports'] = data['dst_port'].rolling(window).apply(pd.nunique)
+        data['unique_dst_ports'] = data['dst_port'].rolling(window).apply(lambda x: len(set(x)))
         data['var_dst_ports'] = data['dst_port'].rolling(window).var()
     if 'protocol_num' in old_column_names:
-        data['argmax_protocol_num'] = data['protocol_num'].rolling(window).apply(lambda x: mode(x)[0])  # TODO: unsure
+        data['argmax_protocol_num'] = data['protocol_num'].rolling(window).apply(lambda x: mode(x)[0])
         data['var_protocol_num'] = data['protocol_num'].rolling(window).var()
     data.drop(columns=old_column_names, inplace=True)
     return data
@@ -103,6 +106,8 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
             traces += [convert2flexfringe_format(windowed_data[selected])]
             # update the progress variable
             cnt = windowed_data.index.tolist()[-1]
+        else:
+            print('--------------- Window with NO data identified!!! ---------------')
         # increment the window limits
         start_date = time_inc(start_date, stride)
         end_date = time_inc(start_date, window)
