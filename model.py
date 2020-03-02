@@ -4,6 +4,7 @@ import pandas as pd
 import hdbscan
 from sklearn.cluster import KMeans
 from sklearn.ensemble import IsolationForest
+from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import RobustScaler
 
 
@@ -75,34 +76,57 @@ class ModelNode:
     def fit_clusters_on_observed(self, clustering_method='k-means'):
         """
         Function for fitting clusters on the data points observed at each state/node
-        :param clustering_method: the clustering method to be used (currently k-means | hdbscan | Isolation Forest)
+        :param clustering_method: the clustering method (currently k-means | hdbscan | Isolation Forest | LOF)
         :return: the fitted cluster estimator
         """
         x_train = self.attributes2dataset(self.observed_attributes)
         if clustering_method == "hdbscan":
             # TODO: maybe add an outlier detection layer (GLOSH) before the actual clustering
             clusterer = hdbscan.HDBSCAN(min_cluster_size=20, metric='manhattan', prediction_data=True).\
-                fit(RobustScaler().fit_transform(x_train))
+                fit(RobustScaler().fit_transform(x_train.values))
         elif clustering_method == "isolation-forest":
-            clusterer = IsolationForest(random_state=1).fit(x_train)
+            clusterer = IsolationForest().fit(x_train.values)
+        elif clustering_method == "LOF":
+            clusterer = LocalOutlierFactor(metric='manhattan', novelty=True).fit(x_train.values)
         else:
-            clusterer = KMeans(n_clusters=2).fit(x_train)
+            clusterer = KMeans(n_clusters=2).fit(x_train.values)
         return clusterer
 
-    def predict_on_clusters(self, clusterer, clustering_method='k-means'):
+    def predict_on_clusters(self, clusterer, clustering_method='k-means', clustering_type='hard'):
         """
         Function for predicting the cluster labels on the testing traces of the node given a fitted cluster estimator
         :param clusterer: the fitted cluster estimator
-        :param clustering_method: the clustering method to be used (currently k-means | hdbscan | Isolation Forest)
+        :param clustering_method: the clustering method (currently k-means | hdbscan | Isolation Forest | LOF)
+        :param clustering_type: the clustering type to be used (hard or soft)
         :return: the predicted labels
         """
         x_test = self.attributes2dataset(self.testing_attributes)
-        if clustering_method == "hdbscan":
-            test_labels, _ = hdbscan.approximate_predict(clusterer, x_test.values)
-        elif clustering_method == "isolation-forest":
-            test_labels = clusterer.predict(x_test.values)
+        if clustering_type == 'hard':
+            if clustering_method == "hdbscan":
+                test_labels, _ = hdbscan.approximate_predict(clusterer, x_test.values)
+            elif clustering_method == "isolation-forest":
+                test_labels = clusterer.predict(x_test.values)
+            elif clustering_method == "LOF":
+                test_labels = clusterer.predict(x_test.values)
+            else:
+                test_labels = clusterer.predict(x_test.values)
         else:
-            test_labels = clusterer.predict(x_test.values)
+            if clustering_method == "hdbscan":
+                # in this case an array of (number of samples, number of clusters) will be returned with the
+                # probabilities of each sample belonging to each cluster
+                test_labels = hdbscan.membership_vector(clusterer, x_test.values)
+            elif clustering_method == "isolation-forest":
+                # in this case an array of (number of samples, 1) will be returned with the opposite of the anomaly
+                # score for each sample
+                test_labels = clusterer.score_samples(x_test.values)
+            elif clustering_method == "LOF":
+                # in this case an array of (number of samples, 1) will be returned with the opposite of the anomaly
+                # score for each sample
+                test_labels = clusterer.score_samples(x_test.values)
+            else:
+                # in this case an array of (number of samples, number of clusters) will be returned with the distance of
+                # each sample from each cluster's center
+                test_labels = clusterer.transform(x_test.values)
         return test_labels
 
 
