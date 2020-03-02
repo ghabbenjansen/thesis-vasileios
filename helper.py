@@ -2,6 +2,7 @@ import pandas as pd
 from pandas.tseries.offsets import DateOffset
 from copy import deepcopy
 from scipy.stats import mode
+from statistics import mean, stdev
 from model import ModelNode, Model
 import re
 
@@ -87,9 +88,10 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
     # set the initial start and end dates, as well as the empty traces' list
     start_date = data['date'].iloc[0]
     end_date = time_inc(start_date, window)
-    traces = []     # list of lists
+    traces = []  # list of lists
     cnt = 0
     tot = len(data.index)   # just for progress visualization purposes
+    progress_list = []  # still for progress visualization purposes
 
     # iterate through the input dataframe until the end date is greater than the last date recorded
     while end_date < data['date'].iloc[-1]:
@@ -104,23 +106,34 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
                 selected = windowed_data.columns.values
             # extract the trace of this window and add it to the traces' list
             traces += [convert2flexfringe_format(windowed_data[selected])]
+            # check for the existence of dominating traces to reduce the size of the window
+            if len(traces) > 1:
+                traces_lengths = list(map(len, traces))
+                if abs(len(traces[-1])-mean(traces_lengths)) > 3*stdev(traces_lengths):
+                    print('--------------- Reducing time window... ---------------')
+                    window /= 2
+                    stride /= 2
             # update the progress variable
             cnt = windowed_data.index.tolist()[-1]
         else:
             print('--------------- Window with NO data identified!!! ---------------')
+            window *= 2
+            stride *= 2
         # increment the window limits
         start_date = time_inc(start_date, stride)
         end_date = time_inc(start_date, window)
 
         # show progress
-        if int((cnt / tot) * 100) // 10 != 0 and int((cnt / tot) * 100) % 10 == 0:
-            print(str(int((cnt / tot) * 100)) + '% of the data processed...')
+        prog = int((cnt / tot) * 100)
+        if prog // 10 != 0 and prog % 10 == 0 and prog not in progress_list:
+            progress_list += [prog]
+            print(str(prog) + '% of the data processed...')
         # print(str(cnt) + '  rows processed...')
 
     print('Finished with rolling windows!!!')
     print('Starting writing traces to file...')
     # create the traces' file in the needed format
-    f = open(out_filepath + "traces.txt", "w")
+    f = open(out_filepath, "w")
     f.write(str(len(traces)) + ' ' + '100:' + str(len(selected)) + '\n')
     for trace in traces:
         f.write('1 ' + str(len(trace)) + ' 0:' + ' 0:'.join(trace) + '\n')
@@ -148,14 +161,14 @@ def parse_dot(dot_path):
     cond_regex = r"((?P<sym>\d+) (?P<ineq_symbol>(<|>|<=|>=|==)) (?P<boundary>\d+))+"
     # boolean flag used for adding states in the model
     cached = False
-    for line in re.split(r'\n\t+', dot_string):     # split the dot file in meaningful lines
+    for line in re.split(r'\n\t+', dot_string):  # split the dot file in meaningful lines
         state_matcher = re.match(state_regex, line, re.DOTALL)
         # if a new state is found while parsing
         if state_matcher is not None:
             # check if there is a state pending and, if there is, update the model
             if cached:
                 model.add_node(ModelNode(src_state, attributes, fin, tot, dst_nodes, cond_dict))
-            src_state = state_matcher.group("src_state")    # find the state number
+            src_state = state_matcher.group("src_state")  # find the state number
             # and initialize all its parameters
             attributes = {}
             fin = 0
@@ -169,7 +182,7 @@ def parse_dot(dot_path):
                 for info_matcher in re.finditer(info_regex, state_info):
                     identifier = info_matcher.group("identifier")
                     id_values = info_matcher.group("values")
-                    if 'fin' in identifier:     # the number of times the state was final
+                    if 'fin' in identifier:  # the number of times the state was final
                         fin = int(id_values)
                     elif 'symb' in identifier:  # the number of times the state was visited
                         tot = fin + int(id_values[:-1])
@@ -183,7 +196,7 @@ def parse_dot(dot_path):
         transition_matcher = re.match(transition_regex, line, re.DOTALL)
         # if a transition is identified while parsing (should be in the premises of the previously identified state)
         if transition_matcher is not None:
-            src_state_1 = transition_matcher.group("src_state")     # the source state number
+            src_state_1 = transition_matcher.group("src_state")  # the source state number
             if src_state_1 == 'I':  # again the same problem as above
                 src_state_1 = 'root'
             # just consistency check that we are still parsing the same state as before
@@ -243,7 +256,7 @@ def run_traces_on_model(traces_path, model):
     traces = traces2list(traces_path)
     for trace in traces:
         # first fire the transition from root node
-        label = model.fire_transition('root', dict())   # TODO: check if the empty dict will work
+        label = model.fire_transition('root', dict())  # TODO: check if the empty dict will work
         for record in trace:
             observed = dict(zip([str(i) for i in range(len(record))], record))
             model.update_attributes(label, observed)
