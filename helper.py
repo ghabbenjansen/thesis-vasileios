@@ -133,6 +133,8 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
     print('Finished with rolling windows!!!')
     print('Starting writing traces to file...')
     # create the traces' file in the needed format
+    if aggregation:
+        out_filepath = out_filepath.split('.')[0] + '_aggregated.' + out_filepath.split('.')[1]
     f = open(out_filepath, "w")
     f.write(str(len(traces)) + ' ' + '100:' + str(len(selected)) + '\n')
     for trace in traces:

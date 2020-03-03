@@ -51,20 +51,42 @@ if __name__ == '__main__':
     with_trace = int(input('Is there a trace file (no: 0 | yes: 1)? '))
 
     if not with_trace:
-        # set the needed filepaths
+        # set the input filepath
         training_filepath = input('Give the relative path of the dataframe to be used for training: ')
-        traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + training_filepath.split('/')[2] \
-                          + '-traces.txt'
 
         # set the features to be used in the multivariate modelling
         selected = ['src_port', 'dst_port', 'protocol_num', 'orig_ip_bytes', 'resp_ip_bytes']
 
-        # extract the traces and save them in the traces_filepath - the window and the stride sizes of the sliding
-        # window can be also specified
+        # set a mapping between features used and numbers for better identification of the traces' content
+        feature_mapping = {
+            'src_port': 0,
+            'dst_port': 1,
+            'protocol_num': 2,
+            'orig_ip_bytes': 3,
+            'resp_ip_bytes': 4,
+            'duration': 5
+        }
+
+        # extract the traces and save them in the traces' filepath - the window and the stride sizes of the sliding
+        # window, as well as the aggregation capability, can be also specified
         window, stride = helper.set_windowing_vars(training_filepath)
-        helper.extract_traces(training_filepath, traces_filepath, selected, window=window, stride=stride)
+        aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes: 1)? '))
+
+        # set the traces output filepath depending on the aggregation value
+        # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of the
+        # helper.py file
+        if not aggregation:
+            traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
+                              training_filepath.split('/')[2] + '-traces' + '-'.join([str(feature_mapping[feature])
+                                                                                      for feature in selected]) + '.txt'
+        else:
+            traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
+                              training_filepath.split('/')[2] + '-traces.txt'
+
+        helper.extract_traces(training_filepath, traces_filepath, selected, window=window, stride=stride,
+                              aggregation=aggregation)
     else:
-        # in case no traces_filepath has been provided (for example if it has already been created) provide one
+        # in case the traces' filepath already exists, provide it
         traces_filepath = input('Give the path to the input file for flexfringe: ')
 
     # and set the flags for flexfringe
