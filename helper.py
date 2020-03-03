@@ -4,6 +4,8 @@ from copy import deepcopy
 from scipy.stats import mode
 from statistics import mean, stdev
 from model import ModelNode, Model
+from tslearn.metrics import dtw
+from sklearn.preprocessing import MinMaxScaler
 import re
 
 
@@ -19,6 +21,25 @@ def set_windowing_vars(in_filepath):
     return 50 * median_time_diff, 10 * median_time_diff
 
 
+def traces_similarity(trace1, trace2, multivariate=True, normalization=True):
+    """
+    Function for calculating the similarity between two input traces. The traces are in the form of list of lists and
+    are dealt either as multivariate series or as multiple univariate series depending on the value of the multivariate
+    flag provided
+    :param trace1: the first trace
+    :param trace2: the second trace
+    :param multivariate: the multivariate flag
+    :param normalization: the normalization flag for performing (or not) min-max normalization
+    :return: the similarity score (the lower the score the higher the similarity)
+    """
+    if normalization:
+        traces = MinMaxScaler().fit_transform(trace1 + trace2)
+        trace1 = traces[:len(trace1)].tolist()
+        trace2 = traces[len(trace1):].tolist()
+    return dtw(trace1, trace2) if multivariate else mean([dtw(list(list(zip(*trace1))[j]), list(list(zip(*trace2))[j]))
+                                                          for j in range(len(trace1[0]))])
+
+
 def convert2flexfringe_format(win_data):
     """
     Function to convert the windowed data into a trace in the format accepted by the multivariate version of flexfringe
@@ -26,6 +47,15 @@ def convert2flexfringe_format(win_data):
     :return: a list of the events in the trace with features separated by comma in each event
     """
     return list(map(lambda x: ','.join(map(lambda t: str(int(t)), x)), win_data.to_numpy().tolist()))
+
+
+def trace2list(trace):
+    """
+    Function for converting a list of string records of a trace to a list of lists
+    :param trace: the list with the string records
+    :return: the converted list of lists
+    """
+    return list(map(lambda x: list(map(int, x.split(','))), trace))
 
 
 def aggregate_in_windows(data, window, timed=False):
@@ -89,6 +119,8 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
     start_date = data['date'].iloc[0]
     end_date = time_inc(start_date, window)
     traces = []  # list of lists
+    # init_window = deepcopy(window)      # a shallow copy of the window
+    # init_stride = deepcopy(stride)      # a shallow copy of the stride
     cnt = 0
     tot = len(data.index)   # just for progress visualization purposes
     progress_list = []  # still for progress visualization purposes
@@ -106,19 +138,33 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
                 selected = windowed_data.columns.values
             # extract the trace of this window and add it to the traces' list
             traces += [convert2flexfringe_format(windowed_data[selected])]
-            # check for the existence of dominating traces to reduce the size of the window
+            # dynamic check of the windowing procedure
             if len(traces) > 1:
+                # TODO: set the limits for the dynamic windows to more robust values
+                # first check if there are any huge or tiny traces to adjust the window size
                 traces_lengths = list(map(len, traces))
-                if abs(len(traces[-1])-mean(traces_lengths)) > 3*stdev(traces_lengths):
+                if len(traces[-1]) - mean(traces_lengths) > 3 * stdev(traces_lengths):
                     print('--------------- Reducing time window... ---------------')
                     window /= 2
+                elif len(traces[-1]) - mean(traces_lengths) < -3 * stdev(traces_lengths):
+                    print('--------------- Increasing time window... ---------------')
+                    window *= 2
+                # then check the novelty of the content of the window
+                if traces_similarity(deepcopy(trace2list(traces[-1])), deepcopy(trace2list(traces[-2]))) < 0.2:
+                    print('--------------- Increasing the stride of the window... ---------------')
+                    stride *= 2
+                elif traces_similarity(deepcopy(trace2list(traces[-1])), deepcopy(trace2list(traces[-2]))) > 1:
+                    print('--------------- Reducing the stride of the window... ---------------')
                     stride /= 2
             # update the progress variable
             cnt = windowed_data.index.tolist()[-1]
+            # # reset window size and stride since data were found in the window
+            # stride = deepcopy(init_stride)
+            # window = deepcopy(init_window)
         else:
             print('--------------- Window with NO data identified!!! ---------------')
+            stride = deepcopy(window)   # if there are no data in the current window then skip it
             window *= 2
-            stride *= 2
         # increment the window limits
         start_date = time_inc(start_date, stride)
         end_date = time_inc(start_date, window)

@@ -137,9 +137,9 @@ class ModelNode:
         """
         # features in rows and samples in columns
         x_train = np.transpose(self.attributes2dataset(self.observed_attributes).values)
-        m = np.mean(x_train, axis=1) / x_train.shape[1]
+        m = np.mean(x_train, axis=1) / x_train.shape[1]     # the estimated mean
         m = m.reshape([x_train.shape[0], 1])
-        sigma = np.dot(x_train - m, (x_train - m).T) / x_train.shape[1]
+        sigma = np.dot(x_train - m, (x_train - m).T) / x_train.shape[1]     # the estimated covariance matrix
         return m, sigma
 
     def predict_on_gaussian(self, m, sigma, epsilon=0.01, prediction_type='hard'):
@@ -152,8 +152,8 @@ class ModelNode:
         :return: the prediction labels
         """
         x_test = np.transpose(self.attributes2dataset(self.testing_attributes))
-        sigma_det = np.linalg.det(sigma)
-        sigma_inv = np.linalg.inv(sigma)
+        sigma_det = np.linalg.det(sigma)    # the determinant of the covariance matrix
+        sigma_inv = np.linalg.inv(sigma)    # the inverse of the covariance matrix
         test_labels = np.exp(-np.dot(np.dot((x_test - m).T, sigma_inv), x_test - m) / 2) / \
                       ((2 * pi) ** (x_test.shape[0] / 2) * sqrt(sigma_det))
         if prediction_type == 'hard':
