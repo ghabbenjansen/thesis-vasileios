@@ -6,6 +6,7 @@ from sklearn.cluster import KMeans
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import RobustScaler
+from math import pi, sqrt
 
 
 class ModelNode:
@@ -82,7 +83,7 @@ class ModelNode:
         x_train = self.attributes2dataset(self.observed_attributes)
         if clustering_method == "hdbscan":
             # TODO: maybe add an outlier detection layer (GLOSH) before the actual clustering
-            clusterer = hdbscan.HDBSCAN(min_cluster_size=20, metric='manhattan', prediction_data=True).\
+            clusterer = hdbscan.HDBSCAN(min_cluster_size=20, metric='manhattan', prediction_data=True). \
                 fit(RobustScaler().fit_transform(x_train.values))
         elif clustering_method == "isolation-forest":
             clusterer = IsolationForest().fit(x_train.values)
@@ -127,6 +128,36 @@ class ModelNode:
                 # in this case an array of (number of samples, number of clusters) will be returned with the distance of
                 # each sample from each cluster's center
                 test_labels = clusterer.transform(x_test.values)
+        return test_labels
+
+    def fit_multivariate_gaussian(self):
+        """
+        Function for fitting a multivariate gaussian distribution on the the data points observed at each state/node
+        :return: the estimated mean and covariance matrix of the fitted distribution
+        """
+        # features in rows and samples in columns
+        x_train = np.transpose(self.attributes2dataset(self.observed_attributes).values)
+        m = np.mean(x_train, axis=1) / x_train.shape[1]
+        m = m.reshape([x_train.shape[0], 1])
+        sigma = np.dot(x_train - m, (x_train - m).T) / x_train.shape[1]
+        return m, sigma
+
+    def predict_on_gaussian(self, m, sigma, epsilon=0.01, prediction_type='hard'):
+        """
+        Function for predicting anomalies on the fitted multivariate gaussian distribution
+        :param m: the estimated mean
+        :param sigma: the estimated covariance matrix
+        :param epsilon: the detection threshold
+        :param prediction_type: the prediction type (hard or soft)
+        :return: the prediction labels
+        """
+        x_test = np.transpose(self.attributes2dataset(self.testing_attributes))
+        sigma_det = np.linalg.det(sigma)
+        sigma_inv = np.linalg.inv(sigma)
+        test_labels = np.exp(-np.dot(np.dot((x_test - m).T, sigma_inv), x_test - m) / 2) / \
+                      ((2 * pi) ** (x_test.shape[0] / 2) * sqrt(sigma_det))
+        if prediction_type == 'hard':
+            test_labels = (test_labels < epsilon).astype(np.int)
         return test_labels
 
 
