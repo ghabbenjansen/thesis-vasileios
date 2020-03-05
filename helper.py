@@ -58,7 +58,7 @@ def trace2list(trace):
     return list(map(lambda x: list(map(int, x.split(','))), trace))
 
 
-def aggregate_in_windows(data, window, timed=False):
+def aggregate_in_windows(data, window, timed=False, resample=False):
     """
     Function for aggregating specific features of a dataframe in rolling windows of length window
     Currently the following features are taken into account: source port, destination ip/port, originator's bytes,
@@ -66,32 +66,57 @@ def aggregate_in_windows(data, window, timed=False):
     :param data: the input dataframe
     :param window: the window length
     :param timed: boolean flag specifying if aggregation window should take into account the timestamps
+    :param resample: boolean flag specifying if aggregation window should be rolling or resampling
     :return: a dataframe with the aggregated features
     """
     old_column_names = deepcopy(data.columns.values)
     # if the timed flag is True then timestamps are used as indices
     if timed:
         data.set_index('date', inplace=True)
-    if 'orig_ip_bytes' in old_column_names:
-        data['median_orig_bytes'] = data['orig_ip_bytes'].rolling(window).median()
-        data['var_orig_bytes'] = data['orig_ip_bytes'].rolling(window).var()
-    if 'resp_ip_bytes' in old_column_names:
-        data['median_resp_bytes'] = data['resp_ip_bytes'].rolling(window).median()
-        data['var_resp_bytes'] = data['resp_ip_bytes'].rolling(window).var()
-    if 'duration' in old_column_names:
-        data['median_duration'] = data['duration'].rolling(window).median()
-        data['var_duration'] = data['duration'].rolling(window).var()
-    if 'dst_ip' in old_column_names:
-        data['unique_dst_ips'] = data['dst_ip'].rolling(window).apply(lambda x: len(set(x)))
-    if 'src_port' in old_column_names:
-        data['unique_src_ports'] = data['src_port'].rolling(window).apply(lambda x: len(set(x)))
-        data['var_src_ports'] = data['src_port'].rolling(window).var()
-    if 'dst_port' in old_column_names:
-        data['unique_dst_ports'] = data['dst_port'].rolling(window).apply(lambda x: len(set(x)))
-        data['var_dst_ports'] = data['dst_port'].rolling(window).var()
-    if 'protocol_num' in old_column_names:
-        data['argmax_protocol_num'] = data['protocol_num'].rolling(window).apply(lambda x: mode(x)[0])
-        data['var_protocol_num'] = data['protocol_num'].rolling(window).var()
+    if not resample:
+        if 'orig_ip_bytes' in old_column_names:
+            data['median_orig_bytes'] = data['orig_ip_bytes'].rolling(window).median()
+            data['var_orig_bytes'] = data['orig_ip_bytes'].rolling(window).var()
+        if 'resp_ip_bytes' in old_column_names:
+            data['median_resp_bytes'] = data['resp_ip_bytes'].rolling(window).median()
+            data['var_resp_bytes'] = data['resp_ip_bytes'].rolling(window).var()
+        if 'duration' in old_column_names:
+            data['median_duration'] = data['duration'].rolling(window).median()
+            data['var_duration'] = data['duration'].rolling(window).var()
+        if 'dst_ip' in old_column_names:
+            data['unique_dst_ips'] = data['dst_ip'].rolling(window).apply(lambda x: len(set(x)))
+        if 'src_port' in old_column_names:
+            data['unique_src_ports'] = data['src_port'].rolling(window).apply(lambda x: len(set(x)))
+            data['var_src_ports'] = data['src_port'].rolling(window).var()
+        if 'dst_port' in old_column_names:
+            data['unique_dst_ports'] = data['dst_port'].rolling(window).apply(lambda x: len(set(x)))
+            data['var_dst_ports'] = data['dst_port'].rolling(window).var()
+        if 'protocol_num' in old_column_names:
+            data['argmax_protocol_num'] = data['protocol_num'].rolling(window).apply(lambda x: mode(x)[0])
+            data['var_protocol_num'] = data['protocol_num'].rolling(window).var()
+    else:
+        # can be called only if timed flag has been set to True
+        # TODO: check if all aggregation functions are compatible with resample
+        if 'orig_ip_bytes' in old_column_names:
+            data['median_orig_bytes'] = data['orig_ip_bytes'].resample(window).median()
+            data['var_orig_bytes'] = data['orig_ip_bytes'].resample(window).var()
+        if 'resp_ip_bytes' in old_column_names:
+            data['median_resp_bytes'] = data['resp_ip_bytes'].resample(window).median()
+            data['var_resp_bytes'] = data['resp_ip_bytes'].resample(window).var()
+        if 'duration' in old_column_names:
+            data['median_duration'] = data['duration'].resample(window).median()
+            data['var_duration'] = data['duration'].resample(window).var()
+        if 'dst_ip' in old_column_names:
+            data['unique_dst_ips'] = data['dst_ip'].resample(window).apply(lambda x: len(set(x)))
+        if 'src_port' in old_column_names:
+            data['unique_src_ports'] = data['src_port'].resample(window).apply(lambda x: len(set(x)))
+            data['var_src_ports'] = data['src_port'].resample(window).var()
+        if 'dst_port' in old_column_names:
+            data['unique_dst_ports'] = data['dst_port'].resample(window).apply(lambda x: len(set(x)))
+            data['var_dst_ports'] = data['dst_port'].resample(window).var()
+        if 'protocol_num' in old_column_names:
+            data['argmax_protocol_num'] = data['protocol_num'].resample(window).apply(lambda x: mode(x)[0])
+            data['var_protocol_num'] = data['protocol_num'].resample(window).var()
     data.drop(columns=old_column_names, inplace=True)
     return data
 
