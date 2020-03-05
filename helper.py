@@ -1,5 +1,6 @@
 import pandas as pd
 from pandas.tseries.offsets import DateOffset
+from datetime import timedelta
 from copy import deepcopy
 from scipy.stats import mode
 from statistics import mean, stdev
@@ -9,28 +10,31 @@ from sklearn.preprocessing import MinMaxScaler
 import re
 
 
-def set_windowing_vars(in_filepath):
+def set_windowing_vars(in_filepath, approx_length):
     """
-    Function for automatically calculating the time window and stride to be used for creating the traces
+    Function for automatically calculating the time windows and strides to be used for creating the traces at each time
+    step, given a preference on the number of records to be contained in each trace.
     :param in_filepath: the relative path of the input dataframe
-    :return: a tuple with the calculated time window and stride
+    :param approx_length: the approximate number of records desired to be put in every trace
+    :return: a tuple with the calculated time windows and strides in a dataframe format
     """
     data = pd.read_pickle(in_filepath)
-    # find the median of the time differences in the dataframe and use it to calculate the needed windowing variables
-    median_time_diff = data['date'].sort_values().diff().median()
-    return 50 * median_time_diff, 10 * median_time_diff
+    # find the medians of the time differences in the dataframe for rolling windows of approx_length length
+    median_diffs = data['date'].sort_values().diff().dt.total_seconds().rolling(approx_length).median()
+    median_diffs = median_diffs.fillna(method='bfill').apply(lambda x: timedelta(seconds=x))
+    return 100 * median_diffs, 20 * median_diffs
 
 
-def traces_similarity(trace1, trace2, multivariate=True, normalization=True):
+def traces_dissimilarity(trace1, trace2, multivariate=True, normalization=True):
     """
-    Function for calculating the similarity between two input traces. The traces are in the form of list of lists and
+    Function for calculating the dissimilarity between two input traces. The traces are in the form of list of lists and
     are dealt either as multivariate series or as multiple univariate series depending on the value of the multivariate
     flag provided
     :param trace1: the first trace
     :param trace2: the second trace
     :param multivariate: the multivariate flag
     :param normalization: the normalization flag for performing (or not) min-max normalization
-    :return: the similarity score (the lower the score the higher the similarity)
+    :return: the dissimilarity score (the lower the score the higher the similarity)
     """
     if normalization:
         traces = MinMaxScaler().fit_transform(trace1 + trace2)
@@ -121,7 +125,7 @@ def aggregate_in_windows(data, window, timed=False, resample=False):
     return data
 
 
-def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggregation=0):
+def extract_traces(in_filepath, out_filepath, selected, window, stride, dynamic=True, aggregation=0):
     """
     Function for extracting traces from the dataframe stored in the in_filepath and saving them in out_filepath. The
     features to be taken into account are provided in the selected list. Each trace is extracted by rolling a window of
@@ -132,6 +136,7 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
     :param selected: the features to be used
     :param window: the window size
     :param stride: the stride size
+    :param dynamic: boolean flag about the use of dynamically changing windows
     :param aggregation: the aggregation flag - if set to 1, then aggregation windows are created
     :return: creates and stores the traces' file extracted from the input dataframe
     """
@@ -140,15 +145,23 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
     # create an anonymous function for increasing timestamps given the type of the window (int or Timedelta)
     time_inc = lambda x, w: x + DateOffset(seconds=w) if type(window) == int else x + w
 
-    # set the initial start and end dates, as well as the empty traces' list
+    # set the initial start and end dates, as well as the empty traces' list and the window limits
+    # use a counter for the new window structure
+    window_cnt = 0
     start_date = data['date'].iloc[0]
-    end_date = time_inc(start_date, window)
+    if dynamic:
+        end_date = time_inc(start_date, window.median())
+    else:
+        end_date = time_inc(start_date, window[window_cnt])  # change
     traces = []  # list of lists
-    # init_window = deepcopy(window)      # a shallow copy of the window
-    # init_stride = deepcopy(stride)      # a shallow copy of the stride
+    min_window, max_window = (window.min(), window.max())
+    # special counters used for counting the consecutive times a window with 0 records has been retrieved
+    prev_zero_cnt = 0
+    zero_cnt = 0
+    # structures just for progress visualization purposes
     cnt = 0
-    tot = len(data.index)   # just for progress visualization purposes
-    progress_list = []  # still for progress visualization purposes
+    tot = len(data.index)
+    progress_list = []
 
     # iterate through the input dataframe until the end date is greater than the last date recorded
     while end_date < data['date'].iloc[-1]:
@@ -163,42 +176,74 @@ def extract_traces(in_filepath, out_filepath, selected, window=5, stride=1, aggr
                 selected = windowed_data.columns.values
             # extract the trace of this window and add it to the traces' list
             traces += [convert2flexfringe_format(windowed_data[selected])]
-            # dynamic check of the windowing procedure
-            if len(traces) > 1:
-                # TODO: set the limits for the dynamic windows to more robust values
-                # first check if there are any huge or tiny traces to adjust the window size
-                traces_lengths = list(map(len, traces))
-                if len(traces[-1]) - mean(traces_lengths) > 3 * stdev(traces_lengths):
-                    print('--------------- Reducing time window... ---------------')
-                    window /= 2
-                elif len(traces[-1]) - mean(traces_lengths) < -3 * stdev(traces_lengths):
-                    print('--------------- Increasing time window... ---------------')
-                    window *= 2
-                # then check the novelty of the content of the window
-                if traces_similarity(deepcopy(trace2list(traces[-1])), deepcopy(trace2list(traces[-2]))) < 0.2:
-                    print('--------------- Increasing the stride of the window... ---------------')
-                    stride *= 2
-                elif traces_similarity(deepcopy(trace2list(traces[-1])), deepcopy(trace2list(traces[-2]))) > 1:
-                    print('--------------- Reducing the stride of the window... ---------------')
-                    stride /= 2
+            if dynamic:
+                # reset the counters of consecutive empty windows
+                prev_zero_cnt = 0
+                zero_cnt = 0
+                # dynamic check of the windowing procedure
+                if len(traces) > 1:
+                    # TODO: set the limits for the dynamic windows to more robust values
+                    # first check if there are any huge or tiny traces to adjust the window size
+                    traces_lengths = list(map(len, traces))
+                    if len(traces[-1]) - mean(traces_lengths) > 3 * stdev(traces_lengths):
+                        print('--------------- Reducing the size of the window... ---------------')
+                        window = max(window / 2, min_window)
+                        # we don't let the size of the window become less than the stride since in that case data points
+                        # can be missed
+                        if window <= stride:
+                            stride /= 2
+                    elif len(traces[-1]) - mean(traces_lengths) < -3 * stdev(traces_lengths):
+                        print('--------------- Increasing the size of the window... ---------------')
+                        window = min(window * 2, max_window)
+                    else:
+                        # then check the novelty of the content of the window
+                        dissim = traces_dissimilarity(deepcopy(trace2list(traces[-1])), deepcopy(trace2list(traces[-2])))
+                        if dissim < 0.05:
+                            print('--------------- Increasing the stride of the window... ---------------')
+                            stride *= 2
+                            # we don't let the size of the window become less than the stride since in that case data
+                            # points can be missed
+                            if stride >= window:
+                                window = min(window * 2, max_window)
+                                if window == max_window:
+                                    stride = deepcopy(max_window / 2)
+                        elif dissim > 2.5:
+                            print('--------------- Reducing the stride of the window... ---------------')
+                            stride /= 2
+                        else:
+                            print('--------------- The size and stride of the window remain the same ---------------')
             # update the progress variable
             cnt = windowed_data.index.tolist()[-1]
-            # # reset window size and stride since data were found in the window
-            # stride = deepcopy(init_stride)
-            # window = deepcopy(init_window)
         else:
-            print('--------------- Window with NO data identified!!! ---------------')
-            stride = deepcopy(window)   # if there are no data in the current window then skip it
-            window *= 2
-        # increment the window limits
-        start_date = time_inc(start_date, stride)
-        end_date = time_inc(start_date, window)
+            if dynamic:
+                zero_cnt += 1
+                print('--------------- Window with NO data identified!!! ---------------')
+                if zero_cnt - prev_zero_cnt == 20:
+                    window = min(window * 2, max_window)
+                    prev_zero_cnt = deepcopy(zero_cnt)
+                if zero_cnt - prev_zero_cnt == 10:
+                    stride *= 2
+                    if stride >= window:
+                        window *= 2
+                        if window == max_window:
+                            stride = deepcopy(max_window / 2)
+            else:
+                pass
+
+        # increment the window limits according to the way the window is calculated (dynamic | static)
+        if dynamic:
+            start_date = time_inc(start_date, stride)
+            end_date = time_inc(start_date, window)
+        else:
+            start_date = time_inc(start_date, stride[window_cnt])
+            window_cnt = data.index[data['date'] >= start_date].tolist()[0]
+            end_date = time_inc(start_date, window[window_cnt])
 
         # show progress
         prog = int((cnt / tot) * 100)
         if prog // 10 != 0 and prog % 10 == 0 and prog not in progress_list:
             progress_list += [prog]
-            print(str(prog) + '% of the data processed...')
+            print('\n' + str(prog) + '% of the data processed...' + '\n')
         # print(str(cnt) + '  rows processed...')
 
     print('Finished with rolling windows!!!')

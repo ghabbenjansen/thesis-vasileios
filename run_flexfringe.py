@@ -69,7 +69,7 @@ if __name__ == '__main__':
 
         # extract the traces and save them in the traces' filepath - the window and the stride sizes of the sliding
         # window, as well as the aggregation capability, can be also specified
-        window, stride = helper.set_windowing_vars(training_filepath)
+        window, stride = helper.set_windowing_vars(training_filepath, 500)
         aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes: 1)? '))
 
         # set the traces output filepath depending on the aggregation value
@@ -77,13 +77,13 @@ if __name__ == '__main__':
         # helper.py file
         if not aggregation:
             traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
-                              training_filepath.split('/')[2] + '-traces' + '-'.join([str(feature_mapping[feature])
+                              training_filepath.split('/')[2] + '-traces-' + '-'.join([str(feature_mapping[feature])
                                                                                       for feature in selected]) + '.txt'
         else:
             traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
                               training_filepath.split('/')[2] + '-traces.txt'
 
-        helper.extract_traces(training_filepath, traces_filepath, selected, window=window, stride=stride,
+        helper.extract_traces(training_filepath, traces_filepath, selected, window=window, stride=stride, dynamic=False,
                               aggregation=aggregation)
     else:
         # in case the traces' filepath already exists, provide it
