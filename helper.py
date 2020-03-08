@@ -11,19 +11,16 @@ import re
 from connection_clustering import select_hosts
 
 
-def set_windowing_vars(in_filepath, approx_length):
+def set_windowing_vars(data):
     """
-    Function for automatically calculating the time windows and strides to be used for creating the traces at each time
-    step, given a preference on the number of records to be contained in each trace.
-    :param in_filepath: the relative path of the input dataframe
-    :param approx_length: the approximate number of records desired to be put in every trace
+    Function for automatically calculating an initial estimation of the time windows and strides to be used for creating
+    the traces, as the median of the time differences between the flows in the dataframe
+    :param data: the input dataframe
     :return: a tuple with the calculated time windows and strides in a dataframe format
     """
-    data = pd.read_pickle(in_filepath)
-    # find the medians of the time differences in the dataframe for rolling windows of approx_length length
-    median_diffs = data['date'].sort_values().diff().dt.total_seconds().rolling(approx_length).median()
-    median_diffs = median_diffs.fillna(method='bfill').apply(lambda x: timedelta(seconds=x))
-    return 100 * median_diffs, 20 * median_diffs
+    # find the median of the time differences in the dataframe
+    median_diff = data['date'].sort_values().diff().median()
+    return 100 * median_diff, 20 * median_diff
 
 
 def traces_dissimilarity(trace1, trace2, multivariate=True, normalization=True):
@@ -61,6 +58,17 @@ def trace2list(trace):
     :return: the converted list of lists
     """
     return list(map(lambda x: list(map(int, x.split(','))), trace))
+
+
+def calculate_window_mask(data, start_date, end_date):
+    """
+    Function for calculating the window mask for the input dataframe given a starting and an ending date
+    :param data: the input dataframe
+    :param start_date: the starting date
+    :param end_date: the ending date
+    :return: the window mask
+    """
+    return (data['date'] >= start_date) & (data['date'] <= end_date)
 
 
 def aggregate_in_windows(data, window, timed=False, resample=False):
@@ -126,52 +134,139 @@ def aggregate_in_windows(data, window, timed=False, resample=False):
     return data
 
 
-def extract_traces(in_filepath, out_filepath, selected, window, stride, dynamic=True, aggregation=0):
+def extract_traces(data, out_filepath, selected, window, stride, trace_limits, dynamic=True, aggregation=False):
     """
-    Function for extracting traces from the dataframe stored in the in_filepath and saving them in out_filepath. The
-    features to be taken into account are provided in the selected list. Each trace is extracted by rolling a window of
-    window seconds in the input data with a stride of stride seconds. If aggregation flag is set to 1, then aggregation
-    windows are created in each rolling window
-    :param in_filepath: the relative path of the input dataframe
+    Function for extracting traces from the imput dataframe and saving them in out_filepath. The features to be taken
+    into account are provided in the selected list. Each trace is extracted by rolling a window of window seconds
+    in the input data with a stride of stride seconds. If dynamic flag is set to True, then a dynamically changing
+    window is used instead. If aggregation flag is set to True, then aggregation windows are created in each rolling
+    window.
+    :param data: the input dataframe
     :param out_filepath: the relative path of the output traces' file
     :param selected: the features to be used
     :param window: the window size
     :param stride: the stride size
+    :param trace_limits: a tuple containing the minimum and maximum length that a trace can have
     :param dynamic: boolean flag about the use of dynamically changing windows
     :param aggregation: the aggregation flag - if set to 1, then aggregation windows are created
     :return: creates and stores the traces' file extracted from the input dataframe
     """
-    data = pd.read_pickle(in_filepath)
-    # select only hosts with significant number of flows (currently over 50)
-    data = select_hosts(data)   # TODO: check if to use connections instead of hosts
 
     # create an anonymous function for increasing timestamps given the type of the window (int or Timedelta)
     time_inc = lambda x, w: x + DateOffset(seconds=w) if type(window) == int else x + w
 
     # set the initial start and end dates, as well as the empty traces' list and the window limits
-    # use a counter for the new window structure
-    window_cnt = 0
     start_date = data['date'].iloc[0]
-    if dynamic:
-        end_date = time_inc(start_date, window.median())
-    else:
-        end_date = time_inc(start_date, window[window_cnt:window_cnt+300].median())  # change
+    end_date = time_inc(start_date, window)
     traces = []  # list of lists
-    min_window, max_window = (window.min(), window.max())
-    # special counters used for counting the consecutive times a window with 0 records has been retrieved
-    prev_zero_cnt = 0
-    zero_cnt = 0
+    # the minimum and maximum indices of the time window under consideration
+    # two values are used for the indices of two consecutive windows
+    min_idx = [-1, -1]
+    max_idx = [-1, -1]
     # structures just for progress visualization purposes
     cnt = 0
     tot = len(data.index)
     progress_list = []
+    # extract the traces' limits
+    min_trace_length, max_trace_length = trace_limits
 
     # iterate through the input dataframe until the end date is greater than the last date recorded
     while end_date < data['date'].iloc[-1]:
         # retrieve the window of interest
-        time_mask = (data['date'] >= start_date) & (data['date'] <= end_date)
+        time_mask = calculate_window_mask(data, start_date, end_date)
         windowed_data = data[time_mask]
-        if len(windowed_data.index.tolist()) != 0:
+        window_len = len(windowed_data.index.tolist())
+        # if there is at least one record in the window
+        if window_len != 0:
+            if dynamic:
+                print('This is the window length at the beginning of the loop: ' + str(window_len))
+                print(data.index[time_mask].tolist()[0], data.index[time_mask].tolist()[-1], window)
+                # first check the case of a very large window
+                while window_len > max_trace_length:
+                    print('-------------- Too many flows in the trace ==> Reducing time window... --------------')
+                    print(window_len)
+                    window /= 2
+                    if stride >= window:
+                        stride /= 5
+                    end_date = time_inc(start_date, window)
+                    time_mask = calculate_window_mask(data, start_date, end_date)
+                    window_len = len(data[time_mask].index.tolist())
+
+                print('This is the window length after checking for max at first: ' + str(window_len))
+
+                # then check the case of a very small window
+                while window_len < min_trace_length:
+                    print('-------------- Too few flows in the trace ==> Increasing time window... --------------')
+                    print(window_len)
+                    window *= 2
+                    end_date = time_inc(start_date, window)
+                    time_mask = calculate_window_mask(data, start_date, end_date)
+                    window_len = len(data[time_mask].index.tolist())
+
+                print('This is the window length after checking for min at first: ' + str(window_len))
+
+                # store the minimum and maximum indices of the time window to evaluate how much it moved
+                if min_idx[0] == -1:    # the case of the first recorded time window
+                    min_idx[0] = data.index[time_mask].tolist()[0]
+                    max_idx[0] = data.index[time_mask].tolist()[-1]
+                elif min_idx[1] == -1:  # the case of the second recorded time window
+                    min_idx[1] = data.index[time_mask].tolist()[0]
+                    max_idx[1] = data.index[time_mask].tolist()[-1]
+                else:                   # otherwise update the previous values and add the new ones
+                    min_idx[0] = deepcopy(min_idx[1])
+                    max_idx[0] = deepcopy(max_idx[1])
+                    min_idx[1] = data.index[time_mask].tolist()[0]
+                    max_idx[1] = data.index[time_mask].tolist()[-1]
+
+                print('This is the window length before checking for same: ' + str(window_len))
+
+                # check also if the time window captured new information
+                while min_idx[0] == min_idx[1] and max_idx[0] == max_idx[1]:
+                    print('-------------- No change between traces ==> Increasing the stride... --------------')
+                    stride *= 2
+                    if stride >= window:
+                        window *= 5
+                    start_date = time_inc(start_date, stride)
+                    end_date = time_inc(start_date, window)
+                    time_mask = calculate_window_mask(data, start_date, end_date)
+                    window_len = len(data[time_mask].index.tolist())
+                    if window_len != 0:
+                        min_idx[1] = data.index[time_mask].tolist()[0]
+                        max_idx[1] = data.index[time_mask].tolist()[-1]
+
+                print('This is the window length now: ' + str(window_len))
+
+                # first check the case of a very large window
+                while window_len > max_trace_length:
+                    print('-------------- Too many flows in the trace ==> Reducing time window... --------------')
+                    print(window_len)
+                    window /= 2
+                    if stride >= window:
+                        stride /= 5
+                    end_date = time_inc(start_date, window)
+                    time_mask = calculate_window_mask(data, start_date, end_date)
+                    window_len = len(data[time_mask].index.tolist())
+                    min_idx[1] = data.index[time_mask].tolist()[0]
+                    max_idx[1] = data.index[time_mask].tolist()[-1]
+
+                print('This is the window length after checking for max: ' + str(window_len))
+
+                # then check the case of a very small window
+                while window_len < min_trace_length:
+                    print('-------------- Too few flows in the trace ==> Increasing time window... --------------')
+                    print(window_len)
+                    window *= 2
+                    end_date = time_inc(start_date, window)
+                    time_mask = calculate_window_mask(data, start_date, end_date)
+                    window_len = len(data[time_mask].index.tolist())
+                    min_idx[1] = data.index[time_mask].tolist()[0]
+                    max_idx[1] = data.index[time_mask].tolist()[-1]
+
+                print('This is the window length after checking for min: ' + str(window_len))
+
+                # finally get the current window
+                windowed_data = data[time_mask]
+
             # create aggregated features if needed (currently with a hard-coded window length)
             if aggregation:
                 windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True),
@@ -179,69 +274,31 @@ def extract_traces(in_filepath, out_filepath, selected, window, stride, dynamic=
                 selected = windowed_data.columns.values
             # extract the trace of this window and add it to the traces' list
             traces += [convert2flexfringe_format(windowed_data[selected])]
-            if dynamic:
-                # reset the counters of consecutive empty windows
-                prev_zero_cnt = 0
-                zero_cnt = 0
-                # dynamic check of the windowing procedure
-                if len(traces) > 1:
-                    # TODO: set the limits for the dynamic windows to more robust values
-                    # first check if there are any huge or tiny traces to adjust the window size
-                    traces_lengths = list(map(len, traces))
-                    if len(traces[-1]) - mean(traces_lengths) > 3 * stdev(traces_lengths):
-                        print('--------------- Reducing the size of the window... ---------------')
-                        window = max(window / 2, min_window)
-                        # we don't let the size of the window become less than the stride since in that case data points
-                        # can be missed
-                        if window <= stride:
-                            stride /= 2
-                    elif len(traces[-1]) - mean(traces_lengths) < -3 * stdev(traces_lengths):
-                        print('--------------- Increasing the size of the window... ---------------')
-                        window = min(window * 2, max_window)
-                    else:
-                        # then check the novelty of the content of the window
-                        dissim = traces_dissimilarity(deepcopy(trace2list(traces[-1])), deepcopy(trace2list(traces[-2])))
-                        if dissim < 0.05:
-                            print('--------------- Increasing the stride of the window... ---------------')
-                            stride *= 2
-                            # we don't let the size of the window become less than the stride since in that case data
-                            # points can be missed
-                            if stride >= window:
-                                window = min(window * 2, max_window)
-                                if window == max_window:
-                                    stride = deepcopy(max_window / 2)
-                        elif dissim > 2.5:
-                            print('--------------- Reducing the stride of the window... ---------------')
-                            stride /= 2
-                        else:
-                            print('--------------- The size and stride of the window remain the same ---------------')
+
+            # dissim = traces_dissimilarity(deepcopy(trace2list(traces[-1])), deepcopy(trace2list(traces[-2])))
+
             # update the progress variable
             cnt = data.index[time_mask].tolist()[-1]
-        else:
-            if dynamic:
-                zero_cnt += 1
-                print('--------------- Window with NO data identified!!! ---------------')
-                if zero_cnt - prev_zero_cnt == 20:
-                    window = min(window * 2, max_window)
-                    prev_zero_cnt = deepcopy(zero_cnt)
-                if zero_cnt - prev_zero_cnt == 10:
-                    stride *= 2
-                    if stride >= window:
-                        window *= 2
-                        if window == max_window:
-                            stride = deepcopy(max_window / 2)
-            else:
-                pass
 
-        # increment the window limits according to the way the window is calculated (dynamic | static)
-        if dynamic:
+            # increment the window limits
             start_date = time_inc(start_date, stride)
             end_date = time_inc(start_date, window)
+        # if there are no records in the window
         else:
-            r = pd.RangeIndex(window_cnt, min(window_cnt+20, window.shape[0]))
-            start_date = time_inc(start_date, min(stride[r].median(), window[r].median()))
-            window_cnt = data.index[data['date'] >= start_date].tolist()[0]
-            end_date = time_inc(start_date, window[window_cnt:min(window_cnt+20, window.shape[0])].median())
+            if dynamic:
+                while window_len == 0:
+                    print('-------------- No records in the trace ==> Increasing the stride... --------------')
+                    stride *= 2
+                    if stride >= window:
+                        window *= 5
+                    start_date = time_inc(start_date, stride)
+                    end_date = time_inc(start_date, window)
+                    time_mask = calculate_window_mask(data, start_date, end_date)
+                    window_len = len(data[time_mask].index.tolist())
+            else:
+                # increment the window limits
+                start_date = time_inc(start_date, stride)
+                end_date = time_inc(start_date, window)
 
         # show progress
         prog = int((cnt / tot) * 100)

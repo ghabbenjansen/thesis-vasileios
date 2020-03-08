@@ -1,6 +1,8 @@
 import subprocess
 import graphviz
 import helper
+from connection_clustering import select_hosts
+import pandas as pd
 
 # TODO: change the filepath from hardcoded to input setting
 filepath = '/Users/vserentellos/Documents/dfasat/'
@@ -67,9 +69,12 @@ if __name__ == '__main__':
             'duration': 5
         }
 
+        # select only hosts with significant number of flows (currently over 50)
+        data = select_hosts(pd.read_pickle(training_filepath))  # TODO: split data by source IPs
+
         # extract the traces and save them in the traces' filepath - the window and the stride sizes of the sliding
         # window, as well as the aggregation capability, can be also specified
-        window, stride = helper.set_windowing_vars(training_filepath, 50)
+        window, stride = helper.set_windowing_vars(data)
         aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes: 1)? '))
 
         # set the traces output filepath depending on the aggregation value
@@ -83,8 +88,8 @@ if __name__ == '__main__':
             traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
                               training_filepath.split('/')[2] + '-traces.txt'
 
-        helper.extract_traces(training_filepath, traces_filepath, selected, window=window, stride=stride, dynamic=False,
-                              aggregation=aggregation)
+        helper.extract_traces(data, traces_filepath, selected, window=window, stride=stride, trace_limits=(10, 1000),
+                              dynamic=True, aggregation=aggregation)
     else:
         # in case the traces' filepath already exists, provide it
         traces_filepath = input('Give the path to the input file for flexfringe: ')
@@ -94,5 +99,5 @@ if __name__ == '__main__':
                        'key1:value1,ke2:value2,...: ').split(',')
 
     # run flexfringe to produce the automaton and plot it
-    data = flexfringe(traces_filepath, **dict([arg.split(':') for arg in extra_args]))
-    show(data)
+    modelled_data = flexfringe(traces_filepath, **dict([arg.split(':') for arg in extra_args]))
+    show(modelled_data)
