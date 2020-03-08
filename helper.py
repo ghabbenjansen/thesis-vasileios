@@ -8,6 +8,7 @@ from model import ModelNode, Model
 from tslearn.metrics import dtw
 from sklearn.preprocessing import MinMaxScaler
 import re
+from connection_clustering import select_hosts
 
 
 def set_windowing_vars(in_filepath, approx_length):
@@ -141,6 +142,8 @@ def extract_traces(in_filepath, out_filepath, selected, window, stride, dynamic=
     :return: creates and stores the traces' file extracted from the input dataframe
     """
     data = pd.read_pickle(in_filepath)
+    # select only hosts with significant number of flows (currently over 50)
+    data = select_hosts(data)   # TODO: check if to use connections instead of hosts
 
     # create an anonymous function for increasing timestamps given the type of the window (int or Timedelta)
     time_inc = lambda x, w: x + DateOffset(seconds=w) if type(window) == int else x + w
@@ -152,7 +155,7 @@ def extract_traces(in_filepath, out_filepath, selected, window, stride, dynamic=
     if dynamic:
         end_date = time_inc(start_date, window.median())
     else:
-        end_date = time_inc(start_date, window[window_cnt])  # change
+        end_date = time_inc(start_date, window[window_cnt:window_cnt+300].median())  # change
     traces = []  # list of lists
     min_window, max_window = (window.min(), window.max())
     # special counters used for counting the consecutive times a window with 0 records has been retrieved
@@ -213,7 +216,7 @@ def extract_traces(in_filepath, out_filepath, selected, window, stride, dynamic=
                         else:
                             print('--------------- The size and stride of the window remain the same ---------------')
             # update the progress variable
-            cnt = windowed_data.index.tolist()[-1]
+            cnt = data.index[time_mask].tolist()[-1]
         else:
             if dynamic:
                 zero_cnt += 1
@@ -235,19 +238,18 @@ def extract_traces(in_filepath, out_filepath, selected, window, stride, dynamic=
             start_date = time_inc(start_date, stride)
             end_date = time_inc(start_date, window)
         else:
-            start_date = time_inc(start_date, stride[window_cnt])
+            r = pd.RangeIndex(window_cnt, min(window_cnt+20, window.shape[0]))
+            start_date = time_inc(start_date, min(stride[r].median(), window[r].median()))
             window_cnt = data.index[data['date'] >= start_date].tolist()[0]
-            end_date = time_inc(start_date, window[window_cnt])
+            end_date = time_inc(start_date, window[window_cnt:min(window_cnt+20, window.shape[0])].median())
 
         # show progress
         prog = int((cnt / tot) * 100)
-        if prog // 10 != 0 and prog % 10 == 0 and prog not in progress_list:
-            progress_list += [prog]
-            print('\n' + str(prog) + '% of the data processed...' + '\n')
-        # print(str(cnt) + '  rows processed...')
+        if prog // 10 != 0 and prog // 10 not in progress_list:
+            progress_list += [prog // 10]
+            print('More than ' + str((prog // 10) * 10) + '% of the data processed...')
 
-    print('Finished with rolling windows!!!')
-    print('Starting writing traces to file...')
+    print('Finished with rolling windows!!!\nStarting writing traces to file...')
     # create the traces' file in the needed format
     if aggregation:
         out_filepath = out_filepath.split('.')[0] + '_aggregated.' + out_filepath.split('.')[1]

@@ -69,7 +69,7 @@ if __name__ == '__main__':
 
         # extract the traces and save them in the traces' filepath - the window and the stride sizes of the sliding
         # window, as well as the aggregation capability, can be also specified
-        window, stride = helper.set_windowing_vars(training_filepath, 500)
+        window, stride = helper.set_windowing_vars(training_filepath, 50)
         aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes: 1)? '))
 
         # set the traces output filepath depending on the aggregation value
