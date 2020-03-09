@@ -1,6 +1,4 @@
-import pandas as pd
 from pandas.tseries.offsets import DateOffset
-from datetime import timedelta
 from copy import deepcopy
 from scipy.stats import mode
 from statistics import mean, stdev
