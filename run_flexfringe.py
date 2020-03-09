@@ -70,34 +70,48 @@ if __name__ == '__main__':
         }
 
         # select only hosts with significant number of flows (currently over 50)
-        data = select_hosts(pd.read_pickle(training_filepath))  # TODO: split data by source IPs
+        data = select_hosts(pd.read_pickle(training_filepath))
 
-        # extract the traces and save them in the traces' filepath - the window and the stride sizes of the sliding
-        # window, as well as the aggregation capability, can be also specified
-        window, stride = helper.set_windowing_vars(data)
-        aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes: 1)? '))
+        # initialize an empty list to hold the filepaths of the trace files for each host
+        traces_filepaths = []
 
-        # set the traces output filepath depending on the aggregation value
-        # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of the
-        # helper.py file
-        if not aggregation:
-            traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
-                              training_filepath.split('/')[2] + '-traces-' + '-'.join([str(feature_mapping[feature])
-                                                                                      for feature in selected]) + '.txt'
-        else:
-            traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
-                              training_filepath.split('/')[2] + '-traces.txt'
+        # extract the data per host
+        for host in data['src_ip'].unique():
+            print('Extracting traces for host ' + host)
+            host_data = data[data['src_ip'] == host]
+            host_data.reset_index(drop=True, inplace=True)
 
-        helper.extract_traces(data, traces_filepath, selected, window=window, stride=stride, trace_limits=(10, 1000),
-                              dynamic=True, aggregation=aggregation)
+            # extract the traces and save them in the traces' filepath - the window and the stride sizes of the sliding
+            # window, as well as the aggregation capability, can be also specified
+            window, stride = helper.set_windowing_vars(host_data)
+            aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes: 1)? '))
+
+            # set the traces output filepath depending on the aggregation value
+            # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of the
+            # helper.py file
+            if not aggregation:
+                traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
+                                  training_filepath.split('/')[2] + '-' + host + '-traces-' + \
+                                  '-'.join([str(feature_mapping[feature]) for feature in selected]) + '.txt'
+            else:
+                traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
+                                  training_filepath.split('/')[2] + '-' + host + '-traces.txt'
+
+            helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
+                                  trace_limits=(10, 1000), dynamic=True, aggregation=aggregation)
+
+            # add the trace filepath of each host's traces to the list
+            traces_filepaths += [traces_filepath]
     else:
-        # in case the traces' filepath already exists, provide it
-        traces_filepath = input('Give the path to the input file for flexfringe: ')
+        # in case the traces' filepath already exists, provide it (in this case only one path - NOT a list
+        traces_filepaths = [input('Give the path to the input file for flexfringe: ')]
 
-    # and set the flags for flexfringe
-    extra_args = input('Give any flag arguments for flexfinge in a key value way separated by comma in between e.g. '
-                       'key1:value1,ke2:value2,...: ').split(',')
+    # create a model for each host
+    for traces_filepath in traces_filepaths:
+        # and set the flags for flexfringe
+        extra_args = input('Give any flag arguments for flexfinge in a key value way separated by comma in between e.g.'
+                           ' key1:value1,ke2:value2,...: ').split(',')
 
-    # run flexfringe to produce the automaton and plot it
-    modelled_data = flexfringe(traces_filepath, **dict([arg.split(':') for arg in extra_args]))
-    show(modelled_data)
+        # run flexfringe to produce the automaton and plot it
+        modelled_data = flexfringe(traces_filepath, **dict([arg.split(':') for arg in extra_args]))
+        show(modelled_data)
