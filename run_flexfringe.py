@@ -1,4 +1,6 @@
 import subprocess
+import os
+import glob
 import graphviz
 import helper
 from connection_clustering import select_hosts
@@ -13,7 +15,7 @@ def flexfringe(*args, **kwargs):
     Wrapper function for running flexfringe in Python
     :param args: the input arguments for flexfringe
     :param kwargs: the keywords arguments (flags with their values) for flexfringe
-    :return: the opened dot file of the output of flexfringe
+    :return: the opened dot file of the output of flexfringe, as well as the filepath that it is stored
     """
     command = ["--help"]
 
@@ -25,27 +27,49 @@ def flexfringe(*args, **kwargs):
     print("%s" % subprocess.run([filepath+"flexfringe", ] + command + [args[0]], stdout=subprocess.PIPE, check=True)
           .stdout.decode())
 
+    # remove unnecessary files
+    # first the initial dfa file
+    for f in glob.glob("outputs/init*"):
+        os.remove(f)
+    # and then then pre and post refs dot files that flexfringe creates
+    for f in glob.glob("*.dot"):
+        os.remove(f)
+
+    # rename the output file to an indicating name
+    old_file = os.path.join("outputs", "final.json")
+    # TODO: make it less case sensitive in case of other dataset
+    extension = '-'.join(args[0].split('/')[-1].split('-')[0:4])
+    new_file_name = "final_" + extension + "_dfa.dot"
+    new_file = os.path.join("outputs", new_file_name)
+    os.rename(old_file, new_file)
+
     # and open the output dot file
     try:
-        with open("outputs/final.json") as fh:
-            return fh.read()
+        with open("outputs/" + new_file_name) as fh:
+            return fh.read(), 'outputs/' + new_file_name
     except FileNotFoundError:
         pass
 
     return "No output file was generated."
 
 
-def show(data):
+def show(data, filepath):
     """
     Function for plotting a dot file, created after a run of flexfringe, through graphviz
     :param data: the content of the dot file
+    :param filepath: the filepath to be used when plotting the model
     :return: plots the created automaton provided in data
     """
     if data == "":
         pass
     else:
-        g = graphviz.Source(data, format="png")
-        g.render(view=True)
+        # first extract the directory and filename from the filepath
+        directory = filepath.split('/')[0]
+        filename = '_'.join(filepath.split('/')[1].split('_')[1:])  # first remove the front 'final_'
+        filename = '.'.join(filename.split('.')[:-1])   # and then remove the '.dot' ending
+        # and then create the dfa plot
+        g = graphviz.Source(data, filename=filename, directory=directory, format="png")
+        g.render(filename=filename, directory=directory, view=True, cleanup=True)
 
 
 if __name__ == '__main__':
@@ -80,6 +104,7 @@ if __name__ == '__main__':
             print('Extracting traces for host ' + host)
             host_data = data[data['src_ip'] == host]
             host_data.reset_index(drop=True, inplace=True)
+            print(host_data.shape[0])
 
             # extract the traces and save them in the traces' filepath - the window and the stride sizes of the sliding
             # window, as well as the aggregation capability, can be also specified
@@ -113,5 +138,5 @@ if __name__ == '__main__':
                            ' key1:value1,ke2:value2,...: ').split(',')
 
         # run flexfringe to produce the automaton and plot it
-        modelled_data = flexfringe(traces_filepath, **dict([arg.split(':') for arg in extra_args]))
-        show(modelled_data)
+        modelled_data, storing_path = flexfringe(traces_filepath, **dict([arg.split(':') for arg in extra_args]))
+        show(modelled_data, storing_path)

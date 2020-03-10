@@ -17,7 +17,7 @@ def set_windowing_vars(data):
     """
     # find the median of the time differences in the dataframe
     median_diff = data['date'].sort_values().diff().median()
-    return 100 * median_diff, 20 * median_diff
+    return 25 * median_diff, 5 * median_diff
 
 
 def traces_dissimilarity(trace1, trace2, multivariate=True, normalization=True):
@@ -462,9 +462,3 @@ def run_traces_on_model(traces_path, model):
             model.update_attributes(label, observed)
             label = model.fire_transition(label, observed)
     return model
-
-
-if __name__ == '__main__':
-    traces_filepath = 'Datasets/IOT23/training/training_traces.txt'
-    traces = traces2list(traces_filepath)
-    print('Done')
