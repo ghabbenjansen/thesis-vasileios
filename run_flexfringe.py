@@ -94,7 +94,7 @@ if __name__ == '__main__':
         }
 
         # select only hosts with significant number of flows (currently over 50)
-        data = select_hosts(pd.read_pickle(training_filepath))
+        data = select_hosts(pd.read_pickle(training_filepath), 200)
 
         # initialize an empty list to hold the filepaths of the trace files for each host
         traces_filepaths = []
@@ -104,7 +104,7 @@ if __name__ == '__main__':
             print('Extracting traces for host ' + host)
             host_data = data[data['src_ip'] == host]
             host_data.reset_index(drop=True, inplace=True)
-            print(host_data.shape[0])
+            print('The number of flows for this host are: ' + str(host_data.shape[0]))
 
             # extract the traces and save them in the traces' filepath - the window and the stride sizes of the sliding
             # window, as well as the aggregation capability, can be also specified
@@ -123,7 +123,7 @@ if __name__ == '__main__':
                                   training_filepath.split('/')[2] + '-' + host + '-traces.txt'
 
             helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
-                                  trace_limits=(10, 1000), dynamic=True, aggregation=aggregation)
+                                  trace_limits=(100, 6000), dynamic=True, aggregation=aggregation)
 
             # add the trace filepath of each host's traces to the list
             traces_filepaths += [traces_filepath]

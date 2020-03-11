@@ -37,7 +37,11 @@ class ModelNode:
         # observed attributes is used to store the values observed for each attribute when a trace file is run on the
         # model
         self.observed_attributes = dict(zip(self.attributes.keys(), len(self.attributes.keys()) * [[]]))
+        self.observed_indices = []
         self.testing_attributes = dict(zip(self.attributes.keys(), len(self.attributes.keys()) * [[]]))
+        self.testing_indices = []
+        # dictionary for storing any variables needed for training
+        self.training_vars = dict()
 
     def evaluate_transition(self, dst_node_label, input_attributes):
         """
@@ -58,12 +62,26 @@ class ModelNode:
         """
         self.observed_attributes = dict(zip(self.attributes.keys(), len(self.attributes.keys()) * [[]]))
 
+    def reset_observed_indices(self):
+        """
+        Function for resetting the observed indices of the node
+        :return:
+        """
+        self.observed_indices = []
+
     def reset_testing_attributes(self):
         """
         Function for resetting the testing attributes of the node
         :return:
         """
         self.testing_attributes = dict(zip(self.attributes.keys(), len(self.attributes.keys()) * [[]]))
+
+    def reset_testing_indices(self):
+        """
+        Function for resetting the testing indices of the node
+        :return:
+        """
+        self.testing_indices = []
 
     def attributes2dataset(self, input_attributes):
         """
@@ -216,9 +234,22 @@ class Model:
             for attribute, obs_value in observed.items():
                 self.nodes_dict[label].testing_attributes[attribute] += obs_value
 
+    def update_indices(self, label, ind, attribute_type='train'):
+        """
+        Function for adding a newly observed index for each observed record added in the given node
+        :param label: the label of the node
+        :param ind: an integer indicating the index to be added
+        :param attribute_type: the type of the observed attributes ('train' | 'test')
+        :return:
+        """
+        if attribute_type == 'train':
+            self.nodes_dict[label].observed_indices += [ind]
+        else:
+            self.nodes_dict[label].testing_indices += [ind]
+
     def reset_attributes(self, attribute_type='train'):
         """
-        Function for resetting all observed_attributes values in all nodes
+        Function for resetting all attributes (observed or testing) values in all nodes
         :param attribute_type: the type of the observed attributes ('train' | 'test')
         :return:
         """
@@ -228,3 +259,16 @@ class Model:
         else:
             for node_label in self.nodes_dict.keys():
                 self.nodes_dict[node_label].reset_testing_attributes()
+
+    def reset_indices(self, attribute_type='train'):
+        """
+        Function for resetting all indices (observed or testing) values in all nodes
+        :param attribute_type: the type of the observed attributes ('train' | 'test')
+        :return:
+        """
+        if attribute_type == 'train':
+            for node_label in self.nodes_dict.keys():
+                self.nodes_dict[node_label].reset_observed_indices()
+        else:
+            for node_label in self.nodes_dict.keys():
+                self.nodes_dict[node_label].reset_testing_indices()

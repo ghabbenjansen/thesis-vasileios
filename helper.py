@@ -6,6 +6,7 @@ from model import ModelNode, Model
 from tslearn.metrics import dtw
 from sklearn.preprocessing import MinMaxScaler
 import re
+import pickle
 
 
 def set_windowing_vars(data):
@@ -17,7 +18,7 @@ def set_windowing_vars(data):
     """
     # find the median of the time differences in the dataframe
     median_diff = data['date'].sort_values().diff().median()
-    return 25 * median_diff, 5 * median_diff
+    return 500 * median_diff, 100 * median_diff
 
 
 def traces_dissimilarity(trace1, trace2, multivariate=True, normalization=True):
@@ -156,6 +157,7 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
     start_date = data['date'].iloc[0]
     end_date = time_inc(start_date, window)
     traces = []  # list of lists
+    traces_indices = []  # list of lists for storing the indices of the flows contained in each trace
     # the minimum and maximum indices of the time window under consideration
     # two values are used for the indices of two consecutive windows
     min_idx = [-2, -1]
@@ -235,6 +237,9 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
                         end_date = time_inc(start_date, window)
                         time_mask = calculate_window_mask(data, start_date, end_date)
                         window_len = len(data[time_mask].index.tolist())
+                        # limit case to prevent integer overflow in the window size
+                        if end_date > data['date'].iloc[-1]:
+                            break
 
                     # and update the window indices
                     if min_idx[0] < 0:
@@ -251,6 +256,10 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
                         magnifier = 2
                         reducer = reducer/2
 
+                    # limit case to prevent endless loop
+                    if end_date > data['date'].iloc[-1]:
+                        break
+
                 # finally get the current window
                 windowed_data = data[time_mask]
 
@@ -265,6 +274,9 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
 
             # extract the trace of this window and add it to the traces' list
             traces += [convert2flexfringe_format(windowed_data[selected])]
+            # store also the starting and the ending index of the current time window
+            # TODO: update storing when aggregation is used
+            traces_indices += [[windowed_data.index.tolist()[0], windowed_data.index.tolist()[-1]]]
 
             # old implementation of window dissimilarity (not used now)
             # dissim = traces_dissimilarity(deepcopy(trace2list(traces[-1])), deepcopy(trace2list(traces[-2])))
@@ -321,6 +333,9 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
             selected = windowed_data.columns.values
         # and add the new trace
         traces += [convert2flexfringe_format(windowed_data[selected])]
+        # store also the starting and the ending index of the current time window
+        # TODO: update storing when aggregation is used
+        traces_indices += [[windowed_data.index.tolist()[0], windowed_data.index.tolist()[-1]]]
 
     print('Finished with rolling windows!!!')
     # evaluate correctness of the process
@@ -338,6 +353,10 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
     for trace in traces:
         f.write('1 ' + str(len(trace)) + ' 0:' + ' 0:'.join(trace) + '\n')
     f.close()
+    # save also the indices of each trace
+    indices_filepath = out_filepath.split('.')[0] + '_indices.pkl'
+    with open(indices_filepath, 'wb') as f:
+        pickle.dump(traces_indices, f)
     print('Traces written successfully to file!!!')
 
 
@@ -446,19 +465,25 @@ def traces2list(traces_path):
     return traces
 
 
-def run_traces_on_model(traces_path, model):
+def run_traces_on_model(traces_path, indices_path, model, attribute_type='train'):
     """
     Function for running a trace file on the provided model and storing the observed attributes' values on it
     :param traces_path: the filepath to the traces' file
+    :param indices_path: the filepath to the traces' incices file
     :param model: the given model
+    :param attribute_type: the type of the input traces ('train' | 'test')
     :return: the updated model
     """
     traces = traces2list(traces_path)
-    for trace in traces:
+    with open(indices_path, 'rb') as f:
+        traces_indices = pickle.load(f)
+    for trace, inds_limits in zip(traces, traces_indices):
         # first fire the transition from root node
         label = model.fire_transition('root', dict())  # TODO: check if the empty dict will work
-        for record in trace:
+        inds = [i for i in range(inds_limits[0], inds_limits[1] + 1)]
+        for record, ind in zip(trace, inds):
             observed = dict(zip([str(i) for i in range(len(record))], record))
-            model.update_attributes(label, observed)
+            model.update_attributes(label, observed, attribute_type)
+            model.update_attributes_indices(label, ind, attribute_type)
             label = model.fire_transition(label, observed)
     return model
