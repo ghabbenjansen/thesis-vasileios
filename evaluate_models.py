@@ -1,5 +1,7 @@
 from helper import parse_dot, run_traces_on_model
 from statistics import median
+import pandas as pd
+import numpy as np
 
 
 def train_model(traces_filepath, indices_filepath, model, method, clustering_method=None):
@@ -79,14 +81,24 @@ if __name__ == '__main__':
 
     # start testing on each trained model
     m = int(input('Provide the number of testing sets: '))
-    results = []
-    for _ in range(m):
+    results = {}
+    for j in range(m):
         test_traces_filepath = input('Give the relative path of the testing traces to be used for evaluation: ')
         indices_filepath = test_traces_filepath.split('.')[0] + '_indices.pkl'
+        # initialize the entry in the results dictionary for the current testing trace file
+        test_trace_name = '.'.join(test_traces_filepath.split('/')[-1].split('.')[0:-1])
+        results[test_trace_name] = dict()
+        # TODO: maybe to be changed for consistency reasons emerging from sorting by date (possbily should be added in
+        #  the trace extraction phase
+        test_data_filepath = input('Give the relative path of the testing dataframe to be used for evaluation: ')
+        normal = pd.read_pickle(test_data_filepath + '/zeek_normal.pkl')
+        anomalous = pd.read_pickle(test_data_filepath + '/zeek_anomalous.pkl')
+        true_labels = pd.concat([normal, anomalous], ignore_index=True).sort_values(by='date')['label'].values
         for i in range(n):
             models[i].reset_attributes(attribute_type='test')
             models[i].reset_indices(attribute_type='test')
             models[i] = run_traces_on_model(test_traces_filepath, indices_filepath, models[i], 'test')
             predictions = predict_on_model(models[i], methods[i].split('-')[0], methods[i].split('-')[1])
-            # TODO: add assertion for the number of flows and if it is equal to the number of predictions
+            assert (len(predictions.keys()) == np.size(true_labels, 0)), \
+                "Dimension mismatch between true and predicted labels!!"
             # TODO: and add the testing part to the true labels

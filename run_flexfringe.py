@@ -73,13 +73,20 @@ def show(data, filepath):
 
 
 if __name__ == '__main__':
+    # first check why we want to run flexfringe (training or testing - in the second case only the traces are extracted)
     # check if there is a need to create the trace file or there is already there
-    with_trace = int(input('Is there a trace file (no: 0 | yes: 1)? '))
+    testing = int(input('Training or testing?? (training: 0 | testing: 1)? '))
 
+    if not testing:
+        # only if it is for training this question will be asked
+        with_trace = int(input('Is there a trace file (no: 0 | yes: 1)? '))
+    else:
+        # otherwise we need to create the trace file
+        with_trace = 0
+
+    # TODO: update the trace extraction part for the testing datasets too (This entails applying the same categorical
+    #  mapping  as in the training traces and keeping the number of flows)
     if not with_trace:
-        # set the input filepath
-        training_filepath = input('Give the relative path of the dataframe to be used for training: ')
-
         # set the features to be used in the multivariate modelling
         selected = ['src_port', 'dst_port', 'protocol_num', 'orig_ip_bytes', 'resp_ip_bytes']
 
@@ -93,50 +100,86 @@ if __name__ == '__main__':
             'duration': 5
         }
 
-        # select only hosts with significant number of flows (currently over 50)
-        data = select_hosts(pd.read_pickle(training_filepath), 200)
+        if testing:
+            # set the input filepath
+            testing_filepath = input('Give the relative path of the dataframe to be used for tesing: ')
+            data = pd.read_pickle(testing_filepath)
+            # extract the data per host
+            for host in data['src_ip'].unique():
+                print('Extracting traces for host ' + host)
+                host_data = data[data['src_ip'] == host]
+                host_data.reset_index(drop=True, inplace=True)
+                print('The number of flows for this host are: ' + str(host_data.shape[0]))
 
-        # initialize an empty list to hold the filepaths of the trace files for each host
-        traces_filepaths = []
+                # extract the traces and save them in the traces' filepath - the window and the stride sizes of the
+                # sliding window, as well as the aggregation capability, can be also specified
+                window, stride = helper.set_windowing_vars(host_data)
+                aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes: 1)? '))
 
-        # extract the data per host
-        for host in data['src_ip'].unique():
-            print('Extracting traces for host ' + host)
-            host_data = data[data['src_ip'] == host]
-            host_data.reset_index(drop=True, inplace=True)
-            print('The number of flows for this host are: ' + str(host_data.shape[0]))
+                # set the traces output filepath depending on the aggregation value
+                # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of the
+                # helper.py file
+                if not aggregation:
+                    traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + \
+                                      testing_filepath.split('/')[2] + '-' + host + '-traces-' + \
+                                      '-'.join([str(feature_mapping[feature]) for feature in selected]) + '.txt'
+                else:
+                    traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + \
+                                      testing_filepath.split('/')[2] + '-' + host + '-traces.txt'
 
-            # extract the traces and save them in the traces' filepath - the window and the stride sizes of the sliding
-            # window, as well as the aggregation capability, can be also specified
-            window, stride = helper.set_windowing_vars(host_data)
-            aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes: 1)? '))
+                helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
+                                      trace_limits=(100, 6000), dynamic=True, aggregation=aggregation)
 
-            # set the traces output filepath depending on the aggregation value
-            # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of the
-            # helper.py file
-            if not aggregation:
-                traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
-                                  training_filepath.split('/')[2] + '-' + host + '-traces-' + \
-                                  '-'.join([str(feature_mapping[feature]) for feature in selected]) + '.txt'
-            else:
-                traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
-                                  training_filepath.split('/')[2] + '-' + host + '-traces.txt'
+        else:
 
-            helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
-                                  trace_limits=(100, 6000), dynamic=True, aggregation=aggregation)
+            # set the input filepath
+            training_filepath = input('Give the relative path of the dataframe to be used for training: ')
 
-            # add the trace filepath of each host's traces to the list
-            traces_filepaths += [traces_filepath]
+            # select only hosts with significant number of flows (currently over 50)
+            data = select_hosts(pd.read_pickle(training_filepath), 200)
+
+            # initialize an empty list to hold the filepaths of the trace files for each host
+            traces_filepaths = []
+
+            # extract the data per host
+            for host in data['src_ip'].unique():
+                print('Extracting traces for host ' + host)
+                host_data = data[data['src_ip'] == host]
+                host_data.reset_index(drop=True, inplace=True)
+                print('The number of flows for this host are: ' + str(host_data.shape[0]))
+
+                # extract the traces and save them in the traces' filepath - the window and the stride sizes of the
+                # sliding window, as well as the aggregation capability, can be also specified
+                window, stride = helper.set_windowing_vars(host_data)
+                aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes: 1)? '))
+
+                # set the traces output filepath depending on the aggregation value
+                # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of the
+                # helper.py file
+                if not aggregation:
+                    traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
+                                      training_filepath.split('/')[2] + '-' + host + '-traces-' + \
+                                      '-'.join([str(feature_mapping[feature]) for feature in selected]) + '.txt'
+                else:
+                    traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
+                                      training_filepath.split('/')[2] + '-' + host + '-traces.txt'
+
+                helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
+                                      trace_limits=(100, 6000), dynamic=True, aggregation=aggregation)
+
+                # add the trace filepath of each host's traces to the list
+                traces_filepaths += [traces_filepath]
     else:
         # in case the traces' filepath already exists, provide it (in this case only one path - NOT a list
         traces_filepaths = [input('Give the path to the input file for flexfringe: ')]
 
-    # create a model for each host
-    for traces_filepath in traces_filepaths:
-        # and set the flags for flexfringe
-        extra_args = input('Give any flag arguments for flexfinge in a key value way separated by comma in between e.g.'
-                           ' key1:value1,ke2:value2,...: ').split(',')
+    if not testing:
+        # create a model for each host
+        for traces_filepath in traces_filepaths:
+            # and set the flags for flexfringe
+            extra_args = input('Give any flag arguments for flexfinge in a key value way separated by comma in between '
+                               'e.g. key1:value1,ke2:value2,...: ').split(',')
 
-        # run flexfringe to produce the automaton and plot it
-        modelled_data, storing_path = flexfringe(traces_filepath, **dict([arg.split(':') for arg in extra_args]))
-        show(modelled_data, storing_path)
+            # run flexfringe to produce the automaton and plot it
+            modelled_data, storing_path = flexfringe(traces_filepath, **dict([arg.split(':') for arg in extra_args]))
+            show(modelled_data, storing_path)
