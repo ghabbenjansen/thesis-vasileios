@@ -24,7 +24,8 @@ def train_model(traces_filepath, indices_filepath, model, method, clustering_met
                 model.nodes_dict[node_label].training_vars['m'], model.nodes_dict[node_label].training_vars['sigma'] = \
                     model.nodes_dict[node_label].fit_multivariate_gaussian()
             else:
-                pass    # TODO: define the probabilistic training method
+                model.nodes_dict[node_label].training_vars['quantile_values'] = \
+                    model.nodes_dict[node_label].fit_quantiles_on_observed()
     return model
 
 
@@ -45,9 +46,11 @@ def predict_on_model(model, method, clustering_method=''):
                     model.nodes_dict[node_label].training_vars['clusterer'], clustering_method=clustering_method)
             elif method == "multivariate-gaussian":
                 pred = model.nodes_dict[node_label].predict_on_gaussian(
-                    model.nodes_dict[node_label].training_vars['m'], model.nodes_dict[node_label].training_vars['sigma'])
+                    model.nodes_dict[node_label].training_vars['m'],
+                    model.nodes_dict[node_label].training_vars['sigma'])
             else:
-                pred = []   # TODO: define the probabilistic testing method
+                pred = model.nodes_dict[node_label].predict_on_probabilities(
+                    model.nodes_dict[node_label].training_vars['quantile_values'])
 
             assert (len(pred) == len(model.nodes_dict[node_label].testing_indices)), "Dimension mismatch!!"
             for i, ind in enumerate(model.nodes_dict[node_label].testing_indices):
