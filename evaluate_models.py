@@ -1,7 +1,8 @@
-from helper import parse_dot, run_traces_on_model
+from helper import parse_dot, run_traces_on_model, dict2list
 from statistics import median
 import pandas as pd
 import numpy as np
+import pickle
 
 
 def train_model(traces_filepath, indices_filepath, model, method, clustering_method=None):
@@ -62,10 +63,47 @@ def predict_on_model(model, method, clustering_method=''):
     return predictions
 
 
+def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='hard', printing=True):
+    """
+    Function for calculating the evaluation metrics of the whole pipeline. Depending on the prediction type different
+    metrics are calculated. For the hard type the accuracy, the precision, and the recall are provided.
+    :param predicted_labels: the predicted labels as a list
+    :param true_labels: the true labels as a list
+    :param prediction_type: the prediction type ("soft" | "hard")
+    :param printing: a boolean flag that specifies if the results shall be printed too
+    :return: the needed metrics
+    """
+    if prediction_type == 'hard':
+        TP, TN, FP, FN = 0, 0, 0, 0
+        for i in range(len(true_labels)):
+            if true_labels[i] == 1:
+                if true_labels[i] == predicted_labels[i]:
+                    TP += 1
+                else:
+                    FN += 1
+            else:
+                if true_labels[i] == predicted_labels[i]:
+                    TN += 1
+                else:
+                    FP += 1
+        accuracy = (TP + TN) / (TP + TN + FP + FN)
+        precision = TP / (TP + FP)
+        recall = TP / (TP + FN)
+        if printing:
+            print('Accuracy: ' + str(accuracy))
+            print('Precision: ' + str(precision))
+            print('Recall: ' + str(recall))
+        return accuracy, precision, recall
+    else:
+        # TODO: implement the soft prediction part
+        return 0, 0, 0
+
+
 if __name__ == '__main__':
     n = int(input('Provide the number of models to be trained: '))
     models = []
     methods = []
+    models_info = []
     for _ in range(n):
         model_filepath = input('Give the relative path of the model to be used for training: ')
         model = [parse_dot(model_filepath)]
@@ -78,6 +116,8 @@ if __name__ == '__main__':
         # for now we train it on Isolation Forest (TODO: train on different training methods)
         models += [train_model(traces_filepath, indices_filepath, model, method, clustering_method=clustering_method)]
         methods += [method + '-' + (clustering_method if clustering_method is not None else '')]
+        # list used for better presentation of the results later on
+        models_info += ['.'.join(model_filepath.split('/')[-1].split('.')[0:-1]) + method]
 
     # start testing on each trained model
     m = int(input('Provide the number of testing sets: '))
@@ -87,6 +127,7 @@ if __name__ == '__main__':
         indices_filepath = test_traces_filepath.split('.')[0] + '_indices.pkl'
         # initialize the entry in the results dictionary for the current testing trace file
         test_trace_name = '.'.join(test_traces_filepath.split('/')[-1].split('.')[0:-1])
+        print('Evaluating on ' + test_trace_name + '...')
         results[test_trace_name] = dict()
         # TODO: maybe to be changed for consistency reasons emerging from sorting by date (possbily should be added in
         #  the trace extraction phase
@@ -95,10 +136,27 @@ if __name__ == '__main__':
         anomalous = pd.read_pickle(test_data_filepath + '/zeek_anomalous.pkl')
         true_labels = pd.concat([normal, anomalous], ignore_index=True).sort_values(by='date')['label'].values
         for i in range(n):
+            print("Let's use model " + models_info[i] + '!!!')
             models[i].reset_attributes(attribute_type='test')
             models[i].reset_indices(attribute_type='test')
             models[i] = run_traces_on_model(test_traces_filepath, indices_filepath, models[i], 'test')
             predictions = predict_on_model(models[i], methods[i].split('-')[0], methods[i].split('-')[1])
             assert (len(predictions.keys()) == np.size(true_labels, 0)), \
                 "Dimension mismatch between true and predicted labels!!"
-            # TODO: and add the testing part to the true labels
+
+            # TODO: currently the results are saved as a list of tuples for each testing trace - maybe to be changed to
+            #  something more informative - also the mapping between the string representation of the labels and their
+            #  int value should become more robust so that other datasets can be used too
+            if i == 0:
+                results[test_trace_name] = [produce_evaluation_metrics(dict2list(predictions),
+                                                                       list(map(lambda x: 1 if x == 'Malicious' else 0,
+                                                                                true_labels.tolist())))]
+            else:
+                results[test_trace_name] += [produce_evaluation_metrics(dict2list(predictions),
+                                                                        list(map(lambda x: 1 if x == 'Malicious' else 0,
+                                                                                 true_labels.tolist())))]
+
+    # finally save all the results for each testing trace
+    results_filename = input('Provide the relative path for the filename of the results: ')
+    with open(results_filename, 'wb') as handle:
+        pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)

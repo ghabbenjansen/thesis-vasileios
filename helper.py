@@ -487,3 +487,16 @@ def run_traces_on_model(traces_path, indices_path, model, attribute_type='train'
             model.update_attributes_indices(label, ind, attribute_type)
             label = model.fire_transition(label, observed)
     return model
+
+
+def dict2list(d):
+    """
+    Function for converting a dictionary to list by using the keys of the dictionary as the indices of the list and its
+    values as the values of the list.
+    :param d: the input dictionary
+    :return: the output list
+    """
+    l = [0] * len(d.keys())
+    for k in d.keys():
+        l[k] = d[k]
+    return l
