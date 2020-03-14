@@ -184,7 +184,7 @@ def remove_background(df):
 
 if __name__ == '__main__':
     # filepath = input("Enter the desired filepath: ")
-    filepath = 'Datasets/IOT23/Malware-Capture-52-1/conn.log.labeled.txt'
+    filepath = 'Datasets/IOT23/Malware-Capture-17-1/conn.log.labeled.txt'
 
     # Choose between the flags CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT
     flag = 'IOT'
@@ -334,9 +334,12 @@ if __name__ == '__main__':
         # parse duration as float
         data['duration'] = data['duration'].astype(float)
 
-        # add the numerical representation of the categorical data
-        data['protocol_num'] = pd.Categorical(data['protocol'], categories=data['protocol'].unique()).codes
-        data['state_num'] = pd.Categorical(data['state'], categories=data['state'].unique()).codes
+        # add the numerical representation of the categorical data (hardcoded categorical values are given for
+        # universality) # TODO: add such universality to other datasets before use
+        protocol_categories = ['udp', 'tcp', 'icmp']
+        data['protocol_num'] = pd.Categorical(data['protocol'], categories=protocol_categories).codes
+        state_categories = ['S0', 'S1', 'SF', 'REJ', 'S2', 'S3', 'RSTO', 'RSTR', 'RSTOS0', 'RSTRH', 'SH', 'SHR', 'OTH']
+        data['state_num'] = pd.Categorical(data['state'], categories=state_categories).codes
 
         # split the data according to their labels and sort them by date
         anomalous = data[data['label'] == 'Malicious']

@@ -1,12 +1,13 @@
 from pandas.tseries.offsets import DateOffset
 from copy import deepcopy
 from scipy.stats import mode
-from statistics import mean, stdev
+from statistics import mean
 from model import ModelNode, Model
 from tslearn.metrics import dtw
 from sklearn.preprocessing import MinMaxScaler
 import re
 import pickle
+import pandas as pd
 
 
 def set_windowing_vars(data):
@@ -85,6 +86,7 @@ def aggregate_in_windows(data, window, timed=False, resample=False):
     if timed:
         data.set_index('date', inplace=True)
     if not resample:
+        # TODO: check if NaN values are added in the beginning of the window
         if 'orig_ip_bytes' in old_column_names:
             data['median_orig_bytes'] = data['orig_ip_bytes'].rolling(window).median()
             data['var_orig_bytes'] = data['orig_ip_bytes'].rolling(window).var()
@@ -105,34 +107,44 @@ def aggregate_in_windows(data, window, timed=False, resample=False):
         if 'protocol_num' in old_column_names:
             data['argmax_protocol_num'] = data['protocol_num'].rolling(window).apply(lambda x: mode(x)[0])
             data['var_protocol_num'] = data['protocol_num'].rolling(window).var()
+        data['count'] = data.rolling(window).count()
+        data.drop(columns=old_column_names, inplace=True)
     else:
         # can be called only if timed flag has been set to True
-        # TODO: check if all aggregation functions are compatible with resample
+        frames = []
+        new_column_names = []
         if 'orig_ip_bytes' in old_column_names:
-            data['median_orig_bytes'] = data['orig_ip_bytes'].resample(window).median()
-            data['var_orig_bytes'] = data['orig_ip_bytes'].resample(window).var()
+            new_column_names += ['median_orig_bytes', 'var_orig_bytes']
+            frames += [data['orig_ip_bytes'].resample(window).median(), data['orig_ip_bytes'].resample(window).var()]
         if 'resp_ip_bytes' in old_column_names:
-            data['median_resp_bytes'] = data['resp_ip_bytes'].resample(window).median()
-            data['var_resp_bytes'] = data['resp_ip_bytes'].resample(window).var()
+            new_column_names += ['median_resp_bytes', 'var_resp_bytes']
+            frames += [data['resp_ip_bytes'].resample(window).median(), data['resp_ip_bytes'].resample(window).var()]
         if 'duration' in old_column_names:
-            data['median_duration'] = data['duration'].resample(window).median()
-            data['var_duration'] = data['duration'].resample(window).var()
+            new_column_names += ['median_duration', 'var_duration']
+            frames += [data['duration'].resample(window).median(), data['duration'].resample(window).var()]
         if 'dst_ip' in old_column_names:
-            data['unique_dst_ips'] = data['dst_ip'].resample(window).apply(lambda x: len(set(x)))
+            new_column_names += ['unique_dst_ips']
+            frames += [data['dst_ip'].resample(window).nunique()]
         if 'src_port' in old_column_names:
-            data['unique_src_ports'] = data['src_port'].resample(window).apply(lambda x: len(set(x)))
-            data['var_src_ports'] = data['src_port'].resample(window).var()
+            new_column_names += ['unique_src_ports', 'var_src_ports']
+            frames += [data['src_port'].resample(window).nunique(), data['src_port'].resample(window).var()]
         if 'dst_port' in old_column_names:
-            data['unique_dst_ports'] = data['dst_port'].resample(window).apply(lambda x: len(set(x)))
-            data['var_dst_ports'] = data['dst_port'].resample(window).var()
+            new_column_names += ['unique_dst_ports', 'var_dst_ports']
+            frames += [data['dst_port'].resample(window).nunique(), data['dst_port'].resample(window).var()]
         if 'protocol_num' in old_column_names:
-            data['argmax_protocol_num'] = data['protocol_num'].resample(window).apply(lambda x: mode(x)[0])
-            data['var_protocol_num'] = data['protocol_num'].resample(window).var()
-    data.drop(columns=old_column_names, inplace=True)
+            new_column_names += ['argmax_protocol_num', 'var_protocol_num']
+            frames += [data['protocol_num'].resample(window).apply(lambda x: mode(x)[0]),
+                       data['protocol_num'].resample(window).var()]
+        new_column_names += ['count']
+        frames += [data.resample(window).count()]
+        # TODO: check if the dataframe is created correctly and the column names are assigned in correct order
+        data = pd.concat(frames, axis=1)
+        data.columns = new_column_names
     return data
 
 
-def extract_traces(data, out_filepath, selected, window, stride, trace_limits, dynamic=True, aggregation=False):
+def extract_traces(data, out_filepath, selected, window, stride, trace_limits, dynamic=True, aggregation=False,
+                   resample=False):
     """
     Function for extracting traces from the imput dataframe and saving them in out_filepath. The features to be taken
     into account are provided in the selected list. Each trace is extracted by rolling a window of window seconds
@@ -146,7 +158,8 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
     :param stride: the stride size
     :param trace_limits: a tuple containing the minimum and maximum length that a trace can have
     :param dynamic: boolean flag about the use of dynamically changing windows
-    :param aggregation: the aggregation flag - if set to 1, then aggregation windows are created
+    :param aggregation: the aggregation flag - if set to True, then aggregation windows are created
+    :param resample: the resampling flag - if set to True, then resampling is used in the aggregation windows
     :return: creates and stores the traces' file extracted from the input dataframe
     """
 
@@ -268,14 +281,15 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
 
             # create aggregated features if needed (currently with a hard-coded window length)
             if aggregation:
-                windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True),
-                                                     min(10, int(len(windowed_data.index))))
+                aggregation_length = '5s' if resample else min(10, int(len(windowed_data.index)))
+                timed = True if resample else False
+                windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), aggregation_length, timed,
+                                                     resample)
                 selected = windowed_data.columns.values
 
             # extract the trace of this window and add it to the traces' list
             traces += [convert2flexfringe_format(windowed_data[selected])]
             # store also the starting and the ending index of the current time window
-            # TODO: update storing when aggregation is used
             traces_indices += [[windowed_data.index.tolist()[0], windowed_data.index.tolist()[-1]]]
 
             # old implementation of window dissimilarity (not used now)
@@ -328,13 +342,14 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
         assertion_dict.update(zip(data.index[time_mask].tolist(), len(data.index[time_mask].tolist()) * [True]))
         # check for aggregation
         if aggregation:
-            windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True),
-                                                 min(10, int(len(windowed_data.index))))
+            aggregation_length = '5s' if resample else min(10, int(len(windowed_data.index)))
+            timed = True if resample else False
+            windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), aggregation_length, timed,
+                                                 resample)
             selected = windowed_data.columns.values
         # and add the new trace
         traces += [convert2flexfringe_format(windowed_data[selected])]
         # store also the starting and the ending index of the current time window
-        # TODO: update storing when aggregation is used
         traces_indices += [[windowed_data.index.tolist()[0], windowed_data.index.tolist()[-1]]]
 
     print('Finished with rolling windows!!!')

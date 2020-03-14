@@ -71,7 +71,6 @@ def outlier_removal(data, method="z-score", feat=None, label=None):
     :param label: label of the dataset (needed for the GLOSH case)
     :return: the data without the identified outliers
     """
-    # TODO: maybe add Amazon's Robust Random Cut Forest algorithm
     temp = data if feat is None else data[feat]
 
     if method == "z-score":
@@ -230,7 +229,7 @@ if __name__ == '__main__':
     anomalous = pd.read_pickle(filepath_malicious)  # dataframe
 
     # prepare mixed data for clustering by concatenating normal and malicious data and selecting the IP pairs with more
-    # than 50 connections (TODO: to change this if host based analysis is selected eventually)
+    # than 50 connections
     mixed = pd.concat([normal, anomalous], ignore_index=True).sort_values(by='date').reset_index().drop(
         columns='index')    # dataframe
     sel_mixed = select_connections(mixed)   # dataframe
