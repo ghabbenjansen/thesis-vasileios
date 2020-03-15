@@ -184,7 +184,7 @@ def remove_background(df):
 
 if __name__ == '__main__':
     # filepath = input("Enter the desired filepath: ")
-    filepath = 'Datasets/IOT23/Malware-Capture-17-1/conn.log.labeled.txt'
+    filepath = 'Datasets/IOT23/Malware-Capture-49-1/conn.log.labeled.txt'
 
     # Choose between the flags CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT
     flag = 'IOT'

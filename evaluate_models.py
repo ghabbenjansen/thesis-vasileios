@@ -64,6 +64,36 @@ def predict_on_model(model, method, clustering_method=''):
     return predictions
 
 
+def dates2indices(date_dict, dates):
+    """
+    Function for propagating the values of a dictionary with resampled date indices as its keys to the actual indices
+    before resampling using a series object containing the actual dates
+    :param date_dict: a dictionary with keys the resampled dates
+    :param dates: a Series of the actual dates
+    :return: a dictionary with the indices of the actual dates as keys and the propagated values as its values
+    """
+    # first keep the resampled dates in a dataframe and sort them
+    date_df = pd.DataFrame({'resampled_dates': list(date_dict.keys())}).sort_values(by='resampled_dates')
+    ind = 0
+    new_dict = dict()
+    for items in dates.iteritems():
+        # if the current resampled date examined is the last one then just check for lower bound for the actual dates
+        if ind == date_df.shape[0] - 1:
+            if date_df[ind] <= items[1]:
+                new_dict[items[0]] = date_dict[date_df[ind]]
+            else:
+                print("This clause should not be accessed -> Error !!!!!!!!!!!")
+        # otherwise check both upper and lower limits
+        else:
+            if date_df[ind] <= items[1] < date_df[ind+1]:
+                new_dict[items[0]] = date_dict[date_df[ind]]
+            else:
+                # and if the upper limit is violated increment the resampled dates' index
+                ind += 1
+                new_dict[items[0]] = date_dict[date_df[ind]]
+    return new_dict
+
+
 def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='hard', printing=True):
     """
     Function for calculating the evaluation metrics of the whole pipeline. Depending on the prediction type different
@@ -143,15 +173,15 @@ if __name__ == '__main__':
         all_data = pd.concat([normal, anomalous], ignore_index=True).sort_values(by='date')
         true_labels = all_data[all_data['src_ip'] == host_ip]['label'].values
         # needed to map datetimes to indices in case of resampled datasets
-        if 'resampled' in test_traces_filepath:
-            true_datetimes = all_data[all_data['src_ip'] == host_ip]['date']
+        true_datetimes = all_data[all_data['src_ip'] == host_ip]['date'] if 'resampled' in test_traces_filepath else None
         for i in range(n):
             print("Let's use model " + models_info[i] + '!!!')
             models[i].reset_attributes(attribute_type='test')
             models[i].reset_indices(attribute_type='test')
             models[i] = run_traces_on_model(test_traces_filepath, indices_filepath, models[i], 'test')
             predictions = predict_on_model(models[i], methods[i].split('-')[0], methods[i].split('-')[1])
-            # TODO: Add function for mapping predictions when resampling has been used - use true datetimes from above
+            if true_datetimes is not None:
+                predictions = dates2indices(predictions, true_datetimes)
             assert (len(predictions.keys()) == np.size(true_labels, 0)), \
                 "Dimension mismatch between true and predicted labels!!"
 

@@ -289,8 +289,9 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
 
             # extract the trace of this window and add it to the traces' list
             traces += [convert2flexfringe_format(windowed_data[selected])]
-            # store also the starting and the ending index of the current time window
-            traces_indices += [[windowed_data.index.tolist()[0], windowed_data.index.tolist()[-1]]]
+            # store also the flow indices of the current time window
+            # TODO: check if the absolute indices are given (and not the relative ones)
+            traces_indices += [windowed_data.index.tolist()]
 
             # old implementation of window dissimilarity (not used now)
             # dissim = traces_dissimilarity(deepcopy(trace2list(traces[-1])), deepcopy(trace2list(traces[-2])))
@@ -495,15 +496,9 @@ def run_traces_on_model(traces_path, indices_path, model, attribute_type='train'
     traces = traces2list(traces_path)
     with open(indices_path, 'rb') as f:
         traces_indices = pickle.load(f)
-    for trace, inds_limits in zip(traces, traces_indices):
+    for trace, inds in zip(traces, traces_indices):
         # first fire the transition from root node
         label = model.fire_transition('root', dict())  # TODO: check if the empty dict will work
-        # in case resampling has been used then datetime indices shall be generated
-        if 'resampled' not in traces_path:
-            inds = [i for i in range(inds_limits[0], inds_limits[1] + 1)]
-        else:
-            # TODO: maybe change frequency to something not hardcoded
-            inds = pd.date_range(start=inds_limits[0], end=inds_limits[1], freq="5S")
         for record, ind in zip(trace, inds):
             observed = dict(zip([str(i) for i in range(len(record))], record))
             model.update_attributes(label, observed, attribute_type)
