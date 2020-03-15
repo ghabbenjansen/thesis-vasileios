@@ -75,7 +75,7 @@ def show(data, filepath):
 if __name__ == '__main__':
     # first check why we want to run flexfringe (training or testing - in the second case only the traces are extracted)
     # check if there is a need to create the trace file or there is already there
-    testing = int(input('Training or testing?? (training: 0 | testing: 1)? '))
+    testing = int(input('Training or testing (training: 0 | testing: 1)? '))
 
     if not testing:
         # only if it is for training this question will be asked
@@ -96,7 +96,8 @@ if __name__ == '__main__':
             'protocol_num': 2,
             'orig_ip_bytes': 3,
             'resp_ip_bytes': 4,
-            'duration': 5
+            'duration': 5,
+            'dst_ip': 6
         }
 
         if testing:
@@ -125,6 +126,8 @@ if __name__ == '__main__':
                 else:
                     traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + \
                                       testing_filepath.split('/')[2] + '-' + host + '-traces.txt'
+                    # add also the destination ip in case of aggregation
+                    selected += ['dst_ip']
 
                 helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
                                       trace_limits=(100, 6000), dynamic=True, aggregation=aggregation)
@@ -134,7 +137,7 @@ if __name__ == '__main__':
             # set the input filepath
             training_filepath = input('Give the relative path of the dataframe to be used for training: ')
 
-            # select only hosts with significant number of flows (currently over 50)
+            # select only hosts with significant number of flows (currently over 200)
             data = select_hosts(pd.read_pickle(training_filepath), 200)
 
             # initialize an empty list to hold the filepaths of the trace files for each host
@@ -162,6 +165,8 @@ if __name__ == '__main__':
                 else:
                     traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
                                       training_filepath.split('/')[2] + '-' + host + '-traces.txt'
+                    # add also the destination ip in case of aggregation
+                    selected += ['dst_ip']
 
                 helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
                                       trace_limits=(100, 6000), dynamic=True, aggregation=aggregation)

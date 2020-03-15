@@ -41,13 +41,15 @@ def traces_dissimilarity(trace1, trace2, multivariate=True, normalization=True):
                                                           for j in range(len(trace1[0]))])
 
 
-def convert2flexfringe_format(win_data):
+def convert2flexfringe_format(win_data, ints=True):
     """
     Function to convert the windowed data into a trace in the format accepted by the multivariate version of flexfringe
     :param win_data: the windowed dataframe
+    :param ints: flag showing if there are only int data in the dataframe
     :return: a list of the events in the trace with features separated by comma in each event
     """
-    return list(map(lambda x: ','.join(map(lambda t: str(int(t)), x)), win_data.to_numpy().tolist()))
+    fun = lambda x: int(x) if ints else float(x)
+    return list(map(lambda x: ','.join(map(lambda t: str(fun(t)), x)), win_data.to_numpy().tolist()))
 
 
 def trace2list(trace):
@@ -86,29 +88,32 @@ def aggregate_in_windows(data, window, timed=False, resample=False):
     if timed:
         data.set_index('date', inplace=True)
     if not resample:
-        # TODO: check if NaN values are added in the beginning of the window
         if 'orig_ip_bytes' in old_column_names:
-            data['median_orig_bytes'] = data['orig_ip_bytes'].rolling(window).median()
-            data['var_orig_bytes'] = data['orig_ip_bytes'].rolling(window).var()
+            data['median_orig_bytes'] = data['orig_ip_bytes'].rolling(window, min_periods=1).median()
+            data['var_orig_bytes'] = data['orig_ip_bytes'].rolling(window, min_periods=1).var()
         if 'resp_ip_bytes' in old_column_names:
-            data['median_resp_bytes'] = data['resp_ip_bytes'].rolling(window).median()
-            data['var_resp_bytes'] = data['resp_ip_bytes'].rolling(window).var()
+            data['median_resp_bytes'] = data['resp_ip_bytes'].rolling(window, min_periods=1).median()
+            data['var_resp_bytes'] = data['resp_ip_bytes'].rolling(window, min_periods=1).var()
         if 'duration' in old_column_names:
-            data['median_duration'] = data['duration'].rolling(window).median()
-            data['var_duration'] = data['duration'].rolling(window).var()
+            data['median_duration'] = data['duration'].rolling(window, min_periods=1).median()
+            data['var_duration'] = data['duration'].rolling(window, min_periods=1).var()
         if 'dst_ip' in old_column_names:
-            data['unique_dst_ips'] = data['dst_ip'].rolling(window).apply(lambda x: len(set(x)))
+            data['unique_dst_ips'] = pd.DataFrame(pd.Categorical(data['dst_ip']).codes).rolling(window, min_periods=1).\
+                apply(lambda x: len(set(x)), raw=False)
+            data['count'] = data['dst_ip'].rolling(window, min_periods=1).count()
         if 'src_port' in old_column_names:
-            data['unique_src_ports'] = data['src_port'].rolling(window).apply(lambda x: len(set(x)))
-            data['var_src_ports'] = data['src_port'].rolling(window).var()
+            data['unique_src_ports'] = data['src_port'].rolling(window, min_periods=1).apply(lambda x: len(set(x)), raw=False)
+            data['var_src_ports'] = data['src_port'].rolling(window, min_periods=1).var()
         if 'dst_port' in old_column_names:
-            data['unique_dst_ports'] = data['dst_port'].rolling(window).apply(lambda x: len(set(x)))
-            data['var_dst_ports'] = data['dst_port'].rolling(window).var()
+            data['unique_dst_ports'] = data['dst_port'].rolling(window, min_periods=1).\
+                apply(lambda x: len(set(x)), raw=False)
+            data['var_dst_ports'] = data['dst_port'].rolling(window, min_periods=1).var()
         if 'protocol_num' in old_column_names:
-            data['argmax_protocol_num'] = data['protocol_num'].rolling(window).apply(lambda x: mode(x)[0])
-            data['var_protocol_num'] = data['protocol_num'].rolling(window).var()
-        data['count'] = data.rolling(window).count()
+            data['argmax_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1).\
+                apply(lambda x: mode(x)[0], raw=False)
+            data['var_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1).var()
         data.drop(columns=old_column_names, inplace=True)
+        data.bfill(axis='rows', inplace=True)
     else:
         # can be called only if timed flag has been set to True
         frames = []
@@ -123,8 +128,8 @@ def aggregate_in_windows(data, window, timed=False, resample=False):
             new_column_names += ['median_duration', 'var_duration']
             frames += [data['duration'].resample(window).median(), data['duration'].resample(window).var()]
         if 'dst_ip' in old_column_names:
-            new_column_names += ['unique_dst_ips']
-            frames += [data['dst_ip'].resample(window).nunique()]
+            new_column_names += ['unique_dst_ips', 'count']
+            frames += [data['dst_ip'].resample(window).nunique(), data['dst_ip'].resample(window).count()]
         if 'src_port' in old_column_names:
             new_column_names += ['unique_src_ports', 'var_src_ports']
             frames += [data['src_port'].resample(window).nunique(), data['src_port'].resample(window).var()]
@@ -135,8 +140,6 @@ def aggregate_in_windows(data, window, timed=False, resample=False):
             new_column_names += ['argmax_protocol_num', 'var_protocol_num']
             frames += [data['protocol_num'].resample(window).apply(lambda x: mode(x)[0]),
                        data['protocol_num'].resample(window).var()]
-        new_column_names += ['count']
-        frames += [data.resample(window).count()]
         # TODO: check if the dataframe is created correctly and the column names are assigned in correct order
         data = pd.concat(frames, axis=1)
         data.columns = new_column_names
@@ -183,6 +186,8 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
     min_trace_length, max_trace_length = trace_limits
     # create a dict for testing if all the flows have been included in the traces
     assertion_dict = dict(zip(data.index.tolist(), len(data.index.tolist()) * [False]))
+    # keep a copy of the actually selected features in case aggregation is used
+    old_selected = deepcopy(selected)
 
     # iterate through the input dataframe until the end date is greater than the last date recorded
     while end_date < data['date'].iloc[-1]:
@@ -281,16 +286,19 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
 
             # create aggregated features if needed (currently with a hard-coded window length)
             if aggregation:
-                aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
+                aggregation_length = '10S' if resample else min(10, int(len(windowed_data.index)))
                 timed = True if resample else False
                 windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), aggregation_length, timed,
                                                      resample)
+                # this drop applies only to the resampling case
+                windowed_data.dropna(inplace=True)
                 selected = windowed_data.columns.values
 
             # extract the trace of this window and add it to the traces' list
-            traces += [convert2flexfringe_format(windowed_data[selected])]
+            ints = False if aggregation or 'duration' in old_selected else True
+            traces += [convert2flexfringe_format(windowed_data[selected], ints)]
+            selected = deepcopy(old_selected)
             # store also the flow indices of the current time window
-            # TODO: check if the absolute indices are given (and not the relative ones)
             traces_indices += [windowed_data.index.tolist()]
 
             # old implementation of window dissimilarity (not used now)
@@ -343,15 +351,19 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
         assertion_dict.update(zip(data.index[time_mask].tolist(), len(data.index[time_mask].tolist()) * [True]))
         # check for aggregation
         if aggregation:
-            aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
+            aggregation_length = '10S' if resample else min(10, int(len(windowed_data.index)))
             timed = True if resample else False
             windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), aggregation_length, timed,
                                                  resample)
+            # this drop applies only to the resampling case
+            windowed_data.dropna(inplace=True)
             selected = windowed_data.columns.values
         # and add the new trace
-        traces += [convert2flexfringe_format(windowed_data[selected])]
+        ints = False if aggregation or 'duration' in old_selected else True
+        traces += [convert2flexfringe_format(windowed_data[selected], ints)]
+        selected = deepcopy(old_selected)
         # store also the starting and the ending index of the current time window
-        traces_indices += [[windowed_data.index.tolist()[0], windowed_data.index.tolist()[-1]]]
+        traces_indices += [windowed_data.index.tolist()]
 
     print('Finished with rolling windows!!!')
     # evaluate correctness of the process
@@ -364,9 +376,9 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
     # create the traces' file in the needed format
     if aggregation:
         if not resample:
-            out_filepath = out_filepath.split('.')[0] + '_aggregated.' + out_filepath.split('.')[1]
+            out_filepath = '.'.join(out_filepath.split('.')[:-1]) + '_aggregated.' + out_filepath.split('.')[-1]
         else:
-            out_filepath = out_filepath.split('.')[0] + '_resampled.' + out_filepath.split('.')[1]
+            out_filepath = '.'.join(out_filepath.split('.')[:-1]) + '_resampled.' + out_filepath.split('.')[-1]
     f = open(out_filepath, "w")
     f.write(str(len(traces)) + ' ' + '100:' + str(len(selected)) + '\n')
     for trace in traces:
