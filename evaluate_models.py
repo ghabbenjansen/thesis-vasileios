@@ -3,6 +3,7 @@ from statistics import median
 import pandas as pd
 import numpy as np
 import pickle
+import re
 
 
 def train_model(traces_filepath, indices_filepath, model, method, clustering_method=None):
@@ -113,13 +114,15 @@ if __name__ == '__main__':
         clustering_method = None
         if method == 'clustering':
             clustering_method = input('Provide the specific clustering method to be used: ')
+        train_data_filepath = input('Give the relative path of the testing dataframe to be used for evaluation: ')
+        normal = pd.read_pickle(train_data_filepath + '/zeek_normal.pkl')
         # for now we train it on Isolation Forest (TODO: train on different training methods)
         models += [train_model(traces_filepath, indices_filepath, model, method, clustering_method=clustering_method)]
         methods += [method + '-' + (clustering_method if clustering_method is not None else '')]
         # list used for better presentation of the results later on
         models_info += ['.'.join(model_filepath.split('/')[-1].split('.')[0:-1]) + method]
 
-    # start testing on each trained model
+    # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     m = int(input('Provide the number of testing sets: '))
     results = {}
     for j in range(m):
@@ -129,18 +132,26 @@ if __name__ == '__main__':
         test_trace_name = '.'.join(test_traces_filepath.split('/')[-1].split('.')[0:-1])
         print('Evaluating on ' + test_trace_name + '...')
         results[test_trace_name] = dict()
+        # and retrieve the host IP to use it for true label extraction
+        host_ip_matcher = re.search("-(\d+\.\d+\.\d+\.\d+)-|-([^-]+::.+:.+:.+:[^-]+)-", test_traces_filepath)
+        host_ip = host_ip_matcher.group(1) if host_ip_matcher.group(1) is not None else host_ip_matcher.group(2)
         # TODO: maybe to be changed for consistency reasons emerging from sorting by date (possbily should be added in
         #  the trace extraction phase
         test_data_filepath = input('Give the relative path of the testing dataframe to be used for evaluation: ')
         normal = pd.read_pickle(test_data_filepath + '/zeek_normal.pkl')
         anomalous = pd.read_pickle(test_data_filepath + '/zeek_anomalous.pkl')
-        true_labels = pd.concat([normal, anomalous], ignore_index=True).sort_values(by='date')['label'].values
+        all_data = pd.concat([normal, anomalous], ignore_index=True).sort_values(by='date')
+        true_labels = all_data[all_data['src_ip'] == host_ip]['label'].values
+        # needed to map datetimes to indices in case of resampled datasets
+        if 'resampled' in test_traces_filepath:
+            true_datetimes = all_data[all_data['src_ip'] == host_ip]['date']
         for i in range(n):
             print("Let's use model " + models_info[i] + '!!!')
             models[i].reset_attributes(attribute_type='test')
             models[i].reset_indices(attribute_type='test')
             models[i] = run_traces_on_model(test_traces_filepath, indices_filepath, models[i], 'test')
             predictions = predict_on_model(models[i], methods[i].split('-')[0], methods[i].split('-')[1])
+            # TODO: Add function for mapping predictions when resampling has been used - use true datetimes from above
             assert (len(predictions.keys()) == np.size(true_labels, 0)), \
                 "Dimension mismatch between true and predicted labels!!"
 

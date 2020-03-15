@@ -281,7 +281,7 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
 
             # create aggregated features if needed (currently with a hard-coded window length)
             if aggregation:
-                aggregation_length = '5s' if resample else min(10, int(len(windowed_data.index)))
+                aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
                 timed = True if resample else False
                 windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), aggregation_length, timed,
                                                      resample)
@@ -342,7 +342,7 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
         assertion_dict.update(zip(data.index[time_mask].tolist(), len(data.index[time_mask].tolist()) * [True]))
         # check for aggregation
         if aggregation:
-            aggregation_length = '5s' if resample else min(10, int(len(windowed_data.index)))
+            aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
             timed = True if resample else False
             windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), aggregation_length, timed,
                                                  resample)
@@ -362,7 +362,10 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
     print('Starting writing traces to file...')
     # create the traces' file in the needed format
     if aggregation:
-        out_filepath = out_filepath.split('.')[0] + '_aggregated.' + out_filepath.split('.')[1]
+        if not resample:
+            out_filepath = out_filepath.split('.')[0] + '_aggregated.' + out_filepath.split('.')[1]
+        else:
+            out_filepath = out_filepath.split('.')[0] + '_resampled.' + out_filepath.split('.')[1]
     f = open(out_filepath, "w")
     f.write(str(len(traces)) + ' ' + '100:' + str(len(selected)) + '\n')
     for trace in traces:
@@ -495,7 +498,12 @@ def run_traces_on_model(traces_path, indices_path, model, attribute_type='train'
     for trace, inds_limits in zip(traces, traces_indices):
         # first fire the transition from root node
         label = model.fire_transition('root', dict())  # TODO: check if the empty dict will work
-        inds = [i for i in range(inds_limits[0], inds_limits[1] + 1)]
+        # in case resampling has been used then datetime indices shall be generated
+        if 'resampled' not in traces_path:
+            inds = [i for i in range(inds_limits[0], inds_limits[1] + 1)]
+        else:
+            # TODO: maybe change frequency to something not hardcoded
+            inds = pd.date_range(start=inds_limits[0], end=inds_limits[1], freq="5S")
         for record, ind in zip(trace, inds):
             observed = dict(zip([str(i) for i in range(len(record))], record))
             model.update_attributes(label, observed, attribute_type)
