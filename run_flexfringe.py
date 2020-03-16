@@ -114,7 +114,8 @@ if __name__ == '__main__':
                 # extract the traces and save them in the traces' filepath - the window and the stride sizes of the
                 # sliding window, as well as the aggregation capability, can be also specified
                 window, stride = helper.set_windowing_vars(host_data)
-                aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes: 1)? '))
+                aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | yes-resample:'
+                                        ' 2 )? '))
 
                 # set the traces output filepath depending on the aggregation value
                 # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of the
@@ -123,14 +124,18 @@ if __name__ == '__main__':
                     traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + \
                                       testing_filepath.split('/')[2] + '-' + host + '-traces-' + \
                                       '-'.join([str(feature_mapping[feature]) for feature in selected]) + '.txt'
+                    aggregation = False
+                    resample = False
                 else:
                     traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + \
                                       testing_filepath.split('/')[2] + '-' + host + '-traces.txt'
+                    resample = False if aggregation == 1 else True
+                    aggregation = True
                     # add also the destination ip in case of aggregation
-                    selected += ['dst_ip']
+                    selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
 
                 helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
-                                      trace_limits=(100, 6000), dynamic=True, aggregation=aggregation)
+                                      trace_limits=(100, 6000), dynamic=True, aggregation=aggregation, resample=resample)
 
         else:
 
@@ -138,7 +143,7 @@ if __name__ == '__main__':
             training_filepath = input('Give the relative path of the dataframe to be used for training: ')
 
             # select only hosts with significant number of flows (currently over 200)
-            data = select_hosts(pd.read_pickle(training_filepath), 200)
+            data = select_hosts(pd.read_pickle(training_filepath), 50)
 
             # initialize an empty list to hold the filepaths of the trace files for each host
             traces_filepaths = []
@@ -153,7 +158,8 @@ if __name__ == '__main__':
                 # extract the traces and save them in the traces' filepath - the window and the stride sizes of the
                 # sliding window, as well as the aggregation capability, can be also specified
                 window, stride = helper.set_windowing_vars(host_data)
-                aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes: 1)? '))
+                aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | yes-resample:'
+                                        ' 2 )? '))
 
                 # set the traces output filepath depending on the aggregation value
                 # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of the
@@ -162,14 +168,18 @@ if __name__ == '__main__':
                     traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
                                       training_filepath.split('/')[2] + '-' + host + '-traces-' + \
                                       '-'.join([str(feature_mapping[feature]) for feature in selected]) + '.txt'
+                    aggregation = False
+                    resample = False
                 else:
                     traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
                                       training_filepath.split('/')[2] + '-' + host + '-traces.txt'
+                    resample = False if aggregation == 1 else True
+                    aggregation = True
                     # add also the destination ip in case of aggregation
-                    selected += ['dst_ip']
+                    selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
 
                 helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
-                                      trace_limits=(100, 6000), dynamic=True, aggregation=aggregation)
+                                      trace_limits=(100, 6000), dynamic=True, aggregation=aggregation, resample=resample)
 
                 # add the trace filepath of each host's traces to the list
                 traces_filepaths += [traces_filepath]
