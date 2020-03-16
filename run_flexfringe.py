@@ -6,7 +6,6 @@ import helper
 from connection_clustering import select_hosts
 import pandas as pd
 
-# TODO: change the filepath from hardcoded to input setting
 filepath = '/Users/vserentellos/Documents/dfasat/'
 
 
@@ -39,6 +38,11 @@ def flexfringe(*args, **kwargs):
     old_file = os.path.join("outputs", "final.json")
     # TODO: make it less case sensitive in case of other dataset
     extension = '-'.join(args[0].split('/')[-1].split('-')[0:4])
+    # add this naming in case aggregation windows have been used
+    if 'aggregated' in args[0]:
+        extension += '_aggregated'
+    if 'resampled' in args[0]:
+        extension += '_resampled'
     new_file_name = "final_" + extension + "_dfa.dot"
     new_file = os.path.join("outputs", new_file_name)
     os.rename(old_file, new_file)
@@ -84,7 +88,6 @@ if __name__ == '__main__':
         # otherwise we need to create the trace file
         with_trace = 0
 
-    # TODO: update the trace extraction part for the testing datasets too (This entails keeping the number of flows)
     if not with_trace:
         # set the features to be used in the multivariate modelling
         selected = ['src_port', 'dst_port', 'protocol_num', 'orig_ip_bytes', 'resp_ip_bytes']
@@ -127,15 +130,23 @@ if __name__ == '__main__':
                     aggregation = False
                     resample = False
                 else:
-                    traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + \
-                                      testing_filepath.split('/')[2] + '-' + host + '-traces.txt'
                     resample = False if aggregation == 1 else True
                     aggregation = True
+                    if resample:
+                        traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + \
+                                          testing_filepath.split('/')[2] + '-' + host + '-traces_resampled.txt'
+                    else:
+                        traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + \
+                                          testing_filepath.split('/')[2] + '-' + host + '-traces_aggregated.txt'
                     # add also the destination ip in case of aggregation
                     selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
 
+                # set the trace limits according to the number of flows in the examined dataset
+                min_trace_len = int(max(host_data.shape[0] / 10000, 10))
+                max_trace_len = int(max(host_data.shape[0] / 100, 1000))
                 helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
-                                      trace_limits=(100, 6000), dynamic=True, aggregation=aggregation, resample=resample)
+                                      trace_limits=(min_trace_len, max_trace_len), dynamic=True,
+                                      aggregation=aggregation, resample=resample)
 
         else:
 
@@ -143,7 +154,7 @@ if __name__ == '__main__':
             training_filepath = input('Give the relative path of the dataframe to be used for training: ')
 
             # select only hosts with significant number of flows (currently over 200)
-            data = select_hosts(pd.read_pickle(training_filepath), 50)
+            data = select_hosts(pd.read_pickle(training_filepath), 200)
 
             # initialize an empty list to hold the filepaths of the trace files for each host
             traces_filepaths = []
@@ -171,15 +182,23 @@ if __name__ == '__main__':
                     aggregation = False
                     resample = False
                 else:
-                    traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
-                                      training_filepath.split('/')[2] + '-' + host + '-traces.txt'
                     resample = False if aggregation == 1 else True
                     aggregation = True
+                    if resample:
+                        traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
+                                          training_filepath.split('/')[2] + '-' + host + '-traces_resampled.txt'
+                    else:
+                        traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
+                                          training_filepath.split('/')[2] + '-' + host + '-traces_aggregated.txt'
                     # add also the destination ip in case of aggregation
                     selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
 
+                # set the trace limits according to the number of flows in the examined dataset
+                min_trace_len = int(max(host_data.shape[0] / 10000, 10))
+                max_trace_len = int(max(host_data.shape[0] / 100, 1000))
                 helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
-                                      trace_limits=(100, 6000), dynamic=True, aggregation=aggregation, resample=resample)
+                                      trace_limits=(min_trace_len, max_trace_len), dynamic=True,
+                                      aggregation=aggregation, resample=resample)
 
                 # add the trace filepath of each host's traces to the list
                 traces_filepaths += [traces_filepath]

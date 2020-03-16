@@ -19,7 +19,7 @@ def set_windowing_vars(data):
     """
     # find the median of the time differences in the dataframe
     median_diff = data['date'].sort_values().diff().median()
-    return 200 * median_diff, 40 * median_diff
+    return 100 * median_diff, 20 * median_diff
 
 
 def traces_dissimilarity(trace1, trace2, multivariate=True, normalization=True):
@@ -188,6 +188,8 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
     assertion_dict = dict(zip(data.index.tolist(), len(data.index.tolist()) * [False]))
     # keep a copy of the actually selected features in case aggregation is used
     old_selected = deepcopy(selected)
+    # keep also a variable of the number of features to be used for the model creation
+    num_of_features = len(selected)
 
     # iterate through the input dataframe until the end date is greater than the last date recorded
     while end_date < data['date'].iloc[-1]:
@@ -291,6 +293,7 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
                 windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), aggregation_length, timed,
                                                      resample)
                 selected = windowed_data.columns.values
+                num_of_features = len(selected)
 
             # extract the trace of this window and add it to the traces' list
             ints = False if aggregation or 'duration' in old_selected else True
@@ -354,6 +357,7 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
             windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), aggregation_length, timed,
                                                  resample)
             selected = windowed_data.columns.values
+            num_of_features = len(selected)
         # and add the new trace
         ints = False if aggregation or 'duration' in old_selected else True
         traces += [convert2flexfringe_format(windowed_data[selected], ints)]
@@ -370,13 +374,8 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
         print('All flows correctly converted to traces!!!')
     print('Starting writing traces to file...')
     # create the traces' file in the needed format
-    if aggregation:
-        if not resample:
-            out_filepath = '.'.join(out_filepath.split('.')[:-1]) + '_aggregated.' + out_filepath.split('.')[-1]
-        else:
-            out_filepath = '.'.join(out_filepath.split('.')[:-1]) + '_resampled.' + out_filepath.split('.')[-1]
     f = open(out_filepath, "w")
-    f.write(str(len(traces)) + ' ' + '100:' + str(len(selected)) + '\n')
+    f.write(str(len(traces)) + ' ' + '100:' + str(num_of_features) + '\n')
     for trace in traces:
         f.write('1 ' + str(len(trace)) + ' 0:' + ' 0:'.join(trace) + '\n')
     f.close()
