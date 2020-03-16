@@ -465,7 +465,7 @@ def parse_dot(dot_path):
                     # the condition dictonary should be initialized from the state identification stage
                     if dst_state not in cond_dict.keys():
                         cond_dict[dst_state] = []
-                    cond_dict[dst_state] += [attribute, inequality_symbol, float(boundary)]
+                    cond_dict[dst_state] += [[attribute, inequality_symbol, float(boundary)]]
             # set the cached flag to True after the first state is fully identified
             cached = True
 
@@ -486,10 +486,11 @@ def traces2list(traces_path):
         line = fp.readline()
         while line:
             line = fp.readline()
-            # split lines by spaces
-            tokens = line.split()
-            # gather the records of each trace and keep only the record values and map them to float
-            traces += [[list(map(float, t.split(':')[1].split(','))) for t in tokens[2:]]]
+            if line != '':
+                # split lines by spaces
+                tokens = line.split()
+                # gather the records of each trace and keep only the record values and map them to float
+                traces += [[list(map(float, t.split(':')[1].split(','))) for t in tokens[2:]]]
     return traces
 
 
@@ -507,11 +508,11 @@ def run_traces_on_model(traces_path, indices_path, model, attribute_type='train'
         traces_indices = pickle.load(f)
     for trace, inds in zip(traces, traces_indices):
         # first fire the transition from root node
-        label = model.fire_transition('root', dict())  # TODO: check if the empty dict will work
+        label = model.fire_transition('root', dict())
         for record, ind in zip(trace, inds):
             observed = dict(zip([str(i) for i in range(len(record))], record))
             model.update_attributes(label, observed, attribute_type)
-            model.update_attributes_indices(label, ind, attribute_type)
+            model.update_indices(label, ind, attribute_type)
             label = model.fire_transition(label, observed)
     return model
 

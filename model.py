@@ -57,7 +57,6 @@ class ModelNode:
         :param input_attributes: the input attributes' values
         :return: a boolean value denoting the ability to fire the transition
         """
-        # TODO: check validity in case there are no transition conditions
         return all([self.inequality_mapping[condition[1]](input_attributes[condition[0]], condition[2])
                     for condition in self.tran_conditions[dst_node_label]])
 
@@ -271,9 +270,32 @@ class Model:
         :param input_attributes: the input attributes' values
         :return: the label of the destination state
         """
-        destinations = [(dst_node, self.nodes_dict[src_node_label].evaluate_transition(dst_node, input_attributes))
-                        for dst_node in self.nodes_dict[src_node_label].tran_conditions.keys()]
-        return destinations[np.where(destinations)[0][0]][0]
+        # in case the source node is the root then only one choice is available
+        if src_node_label == 'root':
+            return self.nodes_dict[src_node_label].dst_nodes[0]
+        # otherwise find the appropriate destination
+        else:
+            # in case there are no conditional transitions
+            if len(self.nodes_dict[src_node_label].tran_conditions.keys()) == 0:
+                # then if there are destination nodes
+                if len(self.nodes_dict[src_node_label].dst_nodes) != 0:
+                    # there should be only one otherwise there would be conditions around
+                    if len(self.nodes_dict[src_node_label].dst_nodes) != 1:
+                        print('Something went wrong -> Only one destination state should exist in non-conditional '
+                              'cases!!!!')
+                        return -1
+                    # if there is indeed one return its label
+                    else:
+                        return self.nodes_dict[src_node_label].dst_nodes[0]
+                # if there is no destination node then we are in a sink state so return the source label
+                else:
+                    return src_node_label
+            # in case there are conditional transitions peak the appropriate one
+            else:
+                destinations = [(dst_node, self.nodes_dict[src_node_label].evaluate_transition(dst_node,
+                                                                                               input_attributes))
+                                for dst_node in self.nodes_dict[src_node_label].tran_conditions.keys()]
+                return destinations[[destination[1] for destination in destinations].index(True)][0]
 
     def update_attributes(self, label, observed, attribute_type='train'):
         """
@@ -285,10 +307,16 @@ class Model:
         """
         if attribute_type == 'train':
             for attribute, obs_value in observed.items():
-                self.nodes_dict[label].observed_attributes[attribute] += obs_value
+                if len(self.nodes_dict[label].observed_attributes[attribute]) == 0:
+                    self.nodes_dict[label].observed_attributes[attribute] = [obs_value]
+                else:
+                    self.nodes_dict[label].observed_attributes[attribute] += [obs_value]
         else:
             for attribute, obs_value in observed.items():
-                self.nodes_dict[label].testing_attributes[attribute] += obs_value
+                if len(self.nodes_dict[label].testing_attributes[attribute]) == 0:
+                    self.nodes_dict[label].testing_attributes[attribute] = [obs_value]
+                else:
+                    self.nodes_dict[label].testing_attributes[attribute] += [obs_value]
 
     def update_indices(self, label, ind, attribute_type='train'):
         """

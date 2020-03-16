@@ -43,7 +43,7 @@ def flexfringe(*args, **kwargs):
         extension += '_aggregated'
     if 'resampled' in args[0]:
         extension += '_resampled'
-    new_file_name = "final_" + extension + "_dfa.dot"
+    new_file_name = extension + "_dfa.dot"
     new_file = os.path.join("outputs", new_file_name)
     os.rename(old_file, new_file)
 

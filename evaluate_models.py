@@ -137,27 +137,27 @@ if __name__ == '__main__':
     models_info = []
     for _ in range(n):
         model_filepath = input('Give the relative path of the model to be used for training: ')
-        model = [parse_dot(model_filepath)]
+        model = parse_dot(model_filepath)
         traces_filepath = input('Give the relative path of the trace to be used for training on the given model: ')
-        indices_filepath = traces_filepath.split('.')[0] + '_indices.pkl'
-        method = input('Give the name of the training method to be used: ')
+        indices_filepath = '.'.join(traces_filepath.split('.')[:-1]) + '_indices.pkl'
+        method = input('Give the name of the training method to be used (clustering | multivariate-gaussian | '
+                       'probabilistic): ')
         clustering_method = None
         if method == 'clustering':
-            clustering_method = input('Provide the specific clustering method to be used: ')
-        train_data_filepath = input('Give the relative path of the testing dataframe to be used for evaluation: ')
-        normal = pd.read_pickle(train_data_filepath + '/zeek_normal.pkl')
-        # for now we train it on Isolation Forest (TODO: train on different training methods)
+            clustering_method = input('Provide the specific clustering method to be used (hdbscan | isolation-forest | '
+                                      'LOF | k-means): ')
+        # train the model
         models += [train_model(traces_filepath, indices_filepath, model, method, clustering_method=clustering_method)]
         methods += [method + '-' + (clustering_method if clustering_method is not None else '')]
         # list used for better presentation of the results later on
-        models_info += ['.'.join(model_filepath.split('/')[-1].split('.')[0:-1]) + method]
+        models_info += ['.'.join(model_filepath.split('/')[-1].split('.')[0:-1]) + '_' + methods[-1]]
 
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     m = int(input('Provide the number of testing sets: '))
     results = {}
     for j in range(m):
         test_traces_filepath = input('Give the relative path of the testing traces to be used for evaluation: ')
-        indices_filepath = test_traces_filepath.split('.')[0] + '_indices.pkl'
+        indices_filepath = '.'.join(test_traces_filepath.split('.')[:-1]) + '_indices.pkl'
         # initialize the entry in the results dictionary for the current testing trace file
         test_trace_name = '.'.join(test_traces_filepath.split('/')[-1].split('.')[0:-1])
         print('Evaluating on ' + test_trace_name + '...')
@@ -165,7 +165,7 @@ if __name__ == '__main__':
         # and retrieve the host IP to use it for true label extraction
         host_ip_matcher = re.search("-(\d+\.\d+\.\d+\.\d+)-|-([^-]+::.+:.+:.+:[^-]+)-", test_traces_filepath)
         host_ip = host_ip_matcher.group(1) if host_ip_matcher.group(1) is not None else host_ip_matcher.group(2)
-        # TODO: maybe to be changed for consistency reasons emerging from sorting by date (possbily should be added in
+        # TODO: maybe to be changed for consistency reasons emerging from sorting by date (possibly should be added in
         #  the trace extraction phase
         test_data_filepath = input('Give the relative path of the testing dataframe to be used for evaluation: ')
         normal = pd.read_pickle(test_data_filepath + '/zeek_normal.pkl')
