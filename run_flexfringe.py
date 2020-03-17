@@ -23,7 +23,7 @@ def flexfringe(*args, **kwargs):
         command = ["-" + key + "=" + kwargs[key] for key in kwargs]
 
     # run flexfringe with the given arguments
-    print("%s" % subprocess.run([filepath+"flexfringe", ] + command + [args[0]], stdout=subprocess.PIPE, check=True)
+    print("%s" % subprocess.run([filepath + "flexfringe", ] + command + [args[0]], stdout=subprocess.PIPE, check=True)
           .stdout.decode())
 
     # remove unnecessary files
@@ -70,7 +70,7 @@ def show(data, filepath):
         # first extract the directory and filename from the filepath
         directory = filepath.split('/')[0]
         filename = '_'.join(filepath.split('/')[1].split('_')[1:])  # first remove the front 'final_'
-        filename = '.'.join(filename.split('.')[:-1])   # and then remove the '.dot' ending
+        filename = '.'.join(filename.split('.')[:-1])  # and then remove the '.dot' ending
         # and then create the dfa plot
         g = graphviz.Source(data, filename=filename, directory=directory, format="png")
         g.render(filename=filename, directory=directory, view=True, cleanup=True)
@@ -104,14 +104,18 @@ if __name__ == '__main__':
         }
 
         if testing:
-            # set the input filepath
-            testing_filepath = input('Give the relative path of the dataframe to be used for tesing: ')
-            data = pd.read_pickle(testing_filepath)
+            # set the input filepath of the dataframes' directory
+            testing_filepath = input('Give the relative path of the dataset to be used for testing: ')
+            normal = pd.read_pickle(testing_filepath + '/zeek_normal.pkl')
+            anomalous = pd.read_pickle(testing_filepath + '/zeek_anomalous.pkl')
+            data = pd.concat([normal, anomalous], ignore_index=True).reset_index(drop=True)
+            # for testing keep only hosts that have at least 2 flows so that enough information is available
+            data = select_hosts(data, 2)
             # extract the data per host
             for host in data['src_ip'].unique():
                 print('Extracting traces for host ' + host)
                 host_data = data[data['src_ip'] == host]
-                host_data.reset_index(drop=True, inplace=True)
+                host_data.sort_values(by='date', inplace=True).reset_index(drop=True, inplace=True)
                 print('The number of flows for this host are: ' + str(host_data.shape[0]))
 
                 # extract the traces and save them in the traces' filepath - the window and the stride sizes of the
@@ -144,6 +148,8 @@ if __name__ == '__main__':
                 # set the trace limits according to the number of flows in the examined dataset
                 min_trace_len = int(max(host_data.shape[0] / 10000, 10))
                 max_trace_len = int(max(host_data.shape[0] / 100, 1000))
+                if host_data.shape[0] < min_trace_len:
+                    min_trace_len = host_data.shape[0]
                 helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
                                       trace_limits=(min_trace_len, max_trace_len), dynamic=True,
                                       aggregation=aggregation, resample=resample)
@@ -163,7 +169,7 @@ if __name__ == '__main__':
             for host in data['src_ip'].unique():
                 print('Extracting traces for host ' + host)
                 host_data = data[data['src_ip'] == host]
-                host_data.reset_index(drop=True, inplace=True)
+                host_data.sort_values(by='date', inplace=True).reset_index(drop=True, inplace=True)
                 print('The number of flows for this host are: ' + str(host_data.shape[0]))
 
                 # extract the traces and save them in the traces' filepath - the window and the stride sizes of the

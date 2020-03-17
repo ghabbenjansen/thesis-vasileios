@@ -14,7 +14,7 @@ def train_model(traces_filepath, indices_filepath, model, method, clustering_met
     :param traces_filepath: the filepath to the traces' file
     :param indices_filepath: the filepath to the traces' indices limits - used later for prediction
     :param model: the given model
-    :param method: the training method to be used (currently probabilistic | multivariate-gaussian | clustering)
+    :param method: the training method to be used (currently probabilistic | multivariate gaussian | clustering)
     :param clustering_method: the clustering method to be used if clustering has been selected as method, otherwise None
     :return: the trained model
     """
@@ -24,7 +24,7 @@ def train_model(traces_filepath, indices_filepath, model, method, clustering_met
             if method == 'clustering':
                 model.nodes_dict[node_label].training_vars['clusterer'] = model.nodes_dict[node_label].\
                     fit_clusters_on_observed(clustering_method)
-            elif method == "multivariate-gaussian":
+            elif method == "multivariate gaussian":
                 model.nodes_dict[node_label].training_vars['m'], model.nodes_dict[node_label].training_vars['sigma'] = \
                     model.nodes_dict[node_label].fit_multivariate_gaussian()
             else:
@@ -43,12 +43,13 @@ def predict_on_model(model, method, clustering_method=''):
     :return: the predicted labels
     """
     predictions = dict()
+    # TODO: check the label types provided by each prediction mehtod and adjust them accordingly
     for node_label in model.nodes_dict.keys():
         if node_label != 'root':
             if method == 'clustering':
                 pred = model.nodes_dict[node_label].predict_on_clusters(
                     model.nodes_dict[node_label].training_vars['clusterer'], clustering_method=clustering_method)
-            elif method == "multivariate-gaussian":
+            elif method == "multivariate gaussian":
                 pred = model.nodes_dict[node_label].predict_on_gaussian(
                     model.nodes_dict[node_label].training_vars['m'],
                     model.nodes_dict[node_label].training_vars['sigma'])
@@ -79,18 +80,18 @@ def dates2indices(date_dict, dates):
     for items in dates.iteritems():
         # if the current resampled date examined is the last one then just check for lower bound for the actual dates
         if ind == date_df.shape[0] - 1:
-            if date_df[ind] <= items[1]:
-                new_dict[items[0]] = date_dict[date_df[ind]]
+            if date_df.resampled_dates[ind] <= items[1]:
+                new_dict[items[0]] = date_dict[date_df.resampled_dates[ind]]
             else:
                 print("This clause should not be accessed -> Error !!!!!!!!!!!")
         # otherwise check both upper and lower limits
         else:
-            if date_df[ind] <= items[1] < date_df[ind+1]:
-                new_dict[items[0]] = date_dict[date_df[ind]]
+            if date_df.resampled_dates[ind] <= items[1] < date_df.resampled_dates[ind+1]:
+                new_dict[items[0]] = date_dict[date_df.resampled_dates[ind]]
             else:
                 # and if the upper limit is violated increment the resampled dates' index
                 ind += 1
-                new_dict[items[0]] = date_dict[date_df[ind]]
+                new_dict[items[0]] = date_dict[date_df.resampled_dates[ind]]
     return new_dict
 
 
@@ -140,12 +141,12 @@ if __name__ == '__main__':
         model = parse_dot(model_filepath)
         traces_filepath = input('Give the relative path of the trace to be used for training on the given model: ')
         indices_filepath = '.'.join(traces_filepath.split('.')[:-1]) + '_indices.pkl'
-        method = input('Give the name of the training method to be used (clustering | multivariate-gaussian | '
+        method = input('Give the name of the training method to be used (clustering | multivariate gaussian | '
                        'probabilistic): ')
         clustering_method = None
         if method == 'clustering':
-            clustering_method = input('Provide the specific clustering method to be used (hdbscan | isolation-forest | '
-                                      'LOF | k-means): ')
+            clustering_method = input('Provide the specific clustering method to be used (hdbscan | isolation forest | '
+                                      'LOF | kmeans): ')
         # train the model
         models += [train_model(traces_filepath, indices_filepath, model, method, clustering_method=clustering_method)]
         methods += [method + '-' + (clustering_method if clustering_method is not None else '')]
@@ -170,7 +171,9 @@ if __name__ == '__main__':
         test_data_filepath = input('Give the relative path of the testing dataframe to be used for evaluation: ')
         normal = pd.read_pickle(test_data_filepath + '/zeek_normal.pkl')
         anomalous = pd.read_pickle(test_data_filepath + '/zeek_anomalous.pkl')
-        all_data = pd.concat([normal, anomalous], ignore_index=True).sort_values(by='date')
+        all_data = pd.concat([normal, anomalous], ignore_index=True)
+        # keep only the source ip currently under evaluation and sort values by date
+        all_data = all_data[all_data['src_ip'] == host_ip].sort_values(by='date').reset_index(drop=True)
         true_labels = all_data[all_data['src_ip'] == host_ip]['label'].values
         # needed to map datetimes to indices in case of resampled datasets
         true_datetimes = all_data[all_data['src_ip'] == host_ip]['date'] if 'resampled' in test_traces_filepath else None

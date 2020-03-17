@@ -297,10 +297,14 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
 
             # extract the trace of this window and add it to the traces' list
             ints = False if aggregation or 'duration' in old_selected else True
-            traces += [convert2flexfringe_format(windowed_data[selected], ints)]
+            # this case applies only on resampling in case there are no more than 1 flow per resampling window
+            # TODO: maybe check if flows are missed when resampling is used
+            if windowed_data.shape[0] != 0:
+                traces += [convert2flexfringe_format(windowed_data[selected], ints)]
             selected = deepcopy(old_selected)
             # store also the flow indices of the current time window
-            traces_indices += [windowed_data.index.tolist()]
+            if windowed_data.shape[0] != 0:     # this case applies only on resampling as explained above
+                traces_indices += [windowed_data.index.tolist()]
 
             # old implementation of window dissimilarity (not used now)
             # dissim = traces_dissimilarity(deepcopy(trace2list(traces[-1])), deepcopy(trace2list(traces[-2])))
@@ -360,10 +364,11 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
             num_of_features = len(selected)
         # and add the new trace
         ints = False if aggregation or 'duration' in old_selected else True
-        traces += [convert2flexfringe_format(windowed_data[selected], ints)]
-        selected = deepcopy(old_selected)
+        if windowed_data.shape[0] != 0:     # for the resampling case
+            traces += [convert2flexfringe_format(windowed_data[selected], ints)]
         # store also the starting and the ending index of the current time window
-        traces_indices += [windowed_data.index.tolist()]
+        if windowed_data.shape[0] != 0:     # for the resampling case
+            traces_indices += [windowed_data.index.tolist()]
 
     print('Finished with rolling windows!!!')
     # evaluate correctness of the process
