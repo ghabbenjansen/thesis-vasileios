@@ -199,16 +199,10 @@ class ModelNode:
                 # in this case an array of (number of samples, 1) will be returned with the opposite of the anomaly
                 # score for each sample
                 test_labels = clusterer.score_samples(x_test.values)
-                # change the labels to 0: Benign 1: Malicious
-                test_labels[test_labels == 1] = 0
-                test_labels[test_labels == -1] = 1
             elif clustering_method == "LOF":
                 # in this case an array of (number of samples, 1) will be returned with the opposite of the anomaly
                 # score for each sample
                 test_labels = clusterer.score_samples(x_test.values)
-                # change the labels to 0: Benign 1: Malicious
-                test_labels[test_labels == 1] = 0
-                test_labels[test_labels == -1] = 1
             else:
                 # in this case an array of (number of samples, number of clusters) will be returned with the distance of
                 # each sample from each cluster's center
