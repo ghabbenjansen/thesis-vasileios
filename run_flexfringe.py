@@ -36,7 +36,7 @@ def flexfringe(*args, **kwargs):
 
     # rename the output file to an indicating name
     old_file = os.path.join("outputs", "final.json")
-    # TODO: make it less case sensitive in case of other dataset
+    # TODO: make it less case sensitive in case of other dataset !!!!!!!!
     extension = '-'.join(args[0].split('/')[-1].split('-')[0:4])
     # add this naming in case aggregation windows have been used
     if 'aggregated' in args[0]:
@@ -69,7 +69,7 @@ def show(data, filepath):
     else:
         # first extract the directory and filename from the filepath
         directory = filepath.split('/')[0]
-        filename = '_'.join(filepath.split('/')[1].split('_')[1:])  # first remove the front 'final_'
+        filename = filepath.split('/')[1]
         filename = '.'.join(filename.split('.')[:-1])  # and then remove the '.dot' ending
         # and then create the dfa plot
         g = graphviz.Source(data, filename=filename, directory=directory, format="png")
@@ -114,8 +114,7 @@ if __name__ == '__main__':
             # extract the data per host
             for host in data['src_ip'].unique():
                 print('Extracting traces for host ' + host)
-                host_data = data[data['src_ip'] == host]
-                host_data.sort_values(by='date', inplace=True).reset_index(drop=True, inplace=True)
+                host_data = data[data['src_ip'] == host].sort_values(by='date').reset_index(drop=True)
                 print('The number of flows for this host are: ' + str(host_data.shape[0]))
 
                 # extract the traces and save them in the traces' filepath - the window and the stride sizes of the
@@ -169,7 +168,8 @@ if __name__ == '__main__':
             for host in data['src_ip'].unique():
                 print('Extracting traces for host ' + host)
                 host_data = data[data['src_ip'] == host]
-                host_data.sort_values(by='date', inplace=True).reset_index(drop=True, inplace=True)
+                host_data.sort_values(by='date', inplace=True)
+                host_data.reset_index(drop=True, inplace=True)
                 print('The number of flows for this host are: ' + str(host_data.shape[0]))
 
                 # extract the traces and save them in the traces' filepath - the window and the stride sizes of the

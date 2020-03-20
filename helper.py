@@ -19,7 +19,7 @@ def set_windowing_vars(data):
     """
     # find the median of the time differences in the dataframe
     median_diff = data['date'].sort_values().diff().median()
-    return 100 * median_diff, 20 * median_diff
+    return 25 * median_diff, 5 * median_diff
 
 
 def traces_dissimilarity(trace1, trace2, multivariate=True, normalization=True):
@@ -412,8 +412,6 @@ def parse_dot(dot_path):
     # boolean flag used for adding states in the model
     cached = False
     for line in re.split(r'\n\t+|\n}', dot_string):  # split the dot file in meaningful lines
-        if '446' in line:
-            print('found 447')
         state_matcher = re.match(state_regex, line, re.DOTALL)
         # if a new state is found while parsing
         if state_matcher is not None:

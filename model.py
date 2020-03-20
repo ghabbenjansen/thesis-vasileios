@@ -6,7 +6,7 @@ from sklearn.cluster import KMeans
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import RobustScaler
-from math import pi, sqrt
+from math import pi, sqrt, ceil
 
 
 class ModelNode:
@@ -161,7 +161,7 @@ class ModelNode:
         elif clustering_method == "isolation forest":
             clusterer = IsolationForest().fit(x_train.values)
         elif clustering_method == "LOF":
-            clusterer = LocalOutlierFactor(metric='manhattan', novelty=True).fit(x_train.values)
+            clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/10), novelty=True).fit(x_train.values)
         else:
             clusterer = KMeans(n_clusters=2).fit(x_train.values)
         return clusterer
@@ -204,8 +204,8 @@ class ModelNode:
                 # score for each sample
                 test_labels = clusterer.score_samples(x_test.values)
             else:
-                # in this case an array of (number of samples, number of clusters) will be returned with the distance of
-                # each sample from each cluster's center
+                # in this case an array of (number of samples, number of clusters) will be returned with the
+                # distance of each sample from each cluster's center
                 test_labels = clusterer.transform(x_test.values)
         return test_labels
 

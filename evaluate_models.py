@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import pickle
 import re
+from math import floor
 
 
 def train_model(traces_filepath, indices_filepath, model, method, clustering_method=None):
@@ -43,9 +44,10 @@ def predict_on_model(model, method, clustering_method=''):
     :return: the predicted labels
     """
     predictions = dict()
-    # TODO: check the label types provided by each prediction mehtod and adjust them accordingly
+    # TODO: check the label types provided by each prediction method and adjust them accordingly
     for node_label in model.nodes_dict.keys():
-        if node_label != 'root':
+        # the node needs to have test set to predict on
+        if node_label != 'root' and len(model.nodes_dict[node_label].testing_indices) != 0:
             if method == 'clustering':
                 pred = model.nodes_dict[node_label].predict_on_clusters(
                     model.nodes_dict[node_label].training_vars['clusterer'], clustering_method=clustering_method)
@@ -107,6 +109,8 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
     """
     if prediction_type == 'hard':
         TP, TN, FP, FN = 0, 0, 0, 0
+        # floor is applied for rounding in cases of float medians
+        predicted_labels = list(map(floor, predicted_labels))
         for i in range(len(true_labels)):
             if true_labels[i] == 1:
                 if true_labels[i] == predicted_labels[i]:
@@ -114,6 +118,7 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
                 else:
                     FN += 1
             else:
+                # floor is applied for rounding in cases of float medians
                 if true_labels[i] == predicted_labels[i]:
                     TN += 1
                 else:
@@ -122,6 +127,7 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
         precision = TP / (TP + FP)
         recall = TP / (TP + FN)
         if printing:
+            print('TP: ' + str(TP) + ' TN: ' + str(TN) + ' FP: ' + str(FP) + ' FN:' + str(FN))
             print('Accuracy: ' + str(accuracy))
             print('Precision: ' + str(precision))
             print('Recall: ' + str(recall))
@@ -166,17 +172,16 @@ if __name__ == '__main__':
         # and retrieve the host IP to use it for true label extraction
         host_ip_matcher = re.search("-(\d+\.\d+\.\d+\.\d+)-|-([^-]+::.+:.+:.+:[^-]+)-", test_traces_filepath)
         host_ip = host_ip_matcher.group(1) if host_ip_matcher.group(1) is not None else host_ip_matcher.group(2)
-        # TODO: maybe to be changed for consistency reasons emerging from sorting by date (possibly should be added in
-        #  the trace extraction phase
+        # retrieve the actual dataset so that the true labels can be extracted
         test_data_filepath = input('Give the relative path of the testing dataframe to be used for evaluation: ')
         normal = pd.read_pickle(test_data_filepath + '/zeek_normal.pkl')
         anomalous = pd.read_pickle(test_data_filepath + '/zeek_anomalous.pkl')
-        all_data = pd.concat([normal, anomalous], ignore_index=True)
+        all_data = pd.concat([normal, anomalous], ignore_index=True).reset_index(drop=True)
         # keep only the source ip currently under evaluation and sort values by date
         all_data = all_data[all_data['src_ip'] == host_ip].sort_values(by='date').reset_index(drop=True)
-        true_labels = all_data[all_data['src_ip'] == host_ip]['label'].values
+        true_labels = all_data['label'].values
         # needed to map datetimes to indices in case of resampled datasets
-        true_datetimes = all_data[all_data['src_ip'] == host_ip]['date'] if 'resampled' in test_traces_filepath else None
+        true_datetimes = all_data['date'] if 'resampled' in test_traces_filepath else None
         for i in range(n):
             print("Let's use model " + models_info[i] + '!!!')
             models[i].reset_attributes(attribute_type='test')
@@ -188,17 +193,20 @@ if __name__ == '__main__':
             assert (len(predictions.keys()) == np.size(true_labels, 0)), \
                 "Dimension mismatch between true and predicted labels!!"
 
-            # TODO: currently the results are saved as a list of tuples for each testing trace - maybe to be changed to
-            #  something more informative - also the mapping between the string representation of the labels and their
-            #  int value should become more robust so that other datasets can be used too
+            # TODO: The mapping between the string representation of the labels and their int value should become more
+            #  robust so that other datasets can be used too
+            # Save the results as a dictionary of dictionaries with the first level keys being the test set name, the
+            # second level keys being the tre training model information, and the values being the results
             if i == 0:
-                results[test_trace_name] = [produce_evaluation_metrics(dict2list(predictions),
-                                                                       list(map(lambda x: 1 if x == 'Malicious' else 0,
-                                                                                true_labels.tolist())))]
+                results[test_trace_name] = {models_info[i]: produce_evaluation_metrics(dict2list(predictions),
+                                                                                       list(map(lambda x: 1
+                                                                                       if x == 'Malicious' else 0,
+                                                                                                true_labels.tolist())))}
             else:
-                results[test_trace_name] += [produce_evaluation_metrics(dict2list(predictions),
-                                                                        list(map(lambda x: 1 if x == 'Malicious' else 0,
-                                                                                 true_labels.tolist())))]
+                results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
+                                                                                      list(map(lambda x: 1
+                                                                                      if x == 'Malicious' else 0,
+                                                                                               true_labels.tolist())))
 
     # finally save all the results for each testing trace
     results_filename = input('Provide the relative path for the filename of the results: ')
