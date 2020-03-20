@@ -23,7 +23,8 @@ def train_model(traces_filepath, indices_filepath, model, method, clustering_met
     for node_label in model.nodes_dict.keys():
         if node_label != 'root':
             if method == 'clustering':
-                model.nodes_dict[node_label].training_vars['clusterer'] = model.nodes_dict[node_label].\
+                model.nodes_dict[node_label].training_vars['clusterer'], \
+                model.nodes_dict[node_label].training_vars['transformer'] = model.nodes_dict[node_label].\
                     fit_clusters_on_observed(clustering_method)
             elif method == "multivariate gaussian":
                 model.nodes_dict[node_label].training_vars['m'], model.nodes_dict[node_label].training_vars['sigma'] = \
@@ -50,7 +51,8 @@ def predict_on_model(model, method, clustering_method=''):
         if node_label != 'root' and len(model.nodes_dict[node_label].testing_indices) != 0:
             if method == 'clustering':
                 pred = model.nodes_dict[node_label].predict_on_clusters(
-                    model.nodes_dict[node_label].training_vars['clusterer'], clustering_method=clustering_method)
+                    model.nodes_dict[node_label].training_vars['clusterer'], clustering_method=clustering_method,
+                    transformer=model.nodes_dict[node_label].training_vars['transformer'])
             elif method == "multivariate gaussian":
                 pred = model.nodes_dict[node_label].predict_on_gaussian(
                     model.nodes_dict[node_label].training_vars['m'],

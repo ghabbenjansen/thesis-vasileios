@@ -151,62 +151,80 @@ class ModelNode:
         """
         Function for fitting clusters on the data points observed at each state/node
         :param clustering_method: the clustering method (currently kmeans | hdbscan | Isolation Forest | LOF)
-        :return: the fitted cluster estimator
+        :return: the fitted cluster estimator, and a normalization transformer in case it was used
         """
-        x_train = self.attributes2dataset(self.observed_attributes)
+        x_train = self.attributes2dataset(self.observed_attributes).values
+        transformer = None
         if clustering_method == "hdbscan":
-            # TODO: maybe add an outlier detection layer (GLOSH) before the actual clustering
-            clusterer = hdbscan.HDBSCAN(min_cluster_size=20, metric='manhattan', prediction_data=True). \
-                fit(RobustScaler().fit_transform(x_train.values))
+            transformer = RobustScaler().fit(x_train)
+            clusterer = hdbscan.HDBSCAN(min_cluster_size=ceil(x_train.shape[0]/2), allow_single_cluster=True,
+                                        prediction_data=True).fit(transformer.transform(x_train))
         elif clustering_method == "isolation forest":
-            clusterer = IsolationForest().fit(x_train.values)
+            clusterer = IsolationForest().fit(x_train)
         elif clustering_method == "LOF":
-            clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/10), novelty=True).fit(x_train.values)
+            clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/10), novelty=True).fit(x_train)
         else:
-            clusterer = KMeans(n_clusters=2).fit(x_train.values)
-        return clusterer
+            clusterer = KMeans(n_clusters=2).fit(x_train)
+        return clusterer, transformer
 
-    def predict_on_clusters(self, clusterer, clustering_method='kmeans', clustering_type='hard'):
+    def predict_on_clusters(self, clusterer, clustering_method='kmeans', clustering_type='hard', transformer=None):
         """
         Function for predicting the cluster labels on the testing traces of the node given a fitted cluster estimator
         :param clusterer: the fitted cluster estimator
         :param clustering_method: the clustering method (currently kmeans | hdbscan | Isolation Forest | LOF)
         :param clustering_type: the clustering type to be used (hard or soft)
+        :param transformer: the normalization transformer in case one was used
         :return: the predicted labels
         """
-        x_test = self.attributes2dataset(self.testing_attributes)
+        x_test = self.attributes2dataset(self.testing_attributes).values
+        if transformer is not None:
+            x_test = transformer.transform(x_test)
         if clustering_type == 'hard':
             if clustering_method == "hdbscan":
-                test_labels, _ = hdbscan.approximate_predict(clusterer, x_test.values)
+                test_labels, _ = hdbscan.approximate_predict(clusterer, x_test)
+                # change the labels to 0: Benign 1: Malicious
+                test_labels[test_labels != -1] = 0   # in hdbscan every non -1 cluster is treated as normal
+                test_labels[test_labels == -1] = 1
             elif clustering_method == "isolation forest":
-                test_labels = clusterer.predict(x_test.values)
+                test_labels = clusterer.predict(x_test)
                 # change the labels to 0: Benign 1: Malicious
                 test_labels[test_labels == 1] = 0
                 test_labels[test_labels == -1] = 1
             elif clustering_method == "LOF":
-                test_labels = clusterer.predict(x_test.values)
+                test_labels = clusterer.predict(x_test)
                 # change the labels to 0: Benign 1: Malicious
                 test_labels[test_labels == 1] = 0
                 test_labels[test_labels == -1] = 1
             else:
-                test_labels = clusterer.predict(x_test.values)
+                # in the case of k-means the benign label is found by assuming that in the training set it is prevailing
+                # so we set as the benign class the one with the most labels
+                benign = 0 if clusterer.labels_[clusterer.labels_ == 0].size > \
+                              clusterer.labels_[clusterer.labels_ == 1].size else 1
+                # if the benign class is indeed the 0-th then we don't have to change anything since it is compatible
+                # with our label mapping. Otherwise we have to flip the labels to be compatible
+                test_labels = clusterer.predict(x_test)
+                if benign != 0:
+                    # change the labels to 0: Benign 1: Malicious
+                    test_labels[test_labels == 0] = -1  # this line is necessary for the flipping to not mix labels
+                    test_labels[test_labels == 1] = 0
+                    test_labels[test_labels == -1] = 1
         else:
             if clustering_method == "hdbscan":
                 # in this case an array of (number of samples, number of clusters) will be returned with the
                 # probabilities of each sample belonging to each cluster
-                test_labels = hdbscan.membership_vector(clusterer, x_test.values)
+                test_labels = hdbscan.membership_vector(clusterer, x_test)
             elif clustering_method == "isolation forest":
                 # in this case an array of (number of samples, 1) will be returned with the opposite of the anomaly
                 # score for each sample
-                test_labels = clusterer.score_samples(x_test.values)
+                test_labels = clusterer.score_samples(x_test)
             elif clustering_method == "LOF":
                 # in this case an array of (number of samples, 1) will be returned with the opposite of the anomaly
                 # score for each sample
-                test_labels = clusterer.score_samples(x_test.values)
+                test_labels = clusterer.score_samples(x_test)
             else:
                 # in this case an array of (number of samples, number of clusters) will be returned with the
                 # distance of each sample from each cluster's center
-                test_labels = clusterer.transform(x_test.values)
+                test_labels = clusterer.transform(x_test)
         return test_labels
 
     def fit_multivariate_gaussian(self):
@@ -216,12 +234,12 @@ class ModelNode:
         """
         # features in rows and samples in columns
         x_train = np.transpose(self.attributes2dataset(self.observed_attributes).values)
-        m = np.mean(x_train, axis=1) / x_train.shape[1]     # the estimated mean
+        m = np.sum(x_train, axis=1) / x_train.shape[1]     # the estimated mean
         m = m.reshape([x_train.shape[0], 1])
         sigma = np.dot(x_train - m, (x_train - m).T) / x_train.shape[1]     # the estimated covariance matrix
         return m, sigma
 
-    def predict_on_gaussian(self, m, sigma, epsilon=0.01, prediction_type='hard'):
+    def predict_on_gaussian(self, m, sigma, epsilon=1e-16, prediction_type='hard'):
         """
         Function for predicting anomalies on the fitted multivariate gaussian distribution
         :param m: the estimated mean
@@ -230,11 +248,14 @@ class ModelNode:
         :param prediction_type: the prediction type (hard or soft)
         :return: the prediction labels
         """
-        x_test = np.transpose(self.attributes2dataset(self.testing_attributes))
+        x_test = np.transpose(self.attributes2dataset(self.testing_attributes).values)
         sigma_det = np.linalg.det(sigma)    # the determinant of the covariance matrix
         sigma_inv = np.linalg.inv(sigma)    # the inverse of the covariance matrix
-        test_labels = np.exp(-np.dot(np.dot((x_test - m).T, sigma_inv), x_test - m) / 2) / \
-                      ((2 * pi) ** (x_test.shape[0] / 2) * sqrt(sigma_det))
+        test_labels = np.array([np.asscalar(np.exp(-np.dot(np.dot((x_test[:, i].reshape([x_test.shape[0], 1]) - m).T,
+                                                                  sigma_inv),
+                                                           x_test[:, i].reshape([x_test.shape[0], 1]) - m) / 2)
+                                            / ((2 * pi) ** (x_test.shape[0] / 2) * sqrt(sigma_det)))
+                                for i in range(x_test.shape[1])])
         if prediction_type == 'hard':
             test_labels = (test_labels < epsilon).astype(np.int)
         return test_labels
