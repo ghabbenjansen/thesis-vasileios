@@ -5,6 +5,8 @@ import graphviz
 import helper
 from connection_clustering import select_hosts
 import pandas as pd
+import re
+from copy import deepcopy
 
 filepath = '/Users/vserentellos/Documents/dfasat/'
 
@@ -36,8 +38,7 @@ def flexfringe(*args, **kwargs):
 
     # rename the output file to an indicating name
     old_file = os.path.join("outputs", "final.json")
-    # TODO: make it less case sensitive in case of other dataset !!!!!!!!
-    extension = '-'.join(args[0].split('/')[-1].split('-')[0:4])
+    extension = re.search('(.+?)-traces', args[0].split('/')[-1]).group(1)
     # add this naming in case aggregation windows have been used
     if 'aggregated' in args[0]:
         extension += '_aggregated'
@@ -91,6 +92,7 @@ if __name__ == '__main__':
     if not with_trace:
         # set the features to be used in the multivariate modelling
         selected = ['src_port', 'dst_port', 'protocol_num', 'orig_ip_bytes', 'resp_ip_bytes']
+        old_selected = deepcopy(selected)
 
         # set a mapping between features used and numbers for better identification of the traces' content
         feature_mapping = {
@@ -152,6 +154,8 @@ if __name__ == '__main__':
                 helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
                                       trace_limits=(min_trace_len, max_trace_len), dynamic=True,
                                       aggregation=aggregation, resample=resample)
+                # finally reset the selected features
+                selected = deepcopy(old_selected)
 
         else:
 
@@ -167,9 +171,7 @@ if __name__ == '__main__':
             # extract the data per host
             for host in data['src_ip'].unique():
                 print('Extracting traces for host ' + host)
-                host_data = data[data['src_ip'] == host]
-                host_data.sort_values(by='date', inplace=True)
-                host_data.reset_index(drop=True, inplace=True)
+                host_data = data[data['src_ip'] == host].sort_values(by='date').reset_index(drop=True)
                 print('The number of flows for this host are: ' + str(host_data.shape[0]))
 
                 # extract the traces and save them in the traces' filepath - the window and the stride sizes of the
@@ -208,6 +210,8 @@ if __name__ == '__main__':
 
                 # add the trace filepath of each host's traces to the list
                 traces_filepaths += [traces_filepath]
+                # and reset the selected features
+                selected = deepcopy(old_selected)
     else:
         # in case the traces' filepath already exists, provide it (in this case only one path - NOT a list
         traces_filepaths = [input('Give the path to the input file for flexfringe: ')]

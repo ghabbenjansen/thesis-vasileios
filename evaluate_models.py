@@ -6,6 +6,8 @@ import pickle
 import re
 from math import floor
 
+debugging = 1
+
 
 def train_model(traces_filepath, indices_filepath, model, method, clustering_method=None):
     """
@@ -140,21 +142,66 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
 
 
 if __name__ == '__main__':
-    n = int(input('Provide the number of models to be trained: '))
+    if debugging:
+        # for debugging purposes the following structures can be used
+        debug_model_filepaths = ['outputs/Benign-Amazon-Echo-192.168.2.3_dfa.dot'
+            , 'outputs/Benign-Phillips-HUE-192.168.1.132_dfa.dot'
+            , 'outputs/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf_dfa.dot'
+                           ]
+        debug_train_trace_filepaths = ['Datasets/IOT23/training/Benign-Amazon-Echo-192.168.2.3-traces-0-1-2-3-4.txt'
+            , 'Datasets/IOT23/training/Benign-Phillips-HUE-192.168.1.132-traces-0-1-2-3-4.txt'
+            , 'Datasets/IOT23/training/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf-traces-0-1-2-3-4.txt'
+                                       ]
+
+        debug_methods = ['clustering'
+            , 'multivariate gaussian'
+            , 'probabilistic'
+                         ]
+
+        debug_clustering_methods = ['hdbscan'
+            , 'LOF'
+            , 'isolation forest'
+            , 'kmeans'
+        ]
+
+        parameters = []
+        for model_filepath, trace_filepath in zip(debug_model_filepaths, debug_train_trace_filepaths):
+            for method in debug_methods:
+                if method == 'clustering':
+                    for clutering_method in debug_clustering_methods:
+                        parameters += [(model_filepath, trace_filepath, method, clutering_method)]
+                else:
+                    parameters += [(model_filepath, trace_filepath, method)]
+
+        n = len(parameters)
+    else:
+        n = int(input('Provide the number of models to be trained: '))
     models = []
     methods = []
     models_info = []
-    for _ in range(n):
-        model_filepath = input('Give the relative path of the model to be used for training: ')
+    for i in range(n):
+        if debugging:
+            model_filepath = parameters[i][0]
+        else:
+            model_filepath = input('Give the relative path of the model to be used for training: ')
         model = parse_dot(model_filepath)
-        traces_filepath = input('Give the relative path of the trace to be used for training on the given model: ')
+        if debugging:
+            traces_filepath = parameters[i][1]
+        else:
+            traces_filepath = input('Give the relative path of the trace to be used for training on the given model: ')
         indices_filepath = '.'.join(traces_filepath.split('.')[:-1]) + '_indices.pkl'
-        method = input('Give the name of the training method to be used (clustering | multivariate gaussian | '
-                       'probabilistic): ')
+        if debugging:
+            method = parameters[i][2]
+        else:
+            method = input('Give the name of the training method to be used (clustering | multivariate gaussian | '
+                           'probabilistic): ')
         clustering_method = None
         if method == 'clustering':
-            clustering_method = input('Provide the specific clustering method to be used (hdbscan | isolation forest | '
-                                      'LOF | kmeans): ')
+            if debugging:
+                clustering_method = parameters[i][3]
+            else:
+                clustering_method = input('Provide the specific clustering method to be used (hdbscan | isolation forest '
+                                          '| LOF | kmeans): ')
         # train the model
         models += [train_model(traces_filepath, indices_filepath, model, method, clustering_method=clustering_method)]
         methods += [method + '-' + (clustering_method if clustering_method is not None else '')]
@@ -162,10 +209,25 @@ if __name__ == '__main__':
         models_info += ['.'.join(model_filepath.split('/')[-1].split('.')[0:-1]) + '_' + methods[-1]]
 
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
-    m = int(input('Provide the number of testing sets: '))
+    if debugging:
+        debug_test_filepaths = [('Datasets/IOT23/test/Malware-Capture-8-1-192.168.100.113-traces-0-1-2-3-4.txt',
+                                 'Datasets/IOT23/Malware-Capture-8-1')
+            , ('Datasets/IOT23/test/Malware-Capture-20-1-192.168.100.103-traces-0-1-2-3-4.txt',
+               'Datasets/IOT23/Malware-Capture-20-1')
+            , ('Datasets/IOT23/test/Malware-Capture-34-1-192.168.1.195-traces-0-1-2-3-4.txt',
+               'Datasets/IOT23/Malware-Capture-34-1')
+            , ('Datasets/IOT23/test/Malware-Capture-44-1-192.168.1.199-traces-0-1-2-3-4.txt',
+               'Datasets/IOT23/Malware-Capture-44-1')
+                                      ]
+        m = len(debug_test_filepaths)
+    else:
+        m = int(input('Provide the number of testing sets: '))
     results = {}
     for j in range(m):
-        test_traces_filepath = input('Give the relative path of the testing traces to be used for evaluation: ')
+        if debugging:
+            test_traces_filepath = debug_test_filepaths[j][0]
+        else:
+            test_traces_filepath = input('Give the relative path of the testing traces to be used for evaluation: ')
         indices_filepath = '.'.join(test_traces_filepath.split('.')[:-1]) + '_indices.pkl'
         # initialize the entry in the results dictionary for the current testing trace file
         test_trace_name = '.'.join(test_traces_filepath.split('/')[-1].split('.')[0:-1])
@@ -175,7 +237,10 @@ if __name__ == '__main__':
         host_ip_matcher = re.search("-(\d+\.\d+\.\d+\.\d+)-|-([^-]+::.+:.+:.+:[^-]+)-", test_traces_filepath)
         host_ip = host_ip_matcher.group(1) if host_ip_matcher.group(1) is not None else host_ip_matcher.group(2)
         # retrieve the actual dataset so that the true labels can be extracted
-        test_data_filepath = input('Give the relative path of the testing dataframe to be used for evaluation: ')
+        if debugging:
+            test_data_filepath = debug_test_filepaths[j][1]
+        else:
+            test_data_filepath = input('Give the relative path of the testing dataframe to be used for evaluation: ')
         normal = pd.read_pickle(test_data_filepath + '/zeek_normal.pkl')
         anomalous = pd.read_pickle(test_data_filepath + '/zeek_anomalous.pkl')
         all_data = pd.concat([normal, anomalous], ignore_index=True).reset_index(drop=True)

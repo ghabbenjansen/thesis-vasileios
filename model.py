@@ -125,7 +125,7 @@ class ModelNode:
         :param prediction_type: the prediction type (hard or soft)
         :return: the prediction labels
         """
-        x_test = self.attributes2dataset(self.testing_attributes)
+        x_test = self.attributes2dataset(self.testing_attributes).values
         n_cols = np.size(x_test, 1)     # retrieve the number of columns, meaning the number of attributes
         # create a vectorized function for finding the quantile index of an attribute value given the quantile limits
         vectorized_quantile_num = np.vectorize(lambda x, y_list: len([y for y in y_list if x > y]), excluded=['y_list'])
