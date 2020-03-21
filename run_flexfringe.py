@@ -38,6 +38,8 @@ def flexfringe(*args, **kwargs):
 
     # rename the output file to an indicating name
     old_file = os.path.join("outputs", "final.json")
+    # extract the features that have been used
+    features = args[0].split('/')[-2]
     extension = re.search('(.+?)-traces', args[0].split('/')[-1]).group(1)
     # add this naming in case aggregation windows have been used
     if 'aggregated' in args[0]:
@@ -45,13 +47,16 @@ def flexfringe(*args, **kwargs):
     if 'resampled' in args[0]:
         extension += '_resampled'
     new_file_name = extension + "_dfa.dot"
-    new_file = os.path.join("outputs", new_file_name)
+    new_file = os.path.join("outputs/" + features, new_file_name)
+
+    # create the directory if it does not exist and rename the created dot file
+    os.makedirs(os.path.dirname(new_file), exist_ok=True)
     os.rename(old_file, new_file)
 
     # and open the output dot file
     try:
-        with open("outputs/" + new_file_name) as fh:
-            return fh.read(), 'outputs/' + new_file_name
+        with open("outputs/" + features + "/" + new_file_name) as fh:
+            return fh.read(), "outputs/" + features + "/" + new_file_name
     except FileNotFoundError:
         pass
 
@@ -69,8 +74,8 @@ def show(data, filepath):
         pass
     else:
         # first extract the directory and filename from the filepath
-        directory = filepath.split('/')[0]
-        filename = filepath.split('/')[1]
+        directory = '/'.join(filepath.split('/')[0:-1])
+        filename = filepath.split('/')[-1]
         filename = '.'.join(filename.split('.')[:-1])  # and then remove the '.dot' ending
         # and then create the dfa plot
         g = graphviz.Source(data, filename=filename, directory=directory, format="png")
@@ -91,19 +96,13 @@ if __name__ == '__main__':
 
     if not with_trace:
         # set the features to be used in the multivariate modelling
-        selected = ['src_port', 'dst_port', 'protocol_num', 'orig_ip_bytes', 'resp_ip_bytes']
+        selected = ['src_port'
+            , 'dst_port'
+            , 'protocol_num'
+            , 'orig_ip_bytes'
+            # , 'resp_ip_bytes'
+                    ]
         old_selected = deepcopy(selected)
-
-        # set a mapping between features used and numbers for better identification of the traces' content
-        feature_mapping = {
-            'src_port': 0,
-            'dst_port': 1,
-            'protocol_num': 2,
-            'orig_ip_bytes': 3,
-            'resp_ip_bytes': 4,
-            'duration': 5,
-            'dst_ip': 6
-        }
 
         if testing:
             # set the input filepath of the dataframes' directory
@@ -129,9 +128,8 @@ if __name__ == '__main__':
                 # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of the
                 # helper.py file
                 if not aggregation:
-                    traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + \
-                                      testing_filepath.split('/')[2] + '-' + host + '-traces-' + \
-                                      '-'.join([str(feature_mapping[feature]) for feature in selected]) + '.txt'
+                    traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + '_'.join(old_selected) + \
+                                      '/' + testing_filepath.split('/')[2] + '-' + host + '-traces.txt'
                     aggregation = False
                     resample = False
                 else:
@@ -139,12 +137,17 @@ if __name__ == '__main__':
                     aggregation = True
                     if resample:
                         traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + \
-                                          testing_filepath.split('/')[2] + '-' + host + '-traces_resampled.txt'
+                                          '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + host + \
+                                          '-traces_resampled.txt'
                     else:
-                        traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + \
-                                          testing_filepath.split('/')[2] + '-' + host + '-traces_aggregated.txt'
+                        traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' \
+                                          + '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
+                                          host + '-traces_aggregated.txt'
                     # add also the destination ip in case of aggregation
                     selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
+
+                # create the directory if it does not exist
+                os.makedirs(os.path.dirname(traces_filepath), exist_ok=True)
 
                 # set the trace limits according to the number of flows in the examined dataset
                 min_trace_len = int(max(host_data.shape[0] / 10000, 10))
@@ -163,7 +166,7 @@ if __name__ == '__main__':
             training_filepath = input('Give the relative path of the dataframe to be used for training: ')
 
             # select only hosts with significant number of flows (currently over 200)
-            data = select_hosts(pd.read_pickle(training_filepath), 200)
+            data = select_hosts(pd.read_pickle(training_filepath + '/zeek_normal.pkl'), 200)
 
             # initialize an empty list to hold the filepaths of the trace files for each host
             traces_filepaths = []
@@ -185,8 +188,8 @@ if __name__ == '__main__':
                 # helper.py file
                 if not aggregation:
                     traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
-                                      training_filepath.split('/')[2] + '-' + host + '-traces-' + \
-                                      '-'.join([str(feature_mapping[feature]) for feature in selected]) + '.txt'
+                                      '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' + host + \
+                                      '-traces.txt'
                     aggregation = False
                     resample = False
                 else:
@@ -194,12 +197,17 @@ if __name__ == '__main__':
                     aggregation = True
                     if resample:
                         traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
-                                          training_filepath.split('/')[2] + '-' + host + '-traces_resampled.txt'
+                                          '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' + \
+                                          host + '-traces_resampled.txt'
                     else:
                         traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
-                                          training_filepath.split('/')[2] + '-' + host + '-traces_aggregated.txt'
+                                          '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' + \
+                                          host + '-traces_aggregated.txt'
                     # add also the destination ip in case of aggregation
                     selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
+
+                # create the directory if it does not exist
+                os.makedirs(os.path.dirname(traces_filepath), exist_ok=True)
 
                 # set the trace limits according to the number of flows in the examined dataset
                 min_trace_len = int(max(host_data.shape[0] / 10000, 10))

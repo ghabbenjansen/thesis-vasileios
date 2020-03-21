@@ -92,8 +92,16 @@ def dates2indices(date_dict, dates):
                 print("This clause should not be accessed -> Error !!!!!!!!!!!")
         # otherwise check both upper and lower limits
         else:
-            if date_df.resampled_dates[ind] <= items[1] < date_df.resampled_dates[ind+1]:
+            # the first clause applies only for flows in the beginning of the recording that weren't captured by the
+            # resampler. In this case our predictions are biased towards the benign class
+            if items[1] < date_df.resampled_dates[ind]:
+                new_dict[items[0]] = 0
+            # the second clause captures all flows belonging between two resampled timestamps. In this case the
+            # predicted label of the lower resampled timestamp is assigned to these flows
+            elif date_df.resampled_dates[ind] <= items[1] < date_df.resampled_dates[ind+1]:
                 new_dict[items[0]] = date_dict[date_df.resampled_dates[ind]]
+            # the third clause captures the flow that forces into a change of the resampled window that we are currently
+            # examining
             else:
                 # and if the upper limit is violated increment the resampled dates' index
                 ind += 1
@@ -128,8 +136,8 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
                 else:
                     FP += 1
         accuracy = (TP + TN) / (TP + TN + FP + FN)
-        precision = TP / (TP + FP)
-        recall = TP / (TP + FN)
+        precision = -1 if TP + FP == 0 else TP / (TP + FP)
+        recall = -1 if TP + FN == 0 else TP / (TP + FN)
         if printing:
             print('TP: ' + str(TP) + ' TN: ' + str(TN) + ' FP: ' + str(FP) + ' FN:' + str(FN))
             print('Accuracy: ' + str(accuracy))
@@ -144,17 +152,28 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
 if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
-        debug_model_filepaths = ['outputs/Benign-Amazon-Echo-192.168.2.3_dfa.dot'
-            , 'outputs/Benign-Phillips-HUE-192.168.1.132_dfa.dot'
-            , 'outputs/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf_dfa.dot'
+        debug_model_filepaths = ['outputs/src_port_dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes/'
+                                 'Benign-Amazon-Echo-192.168.2.3_resampled_dfa.dot'
+            , 'outputs/src_port_dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes/'
+              'Benign-Phillips-HUE-192.168.1.132_resampled_dfa.dot'
+            , 'outputs/src_port_dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes/'
+              'Malware-Capture-7-1-196.118.25.105_resampled_dfa.dot'
+            , 'outputs/src_port_dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes/'
+              'Malware-Capture-9-1-192.168.100.111_resampled_dfa.dot'
                            ]
-        debug_train_trace_filepaths = ['Datasets/IOT23/training/Benign-Amazon-Echo-192.168.2.3-traces-0-1-2-3-4.txt'
-            , 'Datasets/IOT23/training/Benign-Phillips-HUE-192.168.1.132-traces-0-1-2-3-4.txt'
-            , 'Datasets/IOT23/training/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf-traces-0-1-2-3-4.txt'
+        debug_train_trace_filepaths = ['Datasets/IOT23/training/'
+                                       'src_port_dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes/'
+                                       'Benign-Amazon-Echo-192.168.2.3-traces_resampled.txt'
+            , 'Datasets/IOT23/training/src_port_dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes/'
+              'Benign-Phillips-HUE-192.168.1.132-traces_resampled.txt'
+            , 'Datasets/IOT23/training/src_port_dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes/'
+              'Malware-Capture-7-1-196.118.25.105-traces_resampled.txt'
+            , 'Datasets/IOT23/training/src_port_dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes/'
+              'Malware-Capture-9-1-192.168.100.111-traces_resampled.txt'
                                        ]
 
         debug_methods = ['clustering'
-            , 'multivariate gaussian'
+            # , 'multivariate gaussian'
             , 'probabilistic'
                          ]
 
@@ -210,13 +229,17 @@ if __name__ == '__main__':
 
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
-        debug_test_filepaths = [('Datasets/IOT23/test/Malware-Capture-8-1-192.168.100.113-traces-0-1-2-3-4.txt',
+        debug_test_filepaths = [('Datasets/IOT23/test/src_port_dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes/'
+                                 'Malware-Capture-8-1-192.168.100.113-traces_resampled.txt',
                                  'Datasets/IOT23/Malware-Capture-8-1')
-            , ('Datasets/IOT23/test/Malware-Capture-20-1-192.168.100.103-traces-0-1-2-3-4.txt',
+            , ('Datasets/IOT23/test/src_port_dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes/'
+               'Malware-Capture-20-1-192.168.100.103-traces_resampled.txt',
                'Datasets/IOT23/Malware-Capture-20-1')
-            , ('Datasets/IOT23/test/Malware-Capture-34-1-192.168.1.195-traces-0-1-2-3-4.txt',
+            , ('Datasets/IOT23/test/src_port_dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes/'
+               'Malware-Capture-34-1-192.168.1.195-traces_resampled.txt',
                'Datasets/IOT23/Malware-Capture-34-1')
-            , ('Datasets/IOT23/test/Malware-Capture-44-1-192.168.1.199-traces-0-1-2-3-4.txt',
+            , ('Datasets/IOT23/test/src_port_dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes/'
+               'Malware-Capture-44-1-192.168.1.199-traces_resampled.txt',
                'Datasets/IOT23/Malware-Capture-44-1')
                                       ]
         m = len(debug_test_filepaths)
@@ -231,7 +254,7 @@ if __name__ == '__main__':
         indices_filepath = '.'.join(test_traces_filepath.split('.')[:-1]) + '_indices.pkl'
         # initialize the entry in the results dictionary for the current testing trace file
         test_trace_name = '.'.join(test_traces_filepath.split('/')[-1].split('.')[0:-1])
-        print('Evaluating on ' + test_trace_name + '...')
+        print('-------------------------------- Evaluating on ' + test_trace_name + ' --------------------------------')
         results[test_trace_name] = dict()
         # and retrieve the host IP to use it for true label extraction
         host_ip_matcher = re.search("-(\d+\.\d+\.\d+\.\d+)-|-([^-]+::.+:.+:.+:[^-]+)-", test_traces_filepath)
