@@ -96,8 +96,9 @@ if __name__ == '__main__':
 
     if not with_trace:
         # set the features to be used in the multivariate modelling
-        selected = ['src_port'
-            , 'dst_port'
+        selected = [
+            # 'src_port'
+            'dst_port'
             , 'protocol_num'
             , 'orig_ip_bytes'
             # , 'resp_ip_bytes'
