@@ -99,7 +99,7 @@ if __name__ == '__main__':
         selected = [
             # 'src_port'
             'dst_port'
-            , 'protocol_num'
+            # , 'protocol_num'
             , 'orig_ip_bytes'
             # , 'resp_ip_bytes'
                     ]

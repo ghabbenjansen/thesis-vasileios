@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 import pickle
 import re
-from math import floor
 
 debugging = 1
 
@@ -22,8 +21,10 @@ def train_model(traces_filepath, indices_filepath, model, method, clustering_met
     :return: the trained model
     """
     model = run_traces_on_model(traces_filepath, indices_filepath, model)
+    model.set_all_weights(model.get_maximum_weight())
     for node_label in model.nodes_dict.keys():
-        if node_label != 'root':
+        # TODO: understand why the second clause is needed -> shouldn't be
+        if node_label != 'root' and len(model.nodes_dict[node_label].observed_indices) > 2:
             if method == 'clustering':
                 model.nodes_dict[node_label].training_vars['clusterer'], \
                 model.nodes_dict[node_label].training_vars['transformer'] = model.nodes_dict[node_label].\
@@ -37,37 +38,54 @@ def train_model(traces_filepath, indices_filepath, model, method, clustering_met
     return model
 
 
-def predict_on_model(model, method, clustering_method=''):
+def predict_on_model(model, method, clustering_method='', weighted=True):
     """
     Function for predicting based on a model supplied with the testing traces on its states.
     :param model: the given model
     :param method: the method that has been used for training (needed to select the appropriate prediction mechanism on
     each state)
     :param clustering_method: the clustering method to be used if clustering has been selected as method, otherwise ''
+    :param weighted: a flag indicating if weighted prediction will be applied based on the number of the observations of
+    each state (meaning the robustness of the prediction of each state)
     :return: the predicted labels
     """
     predictions = dict()
+    weights = dict()
     # TODO: check the label types provided by each prediction method and adjust them accordingly
     for node_label in model.nodes_dict.keys():
-        # the node needs to have test set to predict on
+        # the node needs to have test set to predict on and
         if node_label != 'root' and len(model.nodes_dict[node_label].testing_indices) != 0:
-            if method == 'clustering':
-                pred = model.nodes_dict[node_label].predict_on_clusters(
-                    model.nodes_dict[node_label].training_vars['clusterer'], clustering_method=clustering_method,
-                    transformer=model.nodes_dict[node_label].training_vars['transformer'])
-            elif method == "multivariate gaussian":
-                pred = model.nodes_dict[node_label].predict_on_gaussian(
-                    model.nodes_dict[node_label].training_vars['m'],
-                    model.nodes_dict[node_label].training_vars['sigma'])
+            # TODO: check why the last clause is needed
+            if len(model.nodes_dict[node_label].observed_indices) > 2:
+                if method == 'clustering':
+                    pred = model.nodes_dict[node_label].predict_on_clusters(
+                        model.nodes_dict[node_label].training_vars['clusterer'], clustering_method=clustering_method,
+                        transformer=model.nodes_dict[node_label].training_vars['transformer'])
+                elif method == "multivariate gaussian":
+                    pred = model.nodes_dict[node_label].predict_on_gaussian(
+                        model.nodes_dict[node_label].training_vars['m'],
+                        model.nodes_dict[node_label].training_vars['sigma'])
+                else:
+                    pred = model.nodes_dict[node_label].predict_on_probabilities(
+                        model.nodes_dict[node_label].training_vars['quantile_values'])
             else:
-                pred = model.nodes_dict[node_label].predict_on_probabilities(
-                    model.nodes_dict[node_label].training_vars['quantile_values'])
-
+                # if this state is unseen in training predict anomaly -> this shouldn't happen though
+                print('State ' + node_label + ' has less than 3 observations!!!')
+                pred = len(model.nodes_dict[node_label].testing_indices) * [1]
             assert (len(pred) == len(model.nodes_dict[node_label].testing_indices)), "Dimension mismatch!!"
             for i, ind in enumerate(model.nodes_dict[node_label].testing_indices):
-                predictions[ind] = [pred[i]] if ind not in predictions.keys() else predictions[ind] + [pred[i]]
+                if weighted:
+                    predictions[ind] = [pred[i] * model.nodes_dict[node_label].weight] if ind not in predictions.keys() \
+                        else predictions[ind] + [pred[i] * model.nodes_dict[node_label].weight]
+                    weights[ind] = model.nodes_dict[node_label].weight if ind not in weights.keys() \
+                        else weights[ind] + model.nodes_dict[node_label].weight
+                else:
+                    predictions[ind] = [pred[i]] if ind not in predictions.keys() else predictions[ind] + [pred[i]]
     # currently using median to aggregate different predictions for the same flow
-    predictions = dict((k, median(v)) for k, v in predictions.items())
+    if weighted:
+        predictions = dict((k, sum(v) / weights[k]) for k, v in predictions.items())
+    else:
+        predictions = dict((k, median(v)) for k, v in predictions.items())
     return predictions
 
 
@@ -122,7 +140,7 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
     if prediction_type == 'hard':
         TP, TN, FP, FN = 0, 0, 0, 0
         # floor is applied for rounding in cases of float medians
-        predicted_labels = list(map(floor, predicted_labels))
+        predicted_labels = list(map(round, predicted_labels))
         for i in range(len(true_labels)):
             if true_labels[i] == 1:
                 if true_labels[i] == predicted_labels[i]:
@@ -130,7 +148,6 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
                 else:
                     FN += 1
             else:
-                # floor is applied for rounding in cases of float medians
                 if true_labels[i] == predicted_labels[i]:
                     TN += 1
                 else:
@@ -152,14 +169,14 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
 if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
-        debug_model_filepaths = ['outputs/dst_port_protocol_num_orig_ip_bytes/Benign-Amazon-Echo-192.168.2.3_dfa.dot'
-            ,'outputs/dst_port_protocol_num_orig_ip_bytes/Benign-Phillips-HUE-192.168.1.132_dfa.dot'
-            , 'outputs/dst_port_protocol_num_orig_ip_bytes/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf_dfa.dot'
+        debug_model_filepaths = ['outputs/dst_port_orig_ip_bytes/Benign-Amazon-Echo-192.168.2.3_dfa.dot'
+            ,'outputs/dst_port_orig_ip_bytes/Benign-Phillips-HUE-192.168.1.132_dfa.dot'
+            # , 'outputs/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf_dfa.dot'
             # , 'outputs/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-9-1-192.168.100.111_dfa.dot'
                            ]
-        debug_train_trace_filepaths = ['Datasets/IOT23/training/dst_port_protocol_num_orig_ip_bytes/Benign-Amazon-Echo-192.168.2.3-traces.txt'
-            , 'Datasets/IOT23/training/dst_port_protocol_num_orig_ip_bytes/Benign-Phillips-HUE-192.168.1.132-traces.txt'
-            , 'Datasets/IOT23/training/dst_port_protocol_num_orig_ip_bytes/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf-traces.txt'
+        debug_train_trace_filepaths = ['Datasets/IOT23/training/dst_port_orig_ip_bytes/Benign-Amazon-Echo-192.168.2.3-traces.txt'
+            , 'Datasets/IOT23/training/dst_port_orig_ip_bytes/Benign-Phillips-HUE-192.168.1.132-traces.txt'
+            # , 'Datasets/IOT23/training/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf-traces.txt'
             # , 'Datasets/IOT23/training/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-9-1-192.168.100.111-traces.txt'
                                        ]
 
@@ -168,8 +185,10 @@ if __name__ == '__main__':
             , 'probabilistic'
                          ]
 
-        debug_clustering_methods = ['hdbscan'
-            , 'LOF'
+        debug_clustering_methods = [
+            # 'hdbscan'
+            # ,
+            'LOF'
             , 'isolation forest'
             , 'kmeans'
         ]
@@ -221,15 +240,19 @@ if __name__ == '__main__':
 
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
-        debug_test_filepaths = [('Datasets/IOT23/test/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-8-1-192.168.100.113-traces.txt',
+        debug_test_filepaths = [('Datasets/IOT23/test/dst_port_orig_ip_bytes/Malware-Capture-8-1-192.168.100.113-traces.txt',
                                  'Datasets/IOT23/Malware-Capture-8-1')
-            , ('Datasets/IOT23/test/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-20-1-192.168.100.103-traces.txt',
+            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes/Malware-Capture-20-1-192.168.100.103-traces.txt',
                'Datasets/IOT23/Malware-Capture-20-1')
-            , ('Datasets/IOT23/test/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-21-1-192.168.100.113-traces.txt',
+            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes/Malware-Capture-21-1-192.168.100.113-traces.txt',
                'Datasets/IOT23/Malware-Capture-21-1')
-            , ('Datasets/IOT23/test/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-34-1-192.168.1.195-traces.txt',
+            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes/Malware-Capture-34-1-192.168.1.195-traces.txt',
                'Datasets/IOT23/Malware-Capture-34-1')
-            , ('Datasets/IOT23/test/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-44-1-192.168.1.199-traces.txt',
+            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes/Malware-Capture-42-1-192.168.1.197-traces.txt',
+                'Datasets/IOT23/Malware-Capture-42-1')
+            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes/Malware-Capture-42-1-192.168.1.1-traces.txt',
+               'Datasets/IOT23/Malware-Capture-42-1')
+            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes/Malware-Capture-44-1-192.168.1.199-traces.txt',
                'Datasets/IOT23/Malware-Capture-44-1')
                                       ]
         m = len(debug_test_filepaths)

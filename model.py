@@ -48,6 +48,8 @@ class ModelNode:
         self.quantile_probs = dict(zip(self.attributes.keys(), (((np.array(self.attributes[attribute]) + 1)
                                                                 / (sum(self.attributes[attribute]) + 4)).tolist()
                                    for attribute in self.attributes.keys())))
+        # the importance weight of each node - used for weighted predictions
+        self.weight = 0
 
     def evaluate_transition(self, dst_node_label, input_attributes):
         """
@@ -114,7 +116,7 @@ class ModelNode:
             print('No observed attributes on node ' + self.label)
             return dict()
 
-    def predict_on_probabilities(self, quantile_values, epsilon=0.0005, prediction_type='hard'):
+    def predict_on_probabilities(self, quantile_values, epsilon=0.0001, prediction_type='hard'):
         """
         Function for predicting anomalies given the quantile probabilities of a node. Given the observed values for each
         attribute and the quantile in which they belong, the associated probabilities are retrieved and the anomaly
@@ -383,3 +385,25 @@ class Model:
         else:
             for node_label in self.nodes_dict.keys():
                 self.nodes_dict[node_label].reset_testing_indices()
+
+    def get_maximum_weight(self):
+        """
+        Function for finding the maximum prediction weight of the model as the maximum number of observations in any of
+        its states. This weight is used when weighted prediction is applied.
+        :return: the maximum prediction weight
+        """
+        maximum_weight = 0
+        for node_label in self.nodes_dict.keys():
+            if len(self.nodes_dict[node_label].observed_indices) > maximum_weight:
+                maximum_weight = len(self.nodes_dict[node_label].observed_indices)
+        return maximum_weight
+
+    def set_all_weights(self, maximum_weight):
+        """
+        Function for setting the weights in each state of the model. The weight of each state is set as the number of
+        observations of the state divided by the maximum weight
+        :param maximum_weight: the maximum weight of the model
+        :return:
+        """
+        for node_label in self.nodes_dict.keys():
+            self.nodes_dict[node_label].weight = len(self.nodes_dict[node_label].observed_indices) / maximum_weight
