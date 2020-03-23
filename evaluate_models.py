@@ -30,7 +30,10 @@ def train_model(traces_filepath, indices_filepath, model, method, clustering_met
                 model.nodes_dict[node_label].training_vars['transformer'] = model.nodes_dict[node_label].\
                     fit_clusters_on_observed(clustering_method)
             elif method == "multivariate gaussian":
-                model.nodes_dict[node_label].training_vars['m'], model.nodes_dict[node_label].training_vars['sigma'] = \
+                # model.nodes_dict[node_label].training_vars['m'], model.nodes_dict[node_label].training_vars['sigma'] = \
+                #     model.nodes_dict[node_label].fit_multivariate_gaussian()
+                model.nodes_dict[node_label].training_vars['kernel'], \
+                model.nodes_dict[node_label].training_vars['transformer'] = \
                     model.nodes_dict[node_label].fit_multivariate_gaussian()
             else:
                 model.nodes_dict[node_label].training_vars['quantile_values'] = \
@@ -62,9 +65,12 @@ def predict_on_model(model, method, clustering_method='', weighted=True):
                         model.nodes_dict[node_label].training_vars['clusterer'], clustering_method=clustering_method,
                         transformer=model.nodes_dict[node_label].training_vars['transformer'])
                 elif method == "multivariate gaussian":
+                    # pred = model.nodes_dict[node_label].predict_on_gaussian(
+                    #     model.nodes_dict[node_label].training_vars['m'],
+                    #     model.nodes_dict[node_label].training_vars['sigma'])
                     pred = model.nodes_dict[node_label].predict_on_gaussian(
-                        model.nodes_dict[node_label].training_vars['m'],
-                        model.nodes_dict[node_label].training_vars['sigma'])
+                        model.nodes_dict[node_label].training_vars['kernel'],
+                        model.nodes_dict[node_label].training_vars['transformer'])
                 else:
                     pred = model.nodes_dict[node_label].predict_on_probabilities(
                         model.nodes_dict[node_label].training_vars['quantile_values'])
@@ -169,20 +175,21 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
 if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
-        debug_model_filepaths = ['outputs/dst_port_orig_ip_bytes/Benign-Amazon-Echo-192.168.2.3_dfa.dot'
-            ,'outputs/dst_port_orig_ip_bytes/Benign-Phillips-HUE-192.168.1.132_dfa.dot'
+        debug_model_filepaths = ['outputs/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Amazon-Echo-192.168.2.3_dfa.dot'
+            ,'outputs/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Phillips-HUE-192.168.1.132_dfa.dot'
             # , 'outputs/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf_dfa.dot'
             # , 'outputs/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-9-1-192.168.100.111_dfa.dot'
                            ]
-        debug_train_trace_filepaths = ['Datasets/IOT23/training/dst_port_orig_ip_bytes/Benign-Amazon-Echo-192.168.2.3-traces.txt'
-            , 'Datasets/IOT23/training/dst_port_orig_ip_bytes/Benign-Phillips-HUE-192.168.1.132-traces.txt'
+        debug_train_trace_filepaths = ['Datasets/IOT23/training/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Amazon-Echo-192.168.2.3-traces.txt'
+            , 'Datasets/IOT23/training/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Phillips-HUE-192.168.1.132-traces.txt'
             # , 'Datasets/IOT23/training/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf-traces.txt'
             # , 'Datasets/IOT23/training/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-9-1-192.168.100.111-traces.txt'
                                        ]
 
-        debug_methods = ['clustering'
-            # , 'multivariate gaussian'
-            , 'probabilistic'
+        debug_methods = [
+            'clustering'
+            , 'multivariate gaussian'
+            # , 'probabilistic'
                          ]
 
         debug_clustering_methods = [
@@ -240,19 +247,19 @@ if __name__ == '__main__':
 
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
-        debug_test_filepaths = [('Datasets/IOT23/test/dst_port_orig_ip_bytes/Malware-Capture-8-1-192.168.100.113-traces.txt',
+        debug_test_filepaths = [('Datasets/IOT23/test/dst_port_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-traces.txt',
                                  'Datasets/IOT23/Malware-Capture-8-1')
-            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes/Malware-Capture-20-1-192.168.100.103-traces.txt',
+            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes_resp_ip_bytes/Malware-Capture-20-1-192.168.100.103-traces.txt',
                'Datasets/IOT23/Malware-Capture-20-1')
-            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes/Malware-Capture-21-1-192.168.100.113-traces.txt',
+            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes_resp_ip_bytes/Malware-Capture-21-1-192.168.100.113-traces.txt',
                'Datasets/IOT23/Malware-Capture-21-1')
-            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes/Malware-Capture-34-1-192.168.1.195-traces.txt',
+            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes_resp_ip_bytes/Malware-Capture-34-1-192.168.1.195-traces.txt',
                'Datasets/IOT23/Malware-Capture-34-1')
-            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes/Malware-Capture-42-1-192.168.1.197-traces.txt',
+            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes_resp_ip_bytes/Malware-Capture-42-1-192.168.1.197-traces.txt',
                 'Datasets/IOT23/Malware-Capture-42-1')
-            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes/Malware-Capture-42-1-192.168.1.1-traces.txt',
+            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes_resp_ip_bytes/Malware-Capture-42-1-192.168.1.1-traces.txt',
                'Datasets/IOT23/Malware-Capture-42-1')
-            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes/Malware-Capture-44-1-192.168.1.199-traces.txt',
+            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-traces.txt',
                'Datasets/IOT23/Malware-Capture-44-1')
                                       ]
         m = len(debug_test_filepaths)

@@ -7,6 +7,7 @@ from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import RobustScaler
 from math import pi, sqrt, ceil
+from scipy.stats import gaussian_kde
 
 
 class ModelNode:
@@ -156,17 +157,17 @@ class ModelNode:
         :return: the fitted cluster estimator, and a normalization transformer in case it was used
         """
         x_train = self.attributes2dataset(self.observed_attributes).values
-        transformer = None
+        transformer = RobustScaler().fit(x_train)
         if clustering_method == "hdbscan":
-            transformer = RobustScaler().fit(x_train)
+            # transformer = RobustScaler().fit(x_train)
             clusterer = hdbscan.HDBSCAN(min_cluster_size=ceil(x_train.shape[0]/2), allow_single_cluster=True,
                                         prediction_data=True).fit(transformer.transform(x_train))
         elif clustering_method == "isolation forest":
-            clusterer = IsolationForest().fit(x_train)
+            clusterer = IsolationForest().fit(transformer.transform(x_train))
         elif clustering_method == "LOF":
-            clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/10), novelty=True).fit(x_train)
+            clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/10), novelty=True).fit(transformer.transform(x_train))
         else:
-            clusterer = KMeans(n_clusters=2).fit(x_train)
+            clusterer = KMeans(n_clusters=2).fit(transformer.transform(x_train))
         return clusterer, transformer
 
     def predict_on_clusters(self, clusterer, clustering_method='kmeans', clustering_type='hard', transformer=None):
@@ -235,29 +236,41 @@ class ModelNode:
         :return: the estimated mean and covariance matrix of the fitted distribution
         """
         # features in rows and samples in columns
-        x_train = np.transpose(self.attributes2dataset(self.observed_attributes).values)
-        m = np.sum(x_train, axis=1) / x_train.shape[1]     # the estimated mean
-        m = m.reshape([x_train.shape[0], 1])
-        sigma = np.dot(x_train - m, (x_train - m).T) / x_train.shape[1]     # the estimated covariance matrix
-        return m, sigma
+        x_train = self.attributes2dataset(self.observed_attributes).values
+        transformer = RobustScaler().fit(x_train)
+        # x_train = np.transpose(self.attributes2dataset(self.observed_attributes).values)
 
-    def predict_on_gaussian(self, m, sigma, epsilon=1e-16, prediction_type='hard'):
+        # old gaussian fitting
+        # m = np.sum(x_train, axis=1) / x_train.shape[1]     # the estimated mean
+        # m = m.reshape([x_train.shape[0], 1])
+        # sigma = np.dot(x_train - m, (x_train - m).T) / x_train.shape[1]     # the estimated covariance matrix
+        # return m, sigma
+        try:
+            kernel = gaussian_kde(np.transpose(transformer.transform(x_train)))
+        except np.linalg.LinAlgError:
+            kernel = gaussian_kde(np.transpose(transformer.transform(x_train) + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
+        return kernel, transformer
+
+    def predict_on_gaussian(self, kernel, transformer, epsilon=0.000001, prediction_type='hard'):
         """
         Function for predicting anomalies on the fitted multivariate gaussian distribution
-        :param m: the estimated mean
-        :param sigma: the estimated covariance matrix
+        :param kernel: the fitted multivariate gaussian kernel
+        :param transformer: the normalization transformer
         :param epsilon: the detection threshold
         :param prediction_type: the prediction type (hard or soft)
         :return: the prediction labels
         """
-        x_test = np.transpose(self.attributes2dataset(self.testing_attributes).values)
-        sigma_det = np.linalg.det(sigma)    # the determinant of the covariance matrix
-        sigma_inv = np.linalg.inv(sigma)    # the inverse of the covariance matrix
-        test_labels = np.array([np.asscalar(np.exp(-np.dot(np.dot((x_test[:, i].reshape([x_test.shape[0], 1]) - m).T,
-                                                                  sigma_inv),
-                                                           x_test[:, i].reshape([x_test.shape[0], 1]) - m) / 2)
-                                            / ((2 * pi) ** (x_test.shape[0] / 2) * sqrt(sigma_det)))
-                                for i in range(x_test.shape[1])])
+        x_test = np.transpose(transformer.transform(self.attributes2dataset(self.testing_attributes).values))
+
+        # old gaussian predictions
+        # sigma_det = np.linalg.det(sigma)    # the determinant of the covariance matrix
+        # sigma_inv = np.linalg.inv(sigma)    # the inverse of the covariance matrix
+        # test_labels = np.array([np.asscalar(np.exp(-np.dot(np.dot((x_test[:, i].reshape([x_test.shape[0], 1]) - m).T,
+        #                                                           sigma_inv),
+        #                                                    x_test[:, i].reshape([x_test.shape[0], 1]) - m) / 2)
+        #                                     / ((2 * pi) ** (x_test.shape[0] / 2) * sqrt(sigma_det)))
+        #                         for i in range(x_test.shape[1])])
+        test_labels = kernel.evaluate(x_test)
         if prediction_type == 'hard':
             test_labels = (test_labels < epsilon).astype(np.int)
         return test_labels
