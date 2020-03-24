@@ -175,13 +175,13 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
 if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
-        debug_model_filepaths = ['outputs/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Amazon-Echo-192.168.2.3_dfa.dot'
-            ,'outputs/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Phillips-HUE-192.168.1.132_dfa.dot'
+        debug_model_filepaths = ['outputs/orig_ip_bytes_resp_ip_bytes/Benign-Amazon-Echo-192.168.2.3_dfa.dot'
+            ,'outputs/orig_ip_bytes_resp_ip_bytes/Benign-Phillips-HUE-192.168.1.132_dfa.dot'
             # , 'outputs/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf_dfa.dot'
             # , 'outputs/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-9-1-192.168.100.111_dfa.dot'
                            ]
-        debug_train_trace_filepaths = ['Datasets/IOT23/training/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Amazon-Echo-192.168.2.3-traces.txt'
-            , 'Datasets/IOT23/training/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Phillips-HUE-192.168.1.132-traces.txt'
+        debug_train_trace_filepaths = ['Datasets/IOT23/training/orig_ip_bytes_resp_ip_bytes/Benign-Amazon-Echo-192.168.2.3-traces.txt'
+            , 'Datasets/IOT23/training/orig_ip_bytes_resp_ip_bytes/Benign-Phillips-HUE-192.168.1.132-traces.txt'
             # , 'Datasets/IOT23/training/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf-traces.txt'
             # , 'Datasets/IOT23/training/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-9-1-192.168.100.111-traces.txt'
                                        ]
@@ -197,7 +197,7 @@ if __name__ == '__main__':
             # ,
             'LOF'
             , 'isolation forest'
-            , 'kmeans'
+            # , 'kmeans'
         ]
 
         parameters = []
@@ -247,20 +247,22 @@ if __name__ == '__main__':
 
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
-        debug_test_filepaths = [('Datasets/IOT23/test/dst_port_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-traces.txt',
+        debug_test_filepaths = [('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-traces.txt',
                                  'Datasets/IOT23/Malware-Capture-8-1')
-            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes_resp_ip_bytes/Malware-Capture-20-1-192.168.100.103-traces.txt',
-               'Datasets/IOT23/Malware-Capture-20-1')
-            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes_resp_ip_bytes/Malware-Capture-21-1-192.168.100.113-traces.txt',
-               'Datasets/IOT23/Malware-Capture-21-1')
-            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes_resp_ip_bytes/Malware-Capture-34-1-192.168.1.195-traces.txt',
-               'Datasets/IOT23/Malware-Capture-34-1')
-            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes_resp_ip_bytes/Malware-Capture-42-1-192.168.1.197-traces.txt',
-                'Datasets/IOT23/Malware-Capture-42-1')
-            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes_resp_ip_bytes/Malware-Capture-42-1-192.168.1.1-traces.txt',
-               'Datasets/IOT23/Malware-Capture-42-1')
-            , ('Datasets/IOT23/test/dst_port_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-traces.txt',
-               'Datasets/IOT23/Malware-Capture-44-1')
+            # , ('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-20-1-192.168.100.103-traces.txt',
+            #    'Datasets/IOT23/Malware-Capture-20-1')
+            # , ('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-21-1-192.168.100.113-traces.txt',
+            #    'Datasets/IOT23/Malware-Capture-21-1')
+            # , ('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-34-1-192.168.1.195-traces.txt',
+            #    'Datasets/IOT23/Malware-Capture-34-1')
+            # , ('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-42-1-192.168.1.197-traces.txt',
+            #     'Datasets/IOT23/Malware-Capture-42-1')
+            # , ('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-traces.txt',
+            #    'Datasets/IOT23/Malware-Capture-44-1')
+            # , ('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.1-traces.txt',
+            #    'Datasets/IOT23/Malware-Capture-1-1')
+            , ('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.103-traces.txt',
+               'Datasets/IOT23/Malware-Capture-1-1')
                                       ]
         m = len(debug_test_filepaths)
     else:

@@ -60,8 +60,8 @@ class ModelNode:
         :param input_attributes: the input attributes' values
         :return: a boolean value denoting the ability to fire the transition
         """
-        return all([self.inequality_mapping[condition[1]](input_attributes[condition[0]], condition[2])
-                    for condition in self.tran_conditions[dst_node_label]])
+        return any([all([self.inequality_mapping[condition[1]](input_attributes[condition[0]], condition[2])
+                    for condition in or_condition]) for or_condition in self.tran_conditions[dst_node_label]])
 
     def reset_observed_attributes(self):
         """
@@ -314,7 +314,7 @@ class Model:
         """
         # in case the source node is the root then only one choice is available
         if src_node_label == 'root':
-            return self.nodes_dict[src_node_label].dst_nodes[0]
+            return list(self.nodes_dict[src_node_label].dst_nodes)[0]
         # otherwise find the appropriate destination
         else:
             # in case there are no conditional transitions
@@ -328,7 +328,7 @@ class Model:
                         return -1
                     # if there is indeed one return its label
                     else:
-                        return self.nodes_dict[src_node_label].dst_nodes[0]
+                        return list(self.nodes_dict[src_node_label].dst_nodes)[0]
                 # if there is no destination node then we are in a sink state so return the source label
                 else:
                     return src_node_label

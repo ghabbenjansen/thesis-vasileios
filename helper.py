@@ -423,7 +423,7 @@ def parse_dot(dot_path):
             attributes = {}
             fin = 0
             tot = 0
-            dst_nodes = []
+            dst_nodes = set()
             cond_dict = {}
             # find the state information while parsing
             state_info = state_matcher.group("state_info")
@@ -455,20 +455,23 @@ def parse_dot(dot_path):
                 return -1
             # identify the destination state and add it to the list of destinations
             dst_state = transition_matcher.group("dst_state")
-            dst_nodes += [dst_state]  # should exist given that transitions come after the identification of a new state
+            dst_nodes.add(dst_state)  # should exist given that transitions come after the identification of a new state
             # check for the transitions' conditions only if the current state is not the root
             if src_state_1 != 'root':
                 # find the transition's conditions while parsing
                 transition_conditions = transition_matcher.group("transition_cond")
+                conditions_to_be_added = []
                 for condition_matcher in re.finditer(cond_regex, transition_conditions):
                     attribute = condition_matcher.group("sym")  # the attribute contained in the condition
                     inequality_symbol = condition_matcher.group("ineq_symbol")  # the inequality symbol
                     boundary = condition_matcher.group("boundary")  # the numeric limit in the condition
-                    # and update the conditions' dictionary
-                    # the condition dictonary should be initialized from the state identification stage
-                    if dst_state not in cond_dict.keys():
-                        cond_dict[dst_state] = []
-                    cond_dict[dst_state] += [[attribute, inequality_symbol, float(boundary)]]
+                    # and set the conditions to be added in the conditions' dictionary
+                    conditions_to_be_added += [(attribute, inequality_symbol, float(boundary))]
+
+                # the condition dictonary should be initialized from the state identification stage
+                if dst_state not in cond_dict.keys():
+                    cond_dict[dst_state] = []
+                cond_dict[dst_state] += [conditions_to_be_added]
             # set the cached flag to True after the first state is fully identified
             cached = True
 

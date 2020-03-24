@@ -98,10 +98,10 @@ if __name__ == '__main__':
         # set the features to be used in the multivariate modelling
         selected = [
             # 'src_port'
-            'dst_port'
+            # , 'dst_port'
             # , 'protocol_num'
-            , 'orig_ip_bytes'
-            # , 'resp_ip_bytes'
+            'orig_ip_bytes'
+            , 'resp_ip_bytes'
                     ]
         old_selected = deepcopy(selected)
 
