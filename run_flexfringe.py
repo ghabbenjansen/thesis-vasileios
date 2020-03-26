@@ -103,6 +103,7 @@ if __name__ == '__main__':
                 # 'src_port'
                 # , 'dst_port'
                 'protocol_num'
+                # , 'duration'
                 , 'src_bytes'
                 , 'dst_bytes'
                         ]
@@ -111,6 +112,7 @@ if __name__ == '__main__':
                 # 'src_port'
                 # , 'dst_port'
                 # , 'protocol_num'
+                # , 'duration'
                 'orig_ip_bytes'
                 , 'resp_ip_bytes'
             ]
@@ -136,7 +138,7 @@ if __name__ == '__main__':
 
                 # extract the traces and save them in the traces' filepath - the window and the stride sizes of the
                 # sliding window, as well as the aggregation capability, can be also specified
-                window, stride = helper.set_windowing_vars(host_data)
+                # window, stride = helper.set_windowing_vars(host_data)
                 aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | yes-resample:'
                                         ' 2 )? '))
 
@@ -165,14 +167,16 @@ if __name__ == '__main__':
                 # create the directory if it does not exist
                 os.makedirs(os.path.dirname(traces_filepath), exist_ok=True)
 
-                # set the trace limits according to the number of flows in the examined dataset
-                min_trace_len = int(max(host_data.shape[0] / 10000, 10))
-                max_trace_len = int(max(host_data.shape[0] / 100, 1000))
-                if host_data.shape[0] < min_trace_len:
-                    min_trace_len = host_data.shape[0]
-                helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
-                                      trace_limits=(min_trace_len, max_trace_len), dynamic=True,
-                                      aggregation=aggregation, resample=resample)
+                # # set the trace limits according to the number of flows in the examined dataset
+                # min_trace_len = int(max(host_data.shape[0] / 10000, 10))
+                # max_trace_len = int(max(host_data.shape[0] / 100, 1000))
+                # if host_data.shape[0] < min_trace_len:
+                #     min_trace_len = host_data.shape[0]
+                # helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
+                #                       trace_limits=(min_trace_len, max_trace_len), dynamic=True,
+                #                       aggregation=aggregation, resample=resample)
+                helper.extract_traces(host_data, traces_filepath, selected, dynamic=True, aggregation=aggregation,
+                                      resample=resample)
                 # finally reset the selected features
                 selected = deepcopy(old_selected)
 
@@ -200,7 +204,7 @@ if __name__ == '__main__':
 
                 # extract the traces and save them in the traces' filepath - the window and the stride sizes of the
                 # sliding window, as well as the aggregation capability, can be also specified
-                window, stride = helper.set_windowing_vars(host_data)
+                # window, stride = helper.set_windowing_vars(host_data)
                 aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | yes-resample:'
                                         ' 2 )? '))
 
@@ -233,9 +237,11 @@ if __name__ == '__main__':
                 # set the trace limits according to the number of flows in the examined dataset
                 # min_trace_len = int(max(host_data.shape[0] / 10000, 10))
                 # max_trace_len = int(max(host_data.shape[0] / 100, 1000))
-                helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
-                                      trace_limits=(10, 100), dynamic=True,
-                                      aggregation=aggregation, resample=resample)
+                # helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
+                #                       trace_limits=(5, 150), dynamic=True,
+                #                       aggregation=aggregation, resample=resample)
+                helper.extract_traces(host_data, traces_filepath, selected, dynamic=True, aggregation=aggregation,
+                                     resample=resample)
 
                 # add the trace filepath of each host's traces to the list
                 traces_filepaths += [traces_filepath]

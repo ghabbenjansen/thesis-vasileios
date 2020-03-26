@@ -18,8 +18,12 @@ def set_windowing_vars(data):
     :return: a tuple with the calculated time windows and strides in a dataframe format
     """
     # find the median of the time differences in the dataframe
-    median_diff = data['date'].sort_values().diff().median()
-    return 25 * median_diff, 5 * median_diff
+    if data.shape[0] != 1:
+        median_diff = data['date'].sort_values().diff().median()
+        return 25 * median_diff, 5 * median_diff
+    # in case there is only one flow in the dataset just return zero-length Timedelta results
+    else:
+        return pd.to_timedelta('0s'), pd.to_timedelta('0s')
 
 
 def traces_dissimilarity(trace1, trace2, multivariate=True, normalization=True):
@@ -146,29 +150,31 @@ def aggregate_in_windows(data, window, timed=False, resample=False):
     return data
 
 
-def extract_traces(data, out_filepath, selected, window, stride, trace_limits, dynamic=True, aggregation=False,
-                   resample=False):
+def extract_traces_from_window(data, selected, window, stride, trace_limits, total, progress_list,
+                               dynamic=True, aggregation=False, resample=False):
     """
-    Function for extracting traces from the imput dataframe and saving them in out_filepath. The features to be taken
-    into account are provided in the selected list. Each trace is extracted by rolling a window of window seconds
-    in the input data with a stride of stride seconds. If dynamic flag is set to True, then a dynamically changing
-    window is used instead. If aggregation flag is set to True, then aggregation windows are created in each rolling
-    window.
+    Function for extracting traces from the imput dataframe. The features to be taken into account are provided in the
+    selected list. Each trace is extracted by rolling a window of window seconds in the input data with a stride of
+    stride seconds. If dynamic flag is set to True, then a dynamically changing window is used instead. If aggregation
+    flag is set to True, then aggregation windows are created in each rolling window.
     :param data: the input dataframe
-    :param out_filepath: the relative path of the output traces' file
     :param selected: the features to be used
     :param window: the window size
     :param stride: the stride size
     :param trace_limits: a tuple containing the minimum and maximum length that a trace can have
+    :param total: total number of flows in the original dataframe (for progress visualization purposes)
+    :param progress_list: list with the progress in processing the original dataframe (for progress visualization
+    purposes)
     :param dynamic: boolean flag about the use of dynamically changing windows
     :param aggregation: the aggregation flag - if set to True, then aggregation windows are created
     :param resample: the resampling flag - if set to True, then resampling is used in the aggregation windows
-    :return: creates and stores the traces' file extracted from the input dataframe
+    :return: the traces extracted in a list, the indices of each trace in a list, and the number of features extracted
     """
 
     # create an anonymous function for increasing timestamps given the type of the window (int or Timedelta)
     time_inc = lambda x, w: x + DateOffset(seconds=w) if type(window) == int else x + w
-
+    # obtain the indices residing in the processed data
+    data_indices = data.index.tolist()
     # set the initial start and end dates, as well as the empty traces' list and the window limits
     start_date = data['date'].iloc[0]
     end_date = time_inc(start_date, window)
@@ -180,12 +186,10 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
     max_idx = [-2, -1]
     # structures just for progress visualization purposes
     cnt = 0
-    tot = len(data.index)
-    progress_list = []
     # extract the traces' limits
     min_trace_length, max_trace_length = trace_limits
     # create a dict for testing if all the flows have been included in the traces
-    assertion_dict = dict(zip(data.index.tolist(), len(data.index.tolist()) * [False]))
+    assertion_dict = dict(zip(data_indices, len(data_indices) * [False]))
     # keep a copy of the actually selected features in case aggregation is used
     old_selected = deepcopy(selected)
     # keep also a variable of the number of features to be used for the model creation
@@ -224,7 +228,7 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
                     # if the new window is empty or we have surpassed the next unseen flow, the next window is set to
                     # start at the timestamp of this unseen flow
                     if window_len == 0 or data.index[time_mask].tolist()[0] > max_idx[1] + 1:
-                        start_date = data['date'].iloc[max_idx[1] + 1]
+                        start_date = data['date'].loc[max_idx[1] + 1]
                         end_date = time_inc(start_date, window)
                         time_mask = calculate_window_mask(data, start_date, end_date)
                         window_len = len(data[time_mask].index.tolist())
@@ -244,6 +248,8 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
                     # first check the case of a very large window
                     while window_len > max_trace_length:
                         print('-------------- Too many flows in the trace ==> Reducing time window... --------------')
+                        if window_len == 165:
+                            print('found it')
                         window /= magnifier
                         if stride >= window:
                             stride = window / 5
@@ -272,8 +278,9 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
 
                     # update the magnifier in case more iterations are needed due to fluctuations
                     magnifier -= reducer
+                    magnifier = round(magnifier, len(str(reducer).split('.')[1]))
                     # in case that the fluctuations cannot be dealt with the current values, refine them and start over
-                    if magnifier == 1:
+                    if magnifier <= 1:
                         magnifier = 2
                         reducer = reducer/2
 
@@ -331,10 +338,10 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
                         print('This should not happen!!!!!!!!!!!!!!!!!!!!!!!!!!')
                         start_date = data['date'].iloc[0]
                     else:
-                        start_date = data['date'].iloc[max_idx[0]+1]
+                        start_date = data['date'].loc[max_idx[0]+1]
                 # otherwise set the start date of the last visited index + 1
                 else:
-                    start_date = data['date'].iloc[max_idx[1] + 1]
+                    start_date = data['date'].loc[max_idx[1] + 1]
                 end_date = time_inc(start_date, window)
             else:
                 # increment the window limits
@@ -342,7 +349,7 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
                 end_date = time_inc(start_date, window)
 
         # show progress
-        prog = int((cnt / tot) * 100)
+        prog = int((cnt / total) * 100)
         if prog // 10 != 0 and prog // 10 not in progress_list:
             progress_list += [prog // 10]
             print('More than ' + str((prog // 10) * 10) + '% of the data processed...')
@@ -353,7 +360,13 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
         windowed_data = data[time_mask]
         # in case that the start date is also greater than the last seen flow then set the start date appropriately
         if windowed_data.index.tolist()[0] > max_idx[1] + 1:
-            start_date = data['date'].iloc[max_idx[1] + 1]
+            if max_idx[1] < 0:
+                if max_idx[0] < 0:
+                    start_date = data['date'].iloc[0]
+                else:
+                    start_date = data['date'].loc[max_idx[0] + 1]
+            else:
+                start_date = data['date'].loc[max_idx[1] + 1]
             time_mask = calculate_window_mask(data, start_date, end_date)
             windowed_data = data[time_mask]
         # update the assertion dictionary
@@ -374,13 +387,73 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
         if windowed_data.shape[0] != 0:     # for the resampling case
             traces_indices += [windowed_data.index.tolist()]
 
-    print('Finished with rolling windows!!!')
     # evaluate correctness of the process
     if not all(list(assertion_dict.values())):
-        print('There are flows missed -- Check again the implementation!!!')
+        print('There are flows missed in the current high level window-- Check again the implementation!!!')
         print([k for k, v in assertion_dict.items() if not v])
     else:
-        print('All flows correctly converted to traces!!!')
+        print('All flows correctly converted to traces in the current high level window!!!')
+
+    return traces, traces_indices, num_of_features
+
+
+def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False, resample=False):
+    """
+    Function for extracting traces from the given dataset by first applying a high-level filtering to find windows of
+    significant time difference between them to be processed separately by the extract_traces_from_window function. The
+    extracted traces are saved in out_filepath.
+    :param data: the input dataframe
+    :param out_filepath: the relative path of the output traces' file
+    :param selected: the features to be used
+    :param dynamic: boolean flag about the use of dynamically changing windows
+    :param aggregation: the aggregation flag - if set to True, then aggregation windows are created
+    :param resample: the resampling flag - if set to True, then resampling is used in the aggregation windows
+    :return: creates and stores the traces' file extracted from the input dataframe
+    """
+    medians = data['date'].sort_values().diff().dt.total_seconds()
+    high_level_window_indices = medians[medians > 3600].index.tolist()
+    traces_indices = []
+    traces = []
+    progress_list = []
+    starting_index = 0
+    num_of_features = len(selected)
+    if len(high_level_window_indices) != 0:
+        print(str(len(high_level_window_indices)) + ' of high level windows identified!!')
+        for i, index in enumerate(high_level_window_indices):
+            windowed_data = data[index:].copy(deep=True) if i == len(high_level_window_indices) - 1 \
+                else data[starting_index:index].copy(deep=True)
+            window, stride = set_windowing_vars(windowed_data)
+            min_trace_len = int(max(windowed_data.shape[0] / 10000, 10))
+            max_trace_len = int(max(windowed_data.shape[0] / 100, 1000))
+            if windowed_data.shape[0] < min_trace_len:
+                min_trace_len = windowed_data.shape[0]
+            new_traces, new_indices, num_of_features = extract_traces_from_window(windowed_data, out_filepath, selected,
+                                                                                  window, stride, (min_trace_len,
+                                                                                                   max_trace_len),
+                                                                                  data.shape[0], progress_list,
+                                                                                  dynamic=dynamic,
+                                                                                  aggregation=aggregation,
+                                                                                  resample=resample)
+            traces += new_traces
+            traces_indices += new_indices
+            starting_index = index
+    else:
+        print('All the dataset is taken into account!!')
+        window, stride = set_windowing_vars(data)
+        min_trace_len = int(max(data.shape[0] / 10000, 10))
+        max_trace_len = int(max(data.shape[0] / 100, 1000))
+        if data.shape[0] < min_trace_len:
+            min_trace_len = data.shape[0]
+        new_traces, new_indices, num_of_features = extract_traces_from_window(data, out_filepath, selected,
+                                                                              window, stride, (min_trace_len,
+                                                                                               max_trace_len),
+                                                                              data.shape[0], progress_list,
+                                                                              dynamic=dynamic, aggregation=aggregation,
+                                                                              resample=resample)
+        traces += new_traces
+        traces_indices += new_indices
+
+    print('Finished with rolling windows!!!')
     print('Starting writing traces to file...')
     # create the traces' file in the needed format
     f = open(out_filepath, "w")
