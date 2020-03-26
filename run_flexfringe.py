@@ -86,7 +86,7 @@ def show(data, filepath):
 if __name__ == '__main__':
     # first check why we want to run flexfringe (CTU13 or testing - in the second case only the traces are extracted)
     # check if there is a need to create the trace file or there is already there
-    testing = int(input('Training or testing (CTU13: 0 | testing: 1)? '))
+    testing = int(input('Training or testing (training: 0 | testing: 1)? '))
     flag = 'CTU-bi'
 
     if not testing:
@@ -179,7 +179,7 @@ if __name__ == '__main__':
         else:
 
             # set the input filepath
-            training_filepath = input('Give the relative path of the dataframe to be used for CTU13: ')
+            training_filepath = input('Give the relative path of the dataframe to be used for training: ')
 
             if flag == 'CTU-bi':
                 data = pd.read_pickle(training_filepath + '/binetflow_normal.pkl')
@@ -234,7 +234,7 @@ if __name__ == '__main__':
                 # min_trace_len = int(max(host_data.shape[0] / 10000, 10))
                 # max_trace_len = int(max(host_data.shape[0] / 100, 1000))
                 helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
-                                      trace_limits=(10, 500), dynamic=True,
+                                      trace_limits=(10, 100), dynamic=True,
                                       aggregation=aggregation, resample=resample)
 
                 # add the trace filepath of each host's traces to the list

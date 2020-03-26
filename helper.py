@@ -190,7 +190,8 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
     old_selected = deepcopy(selected)
     # keep also a variable of the number of features to be used for the model creation
     num_of_features = len(selected)
-
+    # one-time flag for the case that the first time window is proven to be too large
+    first_large = True
     # iterate through the input dataframe until the end date is greater than the last date recorded
     while end_date < data['date'].iloc[-1]:
         # retrieve the window of interest
@@ -201,7 +202,7 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
         if window_len != 0:
             if dynamic:
                 # store the minimum and maximum indices of the time window to evaluate how much it moved
-                if min_idx[0] == -1:  # the case of the first recorded time window
+                if min_idx[0] == -2:  # the case of the first recorded time window
                     min_idx[0] = data.index[time_mask].tolist()[0]
                     max_idx[0] = data.index[time_mask].tolist()[-1]
                 elif min_idx[1] == -1:  # the case of the second recorded time window
@@ -262,7 +263,7 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
                             break
 
                     # and update the window indices
-                    if min_idx[0] < 0:
+                    if first_large:
                         min_idx[0] = data.index[time_mask].tolist()[0]
                         max_idx[0] = data.index[time_mask].tolist()[-1]
                     else:
@@ -279,6 +280,9 @@ def extract_traces(data, out_filepath, selected, window, stride, trace_limits, d
                     # limit case to prevent endless loop
                     if end_date > data['date'].iloc[-1]:
                         break
+
+                # set the one-time flag of the first window to False
+                first_large = False
 
                 # finally get the current window
                 windowed_data = data[time_mask]
