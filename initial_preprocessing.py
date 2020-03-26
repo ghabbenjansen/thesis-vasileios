@@ -93,12 +93,6 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, background=True, exp
                  'packets', 'bytes', 'src_bytes', 'label']
         usecols = [_ for _ in range(0, 9)] + [_ for _ in range(11, 15)]
         dateparse = lambda x: pd.datetime.strptime(x, '%Y/%m/%d %H:%M:%S.%f')
-    # Bidirectional Netflow data from the mixed CTU dataset
-    elif flag == 'CTU-mixed':
-        names = ['date', 'duration', 'protocol', 'src_ip', 'src_port', 'direction', 'dst_ip', 'dst_port', 'state',
-                 'packets', 'bytes', 'src_bytes', 'label']
-        usecols = [_ for _ in range(0, 9)] + [_ for _ in range(11, 14)] + [16]
-        dateparse = lambda x: pd.datetime.strptime(x, '%Y/%m/%d %H:%M:%S.%f')
     # Zeek flow data from IOT-23 dataset
     elif flag == 'IOT':
         delimiter = '\s+'
@@ -120,6 +114,9 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, background=True, exp
         skiprows = []
         dateparse = lambda x: pd.to_datetime(x, unit='s')
         parse_field = ['start_time', 'end_time']
+        # special handling for the first dataset of the UNSW datasets
+        if '1' in filepath.split('/')[2]:
+            skiprows = 1
     # Netflow data from CICIDS2017 dataset
     elif flag == 'CICIDS':
         names = ['src_ip', 'src_port', 'dst_ip', 'dst_port', 'protocol', 'date', 'duration', 'total_fwd_packets',
@@ -184,17 +181,14 @@ def remove_background(df):
 
 if __name__ == '__main__':
     # filepath = input("Enter the desired filepath: ")
-    filepath = 'Datasets/IOT23/Malware-Capture-33-1/conn.log.labeled.txt'
+    filepath = 'Datasets/CTU13/scenario3/scenario03_ctu13.binetflow.txt'
 
     # Choose between the flags CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT
-    flag = 'IOT'
+    flag = 'CTU-bi'
     # while True:
     #     flag = input("Enter the desired flag (CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT): ")
     #     if flag in ['CTU-uni', 'CTU-bi', 'CTU-mixed', 'CICIDS', 'CIDDS', 'UNSW', 'IOT']:
     #         break
-
-    # only for the CTU-mixed case
-    given_dates = ['2015/07/26 14:41:51.734831', '2015/07/27 15:51:12.978465']
 
     print('Reading data from ' + filepath + '...\n')
     # to get preprocessing, necessary for unidirectional netflows, done, set the 'preprocessing' flag to True
@@ -249,25 +243,30 @@ if __name__ == '__main__':
         anomalous.to_pickle('/'.join(filepath.split('/')[0:3]) + '/netflow_anomalous.pkl')
         normal.to_pickle('/'.join(filepath.split('/')[0:3]) + '/netflow_normal.pkl')
         background.to_pickle('/'.join(filepath.split('/')[0:3]) + '/netflow_background.pkl')
-    elif flag in ['CTU-bi', 'CTU-mixed']:
-        # TODO: handle the representation of the direction attribute
+    elif flag == 'CTU-bi':
+        # for now the background data are not taken into account
+        data = data[~data['label'].str.contains("Background")]
+
+        # for now the state and direction features are kept but are ignored in the pipeline
         # parse packets, and bytes as integers instead of strings
         data['packets'] = data['packets'].astype(int)
         data['bytes'] = data['bytes'].astype(int)
         data['src_bytes'] = data['src_bytes'].astype(int)
+        data['dst_bytes'] = data['bytes'] - data['src_bytes']
 
         # parse duration as float
         data['duration'] = data['duration'].astype(float)
 
         # handle NaN values (mostly NaN ports)
-        # data.dropna(inplace=True) # one solution would be to drop the flows
+        data['state'].fillna('missing', inplace=True)
+        # data.dropna(inplace=True)  # dropping the rows with nan values (nan ports mostly) is a solution
         data['src_port'].fillna('-1', inplace=True)
         data['dst_port'].fillna('-1', inplace=True)
-        data['state'].fillna('missing', inplace=True)
 
         # add the numerical representation of the categorical data
-        data['protocol_num'] = pd.Categorical(data['protocol'], categories=data['protocol'].unique()).codes
-        data['state_num'] = pd.Categorical(data['state'], categories=data['state'].unique()).codes
+        protocol_categories = ['udp', 'tcp', 'icmp', 'arp', 'igmp']
+        data['protocol_num'] = pd.Categorical(data['protocol'], categories=protocol_categories).codes
+        # data['state_num'] = pd.Categorical(data['state'], categories=data['state'].unique()).codes
 
         # handle special hexadecimal values in the port columns
         data['src_port'] = data['src_port'].apply(lambda x: int(x, 16) if 'x' in x else x)
@@ -277,41 +276,18 @@ if __name__ == '__main__':
         data['src_port'] = data['src_port'].astype(int)
         data['dst_port'] = data['dst_port'].astype(int)
 
-        # in case of the mixed CTU flows drop also the deep packet data
-        if flag == 'CTU-mixed':
-            data.drop(columns=['label'], inplace=True)
-            mask = (data['date'] >= given_dates[0]) & (data['date'] <= given_dates[1]) \
-                if len(given_dates) == 2 else data['date'] >= given_dates[0]
-            # the rows that agree with the mask are anomalous
-            anomalous = data.loc[mask]
-            anomalous = anomalous.reset_index(drop=True)
-            anomalous.sort_values(by=['date'], inplace=True)
+        # split the data according to their labels and sort them by date
+        anomalous = data[data['label'].str.contains("From-Botnet")]
+        anomalous = anomalous.reset_index(drop=True)
+        anomalous.sort_values(by=['date'], inplace=True)
 
-            normal = data.loc[~mask]
-            normal = normal.reset_index(drop=True)
-            normal.sort_values(by=['date'], inplace=True)
+        normal = data[data['label'].str.contains("From-Normal")]
+        normal = normal.reset_index(drop=True)
+        normal.sort_values(by=['date'], inplace=True)
 
-            # save the separated data
-            anomalous.to_pickle('/'.join(filepath.split('/')[0:3]) + '/binetflow_anomalous.pkl')
-            normal.to_pickle('/'.join(filepath.split('/')[0:3]) + '/binetflow_normal.pkl')
-        else:
-            # split the data according to their labels and sort them by date
-            anomalous = data[data['label'].str.contains("Botnet")]
-            anomalous = anomalous.reset_index(drop=True)
-            anomalous.sort_values(by=['date'], inplace=True)
-
-            normal = data[data['label'].str.contains("Normal")]
-            normal = normal.reset_index(drop=True)
-            normal.sort_values(by=['date'], inplace=True)
-
-            background = data[data['label'].str.contains("Background")]
-            background = background.reset_index(drop=True)
-            background.sort_values(by=['date'], inplace=True)
-
-            # save the separated data
-            anomalous.to_pickle('/'.join(filepath.split('/')[0:3]) + '/binetflow_anomalous.pkl')
-            normal.to_pickle('/'.join(filepath.split('/')[0:3]) + '/binetflow_normal.pkl')
-            background.to_pickle('/'.join(filepath.split('/')[0:3]) + '/binetflow_background.pkl')
+        # save the separated data
+        anomalous.to_pickle('/'.join(filepath.split('/')[0:3]) + '/binetflow_anomalous.pkl')
+        normal.to_pickle('/'.join(filepath.split('/')[0:3]) + '/binetflow_normal.pkl')
     elif flag == 'IOT':
         # drop columns that contain too many NaN values
         data.drop(columns=['orig_bytes', 'resp_bytes', 'service'], inplace=True)
@@ -382,17 +358,19 @@ if __name__ == '__main__':
         data['state_num'] = pd.Categorical(data['state'], categories=data['state'].unique()).codes
 
         # split the data according to their labels and sort them by date
-        anomalous = data[data['label'] == '1']
+        anomalous = data[data['label'] == 1]
         anomalous = anomalous.reset_index(drop=True)
         anomalous.sort_values(by=['start_time'], inplace=True)
 
-        normal = data[data['label'] == '0']
+        normal = data[data['label'] == 0]
         normal = normal.reset_index(drop=True)
         normal.sort_values(by=['start_time'], inplace=True)
 
         # save the separated data
-        anomalous.to_pickle('/'.join(filepath.split('/')[0:2]) + '/' + filepath.split('.')[-1] + '_anomalous.pkl')
-        normal.to_pickle('/'.join(filepath.split('/')[0:2]) + '/' + filepath.split('.')[-1] + '_normal.pkl')
+        anomalous.to_pickle('/'.join(filepath.split('/')[0:2]) + '/' + filepath.split('/')[2].split('.')[0] +
+                            '_anomalous.pkl')
+        normal.to_pickle('/'.join(filepath.split('/')[0:2]) + '/' + filepath.split('/')[2].split('.')[0] +
+                         '_normal.pkl')
     elif flag == 'CICIDS':
         # parse packets, bytes, and ports as integers instead of strings
         data['src_port'] = data['src_port'].astype(int)

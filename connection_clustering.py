@@ -26,8 +26,9 @@ def select_connections(init_data, threshold=50, create_features=False):
                                                        loc[connections_cnts[('date', 'count')] > threshold]
                                                        ['dst_ip']))].reset_index(drop=True)
     sel_data['label_num'] = pd.Categorical(sel_data['label'], categories=sel_data['label'].unique()).codes
-    sel_data['detailed_label_num'] = pd.Categorical(sel_data['detailed_label'],
-                                                    categories=sel_data['detailed_label'].unique()).codes
+    if 'detailed_label' in sel_data.columns:
+        sel_data['detailed_label_num'] = pd.Categorical(sel_data['detailed_label'],
+                                                        categories=sel_data['detailed_label'].unique()).codes
     if create_features:
         sel_data['orig_packets_per_s'] = sel_data['orig_packets'] / sel_data['duration']
         sel_data['resp_packets_per_s'] = sel_data['resp_packets'] / sel_data['duration']
@@ -50,8 +51,9 @@ def select_hosts(init_data, threshold=50, create_features=False):
     sel_data = init_data.loc[(init_data['src_ip'].isin(host_cnts.loc[host_cnts[('date', 'count')] >
                                                                      threshold]['src_ip']))].reset_index(drop=True)
     sel_data['label_num'] = pd.Categorical(sel_data['label'], categories=sel_data['label'].unique()).codes
-    sel_data['detailed_label_num'] = pd.Categorical(sel_data['detailed_label'],
-                                                    categories=sel_data['detailed_label'].unique()).codes
+    if 'detailed_label' in sel_data.columns:
+        sel_data['detailed_label_num'] = pd.Categorical(sel_data['detailed_label'],
+                                                        categories=sel_data['detailed_label'].unique()).codes
     if create_features:
         sel_data['orig_packets_per_s'] = sel_data['orig_packets'] / sel_data['duration']
         sel_data['resp_packets_per_s'] = sel_data['resp_packets'] / sel_data['duration']
@@ -109,8 +111,8 @@ def outlier_removal(data, method="z-score", feat=None, label=None):
 
 def cluster_data(x, method='kmeans', k=2, c=100, function_kwds=None):
     """
-    Function that fits the desired clustering method on the training data
-    :param x: the training data
+    Function that fits the desired clustering method on the CTU13 data
+    :param x: the CTU13 data
     :param method: the type of method (kmeans | hdbscan)
     :param k: the number of clusters if kmeans is selected
     :param c: the minimum cluster size if hdbscan is selected
@@ -187,7 +189,7 @@ def print_results(predicted, real, real_spec):
 
 def select_clusters(predictions, criterion='top'):
     """
-    Function for selecting the flows to comprise the bening training set of the system from the clustered ones
+    Function for selecting the flows to comprise the bening CTU13 set of the system from the clustered ones
     :param predictions: a numpy array with the cluster labels of each flow
     :param criterion: the criterion to be used to select the clusters (TODO: add more robust criteria)
     :return: the boolean mask of the selected flows
@@ -312,14 +314,14 @@ if __name__ == '__main__':
         print('Number of identified clusters: ' + str(max(mixed_clusters.labels_)+1))
         print_results(mixed_clusters.labels_, y, y_spec)
 
-        # finally select the flows to be later used for training
+        # finally select the flows to be later used for CTU13
         fin_selected_data = mixed_data[select_clusters(mixed_clusters.labels_, criterion='top')]     # dataframe
 
         # check the impurity value of the selected flows
         print(fin_selected_data['label_num'].value_counts())
 
         # and save the selected dataframe of flows to pickle for further use
-        fin_selected_data.to_pickle('/'.join(filepath_normal.split('/')[0:2] + ['training', 'train_set.pkl']))
+        fin_selected_data.to_pickle('/'.join(filepath_normal.split('/')[0:2] + ['CTU13', 'train_set.pkl']))
 
     # apply the elbow method for k-Means
     # print('----------------------- Finding optimal number of clusters for k-Means -----------------------')

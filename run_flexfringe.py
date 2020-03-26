@@ -40,6 +40,7 @@ def flexfringe(*args, **kwargs):
     old_file = os.path.join("outputs", "final.json")
     # extract the features that have been used
     features = args[0].split('/')[-2]
+    dataset_name = args[0].split('/')[-4]
     extension = re.search('(.+?)-traces', args[0].split('/')[-1]).group(1)
     # add this naming in case aggregation windows have been used
     if 'aggregated' in args[0]:
@@ -47,7 +48,7 @@ def flexfringe(*args, **kwargs):
     if 'resampled' in args[0]:
         extension += '_resampled'
     new_file_name = extension + "_dfa.dot"
-    new_file = os.path.join("outputs/" + features, new_file_name)
+    new_file = os.path.join("outputs/" + dataset_name + '/' + features, new_file_name)
 
     # create the directory if it does not exist and rename the created dot file
     os.makedirs(os.path.dirname(new_file), exist_ok=True)
@@ -55,8 +56,8 @@ def flexfringe(*args, **kwargs):
 
     # and open the output dot file
     try:
-        with open("outputs/" + features + "/" + new_file_name) as fh:
-            return fh.read(), "outputs/" + features + "/" + new_file_name
+        with open("outputs/" + dataset_name + '/' + features + "/" + new_file_name) as fh:
+            return fh.read(), "outputs/" + dataset_name + '/' + features + "/" + new_file_name
     except FileNotFoundError:
         pass
 
@@ -83,12 +84,13 @@ def show(data, filepath):
 
 
 if __name__ == '__main__':
-    # first check why we want to run flexfringe (training or testing - in the second case only the traces are extracted)
+    # first check why we want to run flexfringe (CTU13 or testing - in the second case only the traces are extracted)
     # check if there is a need to create the trace file or there is already there
-    testing = int(input('Training or testing (training: 0 | testing: 1)? '))
+    testing = int(input('Training or testing (CTU13: 0 | testing: 1)? '))
+    flag = 'CTU-bi'
 
     if not testing:
-        # only if it is for training this question will be asked
+        # only if it is for CTU13 this question will be asked
         with_trace = int(input('Is there a trace file (no: 0 | yes: 1)? '))
     else:
         # otherwise we need to create the trace file
@@ -96,20 +98,33 @@ if __name__ == '__main__':
 
     if not with_trace:
         # set the features to be used in the multivariate modelling
-        selected = [
-            # 'src_port'
-            # , 'dst_port'
-            # , 'protocol_num'
-            'orig_ip_bytes'
-            , 'resp_ip_bytes'
-                    ]
+        if flag == 'CTU-bi':
+            selected = [
+                # 'src_port'
+                # , 'dst_port'
+                'protocol_num'
+                , 'src_bytes'
+                , 'dst_bytes'
+                        ]
+        else:
+            selected = [
+                # 'src_port'
+                # , 'dst_port'
+                # , 'protocol_num'
+                'orig_ip_bytes'
+                , 'resp_ip_bytes'
+            ]
         old_selected = deepcopy(selected)
 
         if testing:
             # set the input filepath of the dataframes' directory
             testing_filepath = input('Give the relative path of the dataset to be used for testing: ')
-            normal = pd.read_pickle(testing_filepath + '/zeek_normal.pkl')
-            anomalous = pd.read_pickle(testing_filepath + '/zeek_anomalous.pkl')
+            if flag == 'CTU-bi':
+                normal = pd.read_pickle(testing_filepath + '/binetflow_normal.pkl')
+                anomalous = pd.read_pickle(testing_filepath + '/binetflow_anomalous.pkl')
+            else:
+                normal = pd.read_pickle(testing_filepath + '/zeek_normal.pkl')
+                anomalous = pd.read_pickle(testing_filepath + '/zeek_anomalous.pkl')
             data = pd.concat([normal, anomalous], ignore_index=True).reset_index(drop=True)
             # for testing keep only hosts that have at least 2 flows so that enough information is available
             data = select_hosts(data, 2)
@@ -164,10 +179,15 @@ if __name__ == '__main__':
         else:
 
             # set the input filepath
-            training_filepath = input('Give the relative path of the dataframe to be used for training: ')
+            training_filepath = input('Give the relative path of the dataframe to be used for CTU13: ')
+
+            if flag == 'CTU-bi':
+                data = pd.read_pickle(training_filepath + '/binetflow_normal.pkl')
+            else:
+                data = pd.read_pickle(training_filepath + '/zeek_normal.pkl')
 
             # select only hosts with significant number of flows (currently over 200)
-            data = select_hosts(pd.read_pickle(training_filepath + '/zeek_normal.pkl'), 200)
+            data = select_hosts(data, 200)
 
             # initialize an empty list to hold the filepaths of the trace files for each host
             traces_filepaths = []
@@ -211,10 +231,10 @@ if __name__ == '__main__':
                 os.makedirs(os.path.dirname(traces_filepath), exist_ok=True)
 
                 # set the trace limits according to the number of flows in the examined dataset
-                min_trace_len = int(max(host_data.shape[0] / 10000, 10))
-                max_trace_len = int(max(host_data.shape[0] / 100, 1000))
+                # min_trace_len = int(max(host_data.shape[0] / 10000, 10))
+                # max_trace_len = int(max(host_data.shape[0] / 100, 1000))
                 helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
-                                      trace_limits=(min_trace_len, max_trace_len), dynamic=True,
+                                      trace_limits=(10, 500), dynamic=True,
                                       aggregation=aggregation, resample=resample)
 
                 # add the trace filepath of each host's traces to the list

@@ -10,13 +10,13 @@ debugging = 1
 
 def train_model(traces_filepath, indices_filepath, model, method, clustering_method=None):
     """
-    Function for training an input model given some input traces stored in the provided filepath. The traces are firstly
+    Function for CTU13 an input model given some input traces stored in the provided filepath. The traces are firstly
     run on the model, so that each state of the model can be updated with the records passing from it. Subsequently, the
-    specified training method is applied on each state, so that a trained model can be created in each state.
+    specified CTU13 method is applied on each state, so that a trained model can be created in each state.
     :param traces_filepath: the filepath to the traces' file
     :param indices_filepath: the filepath to the traces' indices limits - used later for prediction
     :param model: the given model
-    :param method: the training method to be used (currently probabilistic | multivariate gaussian | clustering)
+    :param method: the CTU13 method to be used (currently probabilistic | multivariate gaussian | clustering)
     :param clustering_method: the clustering method to be used if clustering has been selected as method, otherwise None
     :return: the trained model
     """
@@ -45,7 +45,7 @@ def predict_on_model(model, method, clustering_method='', weighted=True):
     """
     Function for predicting based on a model supplied with the testing traces on its states.
     :param model: the given model
-    :param method: the method that has been used for training (needed to select the appropriate prediction mechanism on
+    :param method: the method that has been used for CTU13 (needed to select the appropriate prediction mechanism on
     each state)
     :param clustering_method: the clustering method to be used if clustering has been selected as method, otherwise ''
     :param weighted: a flag indicating if weighted prediction will be applied based on the number of the observations of
@@ -75,7 +75,7 @@ def predict_on_model(model, method, clustering_method='', weighted=True):
                     pred = model.nodes_dict[node_label].predict_on_probabilities(
                         model.nodes_dict[node_label].training_vars['quantile_values'])
             else:
-                # if this state is unseen in training predict anomaly -> this shouldn't happen though
+                # if this state is unseen in CTU13 predict anomaly -> this shouldn't happen though
                 print('State ' + node_label + ' has less than 3 observations!!!')
                 pred = len(model.nodes_dict[node_label].testing_indices) * [1]
             assert (len(pred) == len(model.nodes_dict[node_label].testing_indices)), "Dimension mismatch!!"
@@ -180,10 +180,10 @@ if __name__ == '__main__':
             # , 'outputs/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf_dfa.dot'
             # , 'outputs/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-9-1-192.168.100.111_dfa.dot'
                            ]
-        debug_train_trace_filepaths = ['Datasets/IOT23/training/orig_ip_bytes_resp_ip_bytes/Benign-Amazon-Echo-192.168.2.3-traces.txt'
-            , 'Datasets/IOT23/training/orig_ip_bytes_resp_ip_bytes/Benign-Phillips-HUE-192.168.1.132-traces.txt'
-            # , 'Datasets/IOT23/training/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf-traces.txt'
-            # , 'Datasets/IOT23/training/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-9-1-192.168.100.111-traces.txt'
+        debug_train_trace_filepaths = ['Datasets/IOT23/CTU13/orig_ip_bytes_resp_ip_bytes/Benign-Amazon-Echo-192.168.2.3-traces.txt'
+            , 'Datasets/IOT23/CTU13/orig_ip_bytes_resp_ip_bytes/Benign-Phillips-HUE-192.168.1.132-traces.txt'
+            # , 'Datasets/IOT23/CTU13/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf-traces.txt'
+            # , 'Datasets/IOT23/CTU13/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-9-1-192.168.100.111-traces.txt'
                                        ]
 
         debug_methods = [
@@ -209,8 +209,10 @@ if __name__ == '__main__':
                 else:
                     parameters += [(model_filepath, trace_filepath, method)]
 
+        flag = 'CTU-bi'
         n = len(parameters)
     else:
+        flag = int(input('Provide the type of dataset to be used: '))
         n = int(input('Provide the number of models to be trained: '))
     models = []
     methods = []
@@ -219,17 +221,17 @@ if __name__ == '__main__':
         if debugging:
             model_filepath = parameters[i][0]
         else:
-            model_filepath = input('Give the relative path of the model to be used for training: ')
+            model_filepath = input('Give the relative path of the model to be used for CTU13: ')
         model = parse_dot(model_filepath)
         if debugging:
             traces_filepath = parameters[i][1]
         else:
-            traces_filepath = input('Give the relative path of the trace to be used for training on the given model: ')
+            traces_filepath = input('Give the relative path of the trace to be used for CTU13 on the given model: ')
         indices_filepath = '.'.join(traces_filepath.split('.')[:-1]) + '_indices.pkl'
         if debugging:
             method = parameters[i][2]
         else:
-            method = input('Give the name of the training method to be used (clustering | multivariate gaussian | '
+            method = input('Give the name of the CTU13 method to be used (clustering | multivariate gaussian | '
                            'probabilistic): ')
         clustering_method = None
         if method == 'clustering':
@@ -286,8 +288,12 @@ if __name__ == '__main__':
             test_data_filepath = debug_test_filepaths[j][1]
         else:
             test_data_filepath = input('Give the relative path of the testing dataframe to be used for evaluation: ')
-        normal = pd.read_pickle(test_data_filepath + '/zeek_normal.pkl')
-        anomalous = pd.read_pickle(test_data_filepath + '/zeek_anomalous.pkl')
+        if flag == 'CTU-bi':
+            normal = pd.read_pickle(test_data_filepath + '/binetflow_normal.pkl')
+            anomalous = pd.read_pickle(test_data_filepath + '/binetflow_anomalous.pkl')
+        else:
+            normal = pd.read_pickle(test_data_filepath + '/zeek_normal.pkl')
+            anomalous = pd.read_pickle(test_data_filepath + '/zeek_anomalous.pkl')
         all_data = pd.concat([normal, anomalous], ignore_index=True).reset_index(drop=True)
         # keep only the source ip currently under evaluation and sort values by date
         all_data = all_data[all_data['src_ip'] == host_ip].sort_values(by='date').reset_index(drop=True)
@@ -308,7 +314,7 @@ if __name__ == '__main__':
             # TODO: The mapping between the string representation of the labels and their int value should become more
             #  robust so that other datasets can be used too
             # Save the results as a dictionary of dictionaries with the first level keys being the test set name, the
-            # second level keys being the tre training model information, and the values being the results
+            # second level keys being the tre CTU13 model information, and the values being the results
             if i == 0:
                 results[test_trace_name] = {models_info[i]: produce_evaluation_metrics(dict2list(predictions),
                                                                                        list(map(lambda x: 1

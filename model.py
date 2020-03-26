@@ -41,7 +41,7 @@ class ModelNode:
         self.observed_indices = []
         self.testing_attributes = dict(zip(self.attributes.keys(), len(self.attributes.keys()) * [[]]))
         self.testing_indices = []
-        # dictionary for storing any variables needed for training
+        # dictionary for storing any variables needed for CTU13
         self.training_vars = dict()
         # dictionary for the probabilities associated with each quantile
         # It is initialized to the number of observations in each quantile divided by the total number of observations
@@ -199,7 +199,7 @@ class ModelNode:
                 test_labels[test_labels == 1] = 0
                 test_labels[test_labels == -1] = 1
             else:
-                # in the case of k-means the benign label is found by assuming that in the training set it is prevailing
+                # in the case of k-means the benign label is found by assuming that in the CTU13 set it is prevailing
                 # so we set as the benign class the one with the most labels
                 benign = 0 if clusterer.labels_[clusterer.labels_ == 0].size > \
                               clusterer.labels_[clusterer.labels_ == 1].size else 1
