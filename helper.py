@@ -145,29 +145,27 @@ def aggregate_in_windows(data, window, timed=False, resample=False, new_features
     if timed:
         data.set_index('date', inplace=True)
     if not resample:
-        if 'src_port' in old_column_names:
+        # check for ports in features
+        for feature in [column_name for column_name in old_column_names if 'port' in column_name]:
             if new_features:
-                data['unique_src_ports'] = data['src_port'].rolling(window, min_periods=1).apply(lambda x: len(set(x)),
-                                                                                                 raw=False)
-                data['std_src_ports'] = data['src_port'].rolling(window, min_periods=1).std()
+                data['unique_' + feature + 's'] = data[feature].rolling(window, min_periods=1).apply(lambda x:
+                                                                                                     len(set(x)),
+                                                                                                     raw=False)
+                data['std_' + feature + 's'] = data[feature].rolling(window, min_periods=1).std()
             else:
-                data['median_src_port'] = data['src_port'].rolling(window, min_periods=1).median()
-        if 'dst_port' in old_column_names:
-            if new_features:
-                data['unique_dst_ports'] = data['dst_port'].rolling(window, min_periods=1).\
-                    apply(lambda x: len(set(x)), raw=False)
-                data['std_dst_ports'] = data['dst_port'].rolling(window, min_periods=1).std()
-            else:
-                data['median_dst_port'] = data['dst_port'].rolling(window, min_periods=1).median()
+                data['median_' + feature] = data[feature].rolling(window, min_periods=1).median()
+        # check for protocol
         if 'protocol_num' in old_column_names:
             data['argmax_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1).\
                 apply(lambda x: mode(x)[0], raw=False)
             if new_features:
                 data['std_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1).std()
-        if 'duration' in old_column_names:
-            data['median_duration'] = data['duration'].rolling(window, min_periods=1).median()
+        # check for duration in features
+        for feature in [column_name for column_name in old_column_names if 'duration' in column_name]:
+            data['median_' + feature] = data[feature].rolling(window, min_periods=1).median()
             if new_features:
-                data['std_duration'] = data['duration'].rolling(window, min_periods=1).std()
+                data['std_' + feature] = data[feature].rolling(window, min_periods=1).std()
+        # check for bytes in features
         for feature in [column_name for column_name in old_column_names if 'bytes' in column_name]:
             data['median_' + feature] = data[feature].rolling(window, min_periods=1).median()
             if new_features:
@@ -182,24 +180,25 @@ def aggregate_in_windows(data, window, timed=False, resample=False, new_features
         # can be called only if timed flag has been set to True
         frames = []
         new_column_names = []
-        if 'src_port' in old_column_names:
-            new_column_names += (['unique_src_ports', 'std_src_ports'] if new_features else ['median_src_port'])
-            frames += ([data['src_port'].resample(window).nunique(), data['src_port'].resample(window).std()] if
-                       new_features else [data['src_port'].resample(window).median()])
-        if 'dst_port' in old_column_names:
-            new_column_names += (['unique_dst_ports', 'std_dst_ports'] if new_features else ['median_dst_port'])
-            frames += ([data['dst_port'].resample(window).nunique(), data['dst_port'].resample(window).std()] if
-                       new_features else [data['dst_port'].resample(window).median()])
+        # check for ports in features
+        for feature in [column_name for column_name in old_column_names if 'port' in column_name]:
+            new_column_names += (['unique' + feature + 's', 'std_' + feature + 's'] if new_features else
+                                 ['median_' + feature])
+            frames += ([data[feature].resample(window).nunique(), data[feature].resample(window).std()] if
+                       new_features else [data[feature].resample(window).median()])
+        # check for protocol
         if 'protocol_num' in old_column_names:
             new_column_names += (['argmax_protocol_num', 'std_protocol_num'] if new_features else
                                  ['argmax_protocol_num'])
             frames += ([data['protocol_num'].resample(window).apply(lambda x: mode(x)[0]),
                        data['protocol_num'].resample(window).std()] if new_features else
                        [data['protocol_num'].resample(window).apply(lambda x: mode(x)[0])])
-        if 'duration' in old_column_names:
-            new_column_names += (['median_duration', 'std_duration'] if new_features else ['median_duration'])
-            frames += ([data['duration'].resample(window).median(), data['duration'].resample(window).std()] if
-                       new_features else [data['duration'].resample(window).median()])
+        # check for duration in features
+        for feature in [column_name for column_name in old_column_names if 'duration' in column_name]:
+            new_column_names += (['median_' + feature, 'std_' + feature] if new_features else ['median_' + feature])
+            frames += ([data[feature].resample(window).median(), data[feature].resample(window).std()] if
+                       new_features else [data[feature].resample(window).median()])
+        # check for bytes in features
         for feature in [column_name for column_name in old_column_names if 'bytes' in column_name]:
             new_column_names += (['median_' + feature, 'std_' + feature] if new_features else ['median_' + feature])
             frames += ([data[feature].resample(window).median(), data[feature].resample(window).std()] if new_features
