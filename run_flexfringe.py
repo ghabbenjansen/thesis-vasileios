@@ -7,6 +7,7 @@ from connection_clustering import select_hosts
 import pandas as pd
 import re
 from copy import deepcopy
+import pickle
 
 filepath = '/Users/vserentellos/Documents/dfasat/'
 
@@ -97,6 +98,9 @@ if __name__ == '__main__':
         with_trace = 0
 
     if not with_trace:
+        # first check if discretization is enabled
+        with_discretization = int(
+            input('Discretize numeric features (ports, bytes, duration, packets) (no: 0 | yes: 1)? '))
         # set the features to be used in the multivariate modelling
         if flag == 'CTU-bi':
             selected = [
@@ -128,6 +132,20 @@ if __name__ == '__main__':
                 normal = pd.read_pickle(testing_filepath + '/zeek_normal.pkl')
                 anomalous = pd.read_pickle(testing_filepath + '/zeek_anomalous.pkl')
             data = pd.concat([normal, anomalous], ignore_index=True).reset_index(drop=True)
+
+            if with_discretization:
+                # first retireve the discretization limits to be used for each feature
+                discretization_filepath = input('Provide the filepath of the discretization limits: ')
+                with open(discretization_filepath, 'rb') as f:
+                    discretization_dict = pickle.load(f)
+                # then apply discretization to the appropriate features
+                for feature in discretization_dict.keys():
+                    data[feature + '_num'] = data[feature].apply(helper.find_percentile,
+                                                                 args=(discretization_dict[feature],))
+                    selected.remove(feature)
+                    selected += [feature + '_num']
+                old_selected = deepcopy(selected)
+
             # for testing keep only hosts that have at least 2 flows so that enough information is available
             data = select_hosts(data, 2)
             # extract the data per host
@@ -190,6 +208,22 @@ if __name__ == '__main__':
             else:
                 data = pd.read_pickle(training_filepath + '/zeek_normal.pkl')
 
+            if with_discretization:
+                # first find the discretization limits for each feature
+                discretization_dict = helper.find_discretization_clusters(data, [sel for sel in old_selected if 'num'
+                                                                                 not in sel])
+                # and store them in a pickle in the training scenario's directory
+                discretization_filepath = training_filepath + '/discretization_limits.pkl'
+                with open(discretization_filepath, 'wb') as f:
+                    pickle.dump(discretization_dict, f)
+                # then for each feature discretize its values and add the new features in the dataframe
+                for feature in discretization_dict.keys():
+                    data[feature + '_num'] = data[feature].apply(helper.find_percentile,
+                                                                 args=(discretization_dict[feature],))
+                    selected.remove(feature)
+                    selected += [feature + '_num']
+                old_selected = deepcopy(selected)
+
             # select only hosts with significant number of flows (currently over 200)
             data = select_hosts(data, 200)
 
@@ -241,7 +275,7 @@ if __name__ == '__main__':
                 #                       trace_limits=(5, 150), dynamic=True,
                 #                       aggregation=aggregation, resample=resample)
                 helper.extract_traces(host_data, traces_filepath, selected, dynamic=True, aggregation=aggregation,
-                                     resample=resample)
+                                      resample=resample)
 
                 # add the trace filepath of each host's traces to the list
                 traces_filepaths += [traces_filepath]

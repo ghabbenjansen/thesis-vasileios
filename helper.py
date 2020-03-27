@@ -7,7 +7,10 @@ from tslearn.metrics import dtw
 from sklearn.preprocessing import MinMaxScaler
 import re
 import pickle
+import numpy as np
 import pandas as pd
+from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
 
 
 def set_windowing_vars(data):
@@ -24,6 +27,55 @@ def set_windowing_vars(data):
     # in case there is only one flow in the dataset just return zero-length Timedelta results
     else:
         return pd.to_timedelta('0s'), pd.to_timedelta('0s')
+
+
+def find_percentile(val, percentiles):
+    """
+    Helper function returning the relative index of placement in the percentiles
+    :param val: the value to be indexed
+    :param percentiles: the percentile limits
+    :return: the index of val in the percentiles
+    """
+    ind = len(percentiles)
+    for i, p in enumerate(percentiles):
+        if val <= p:
+            ind = i
+            break
+    return ind
+
+
+def find_discretization_clusters(data, selected):
+    """
+    Function for applying the ELBOW method to a number of selected features so that the appropriate number of clusters
+    for each feature can be identified and used as discretization limits for each feature.
+    :param data: the input dataframe
+    :param selected: the selected features
+    :return: a dictionary with the selected number of discretization limits for each feature
+    """
+    discretization_limits = {}
+    for sel in selected:
+        # apply the elbow method
+        print('----------------------- Finding optimal number of bins for {} -----------------------'.format(sel))
+        Sum_of_squared_distances = []
+        for k in range(1, 11):
+            km = KMeans(n_clusters=k)
+            km = km.fit(data[sel].values.reshape(-1, 1))
+            Sum_of_squared_distances.append(km.inertia_)
+
+        plt.figure()
+        plt.plot(range(1, 11), Sum_of_squared_distances, 'bx-')
+        plt.xlabel('k')
+        plt.ylabel('Sum_of_squared_distances')
+        plt.title('Elbow Method For Optimal k')
+        plt.grid()
+        plt.show()
+
+        # provide the desired number of discretization points according to the ELBOW plot
+        percentile_num = int(input('Enter your preferred number of discretization points: '))
+        # and find the percentile limits for the examined feature
+        discretization_limits[sel] = list(map(lambda p: np.percentile(data[sel], p), 100 *
+                                              np.arange(0, 1, 1 / percentile_num)[1:]))
+    return discretization_limits
 
 
 def traces_dissimilarity(trace1, trace2, multivariate=True, normalization=True):
@@ -411,7 +463,7 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
     :return: creates and stores the traces' file extracted from the input dataframe
     """
     medians = data['date'].sort_values().diff().dt.total_seconds()
-    high_level_window_indices = medians[medians > 3600].index.tolist()
+    high_level_window_indices = medians[medians > 1800].index.tolist()
     traces_indices = []
     traces = []
     progress_list = []
@@ -427,9 +479,8 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
             max_trace_len = int(max(windowed_data.shape[0] / 100, 1000))
             if windowed_data.shape[0] < min_trace_len:
                 min_trace_len = windowed_data.shape[0]
-            new_traces, new_indices, num_of_features = extract_traces_from_window(windowed_data, out_filepath, selected,
-                                                                                  window, stride, (min_trace_len,
-                                                                                                   max_trace_len),
+            new_traces, new_indices, num_of_features = extract_traces_from_window(windowed_data, selected, window,
+                                                                                  stride, (min_trace_len, 100),
                                                                                   data.shape[0], progress_list,
                                                                                   dynamic=dynamic,
                                                                                   aggregation=aggregation,
@@ -444,9 +495,8 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
         max_trace_len = int(max(data.shape[0] / 100, 1000))
         if data.shape[0] < min_trace_len:
             min_trace_len = data.shape[0]
-        new_traces, new_indices, num_of_features = extract_traces_from_window(data, out_filepath, selected,
-                                                                              window, stride, (min_trace_len,
-                                                                                               max_trace_len),
+        new_traces, new_indices, num_of_features = extract_traces_from_window(data, selected, window, stride,
+                                                                              (min_trace_len, 100),
                                                                               data.shape[0], progress_list,
                                                                               dynamic=dynamic, aggregation=aggregation,
                                                                               resample=resample)
