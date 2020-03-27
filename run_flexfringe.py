@@ -154,21 +154,17 @@ if __name__ == '__main__':
                 host_data = data[data['src_ip'] == host].sort_values(by='date').reset_index(drop=True)
                 print('The number of flows for this host are: ' + str(host_data.shape[0]))
 
-                # extract the traces and save them in the traces' filepath - the window and the stride sizes of the
-                # sliding window, as well as the aggregation capability, can be also specified
-                # window, stride = helper.set_windowing_vars(host_data)
-                aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | yes-resample:'
-                                        ' 2 )? '))
+                # first ask if new features has been added during training
+                new_features = int(input('Were there any new features added during training (no: 0 | yes: 1)? '))
 
-                # set the traces output filepath depending on the aggregation value
-                # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of the
-                # helper.py file
-                if not aggregation:
-                    traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + '_'.join(old_selected) + \
-                                      '/' + testing_filepath.split('/')[2] + '-' + host + '-traces.txt'
-                    aggregation = False
-                    resample = False
-                else:
+                if new_features:
+                    # extract the traces and save them in the traces' filepath
+                    aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | '
+                                            'yes-resample: 2 )? '))
+
+                    # set the traces output filepath depending on the aggregation value
+                    # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of
+                    # the helper.py file
                     resample = False if aggregation == 1 else True
                     aggregation = True
                     if resample:
@@ -181,18 +177,17 @@ if __name__ == '__main__':
                                           host + '-traces_aggregated.txt'
                     # add also the destination ip in case of aggregation
                     selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
+                # if no new features have been added
+                else:
+                    traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + '_'.join(old_selected) + \
+                                      '/' + testing_filepath.split('/')[2] + '-' + host + '-traces.txt'
+                    aggregation = False
+                    resample = False
 
                 # create the directory if it does not exist
                 os.makedirs(os.path.dirname(traces_filepath), exist_ok=True)
 
-                # # set the trace limits according to the number of flows in the examined dataset
-                # min_trace_len = int(max(host_data.shape[0] / 10000, 10))
-                # max_trace_len = int(max(host_data.shape[0] / 100, 1000))
-                # if host_data.shape[0] < min_trace_len:
-                #     min_trace_len = host_data.shape[0]
-                # helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
-                #                       trace_limits=(min_trace_len, max_trace_len), dynamic=True,
-                #                       aggregation=aggregation, resample=resample)
+                # and extract the traces
                 helper.extract_traces(host_data, traces_filepath, selected, dynamic=True, aggregation=aggregation,
                                       resample=resample)
                 # finally reset the selected features
@@ -236,9 +231,10 @@ if __name__ == '__main__':
                 host_data = data[data['src_ip'] == host].sort_values(by='date').reset_index(drop=True)
                 print('The number of flows for this host are: ' + str(host_data.shape[0]))
 
-                # extract the traces and save them in the traces' filepath - the window and the stride sizes of the
-                # sliding window, as well as the aggregation capability, can be also specified
-                # window, stride = helper.set_windowing_vars(host_data)
+                # first ask if new features are to be added
+                new_features = int(input('Are there any new features to be added (no: 0 | yes: 1)? '))
+
+                # extract the traces and save them in the traces' filepath
                 aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | yes-resample:'
                                         ' 2 )? '))
 
@@ -257,25 +253,20 @@ if __name__ == '__main__':
                     if resample:
                         traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
                                           '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' + \
-                                          host + '-traces_resampled.txt'
+                                          host + '-traces_resampled' + ('' if new_features else '_reduced') + '.txt'
                     else:
                         traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
                                           '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' + \
-                                          host + '-traces_aggregated.txt'
+                                          host + '-traces_aggregated' + ('' if new_features else '_reduced') + '.txt'
                     # add also the destination ip in case of aggregation
                     selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
 
                 # create the directory if it does not exist
                 os.makedirs(os.path.dirname(traces_filepath), exist_ok=True)
 
-                # set the trace limits according to the number of flows in the examined dataset
-                # min_trace_len = int(max(host_data.shape[0] / 10000, 10))
-                # max_trace_len = int(max(host_data.shape[0] / 100, 1000))
-                # helper.extract_traces(host_data, traces_filepath, selected, window=window, stride=stride,
-                #                       trace_limits=(5, 150), dynamic=True,
-                #                       aggregation=aggregation, resample=resample)
+                # and extract the traces
                 helper.extract_traces(host_data, traces_filepath, selected, dynamic=True, aggregation=aggregation,
-                                      resample=resample)
+                                      resample=resample, new_features=bool(new_features))
 
                 # add the trace filepath of each host's traces to the list
                 traces_filepaths += [traces_filepath]

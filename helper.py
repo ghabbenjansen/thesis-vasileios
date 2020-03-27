@@ -128,7 +128,7 @@ def calculate_window_mask(data, start_date, end_date):
     return (data['date'] >= start_date) & (data['date'] <= end_date)
 
 
-def aggregate_in_windows(data, window, timed=False, resample=False):
+def aggregate_in_windows(data, window, timed=False, resample=False, new_features=True):
     """
     Function for aggregating specific features of a dataframe in rolling windows of length window
     Currently the following features are taken into account: source port, destination ip/port, originator's bytes,
@@ -137,6 +137,7 @@ def aggregate_in_windows(data, window, timed=False, resample=False):
     :param window: the window length
     :param timed: boolean flag specifying if aggregation window should take into account the timestamps
     :param resample: boolean flag specifying if aggregation window should be rolling or resampling
+    :param new_features: boolean flag specifying if new features should be added to the existing ones
     :return: a dataframe with the aggregated features
     """
     old_column_names = deepcopy(data.columns.values)
@@ -144,58 +145,69 @@ def aggregate_in_windows(data, window, timed=False, resample=False):
     if timed:
         data.set_index('date', inplace=True)
     if not resample:
-        if 'orig_ip_bytes' in old_column_names:
-            data['median_orig_bytes'] = data['orig_ip_bytes'].rolling(window, min_periods=1).median()
-            data['std_orig_bytes'] = data['orig_ip_bytes'].rolling(window, min_periods=1).std()
-        if 'resp_ip_bytes' in old_column_names:
-            data['median_resp_bytes'] = data['resp_ip_bytes'].rolling(window, min_periods=1).median()
-            data['std_resp_bytes'] = data['resp_ip_bytes'].rolling(window, min_periods=1).std()
-        if 'duration' in old_column_names:
-            data['median_duration'] = data['duration'].rolling(window, min_periods=1).median()
-            data['std_duration'] = data['duration'].rolling(window, min_periods=1).std()
-        if 'dst_ip' in old_column_names:
-            data['unique_dst_ips'] = pd.DataFrame(pd.Categorical(data['dst_ip']).codes, index=data.index).\
-                rolling(window, min_periods=1).apply(lambda x: len(set(x)), raw=False)
         if 'src_port' in old_column_names:
-            data['unique_src_ports'] = data['src_port'].rolling(window, min_periods=1).apply(lambda x: len(set(x)),
-                                                                                             raw=False)
-            data['std_src_ports'] = data['src_port'].rolling(window, min_periods=1).std()
+            if new_features:
+                data['unique_src_ports'] = data['src_port'].rolling(window, min_periods=1).apply(lambda x: len(set(x)),
+                                                                                                 raw=False)
+                data['std_src_ports'] = data['src_port'].rolling(window, min_periods=1).std()
+            else:
+                data['median_src_port'] = data['src_port'].rolling(window, min_periods=1).median()
         if 'dst_port' in old_column_names:
-            data['unique_dst_ports'] = data['dst_port'].rolling(window, min_periods=1).\
-                apply(lambda x: len(set(x)), raw=False)
-            data['std_dst_ports'] = data['dst_port'].rolling(window, min_periods=1).std()
+            if new_features:
+                data['unique_dst_ports'] = data['dst_port'].rolling(window, min_periods=1).\
+                    apply(lambda x: len(set(x)), raw=False)
+                data['std_dst_ports'] = data['dst_port'].rolling(window, min_periods=1).std()
+            else:
+                data['median_dst_port'] = data['dst_port'].rolling(window, min_periods=1).median()
         if 'protocol_num' in old_column_names:
             data['argmax_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1).\
                 apply(lambda x: mode(x)[0], raw=False)
-            data['std_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1).std()
+            if new_features:
+                data['std_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1).std()
+        if 'duration' in old_column_names:
+            data['median_duration'] = data['duration'].rolling(window, min_periods=1).median()
+            if new_features:
+                data['std_duration'] = data['duration'].rolling(window, min_periods=1).std()
+        for feature in [column_name for column_name in old_column_names if 'bytes' in column_name]:
+            data['median_' + feature] = data[feature].rolling(window, min_periods=1).median()
+            if new_features:
+                data['std_' + feature] = data[feature].rolling(window, min_periods=1).std()
+        if new_features:
+            if 'dst_ip' in old_column_names:
+                data['unique_dst_ips'] = pd.DataFrame(pd.Categorical(data['dst_ip']).codes, index=data.index).\
+                    rolling(window, min_periods=1).apply(lambda x: len(set(x)), raw=False)
         data.drop(columns=old_column_names, inplace=True)
         data.bfill(axis='rows', inplace=True)
     else:
         # can be called only if timed flag has been set to True
         frames = []
         new_column_names = []
-        if 'orig_ip_bytes' in old_column_names:
-            new_column_names += ['median_orig_bytes', 'std_orig_bytes']
-            frames += [data['orig_ip_bytes'].resample(window).median(), data['orig_ip_bytes'].resample(window).std()]
-        if 'resp_ip_bytes' in old_column_names:
-            new_column_names += ['median_resp_bytes', 'std_resp_bytes']
-            frames += [data['resp_ip_bytes'].resample(window).median(), data['resp_ip_bytes'].resample(window).std()]
-        if 'duration' in old_column_names:
-            new_column_names += ['median_duration', 'std_duration']
-            frames += [data['duration'].resample(window).median(), data['duration'].resample(window).std()]
-        if 'dst_ip' in old_column_names:
-            new_column_names += ['unique_dst_ips']
-            frames += [data['dst_ip'].resample(window).nunique()]
         if 'src_port' in old_column_names:
-            new_column_names += ['unique_src_ports', 'std_src_ports']
-            frames += [data['src_port'].resample(window).nunique(), data['src_port'].resample(window).std()]
+            new_column_names += (['unique_src_ports', 'std_src_ports'] if new_features else ['median_src_port'])
+            frames += ([data['src_port'].resample(window).nunique(), data['src_port'].resample(window).std()] if
+                       new_features else [data['src_port'].resample(window).median()])
         if 'dst_port' in old_column_names:
-            new_column_names += ['unique_dst_ports', 'std_dst_ports']
-            frames += [data['dst_port'].resample(window).nunique(), data['dst_port'].resample(window).std()]
+            new_column_names += (['unique_dst_ports', 'std_dst_ports'] if new_features else ['median_dst_port'])
+            frames += ([data['dst_port'].resample(window).nunique(), data['dst_port'].resample(window).std()] if
+                       new_features else [data['dst_port'].resample(window).median()])
         if 'protocol_num' in old_column_names:
-            new_column_names += ['argmax_protocol_num', 'std_protocol_num']
-            frames += [data['protocol_num'].resample(window).apply(lambda x: mode(x)[0]),
-                       data['protocol_num'].resample(window).std()]
+            new_column_names += (['argmax_protocol_num', 'std_protocol_num'] if new_features else
+                                 ['argmax_protocol_num'])
+            frames += ([data['protocol_num'].resample(window).apply(lambda x: mode(x)[0]),
+                       data['protocol_num'].resample(window).std()] if new_features else
+                       [data['protocol_num'].resample(window).apply(lambda x: mode(x)[0])])
+        if 'duration' in old_column_names:
+            new_column_names += (['median_duration', 'std_duration'] if new_features else ['median_duration'])
+            frames += ([data['duration'].resample(window).median(), data['duration'].resample(window).std()] if
+                       new_features else [data['duration'].resample(window).median()])
+        for feature in [column_name for column_name in old_column_names if 'bytes' in column_name]:
+            new_column_names += (['median_' + feature, 'std_' + feature] if new_features else ['median_' + feature])
+            frames += ([data[feature].resample(window).median(), data[feature].resample(window).std()] if new_features
+                       else [data[feature].resample(window).median()])
+        if new_features:
+            if 'dst_ip' in old_column_names:
+                new_column_names += ['unique_dst_ips']
+                frames += [data['dst_ip'].resample(window).nunique()]
         data = pd.concat(frames, axis=1)
         data.columns = new_column_names
         data.dropna(inplace=True)
@@ -203,12 +215,15 @@ def aggregate_in_windows(data, window, timed=False, resample=False):
 
 
 def extract_traces_from_window(data, selected, window, stride, trace_limits, total, progress_list,
-                               dynamic=True, aggregation=False, resample=False):
+                               dynamic=True, aggregation=False, resample=False, new_features=True):
     """
     Function for extracting traces from the imput dataframe. The features to be taken into account are provided in the
     selected list. Each trace is extracted by rolling a window of window seconds in the input data with a stride of
     stride seconds. If dynamic flag is set to True, then a dynamically changing window is used instead. If aggregation
-    flag is set to True, then aggregation windows are created in each rolling window.
+    flag is set to True, then aggregation windows are created in each rolling window. If resample flag is set to True,
+    then instead of a rolling window a resampling one is used during aggregation. If new_features is set to True, then
+    in each aggregation windows are used, instead of creating new features only an aggregated view of the existing ones
+    is maintained.
     :param data: the input dataframe
     :param selected: the features to be used
     :param window: the window size
@@ -220,6 +235,7 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
     :param dynamic: boolean flag about the use of dynamically changing windows
     :param aggregation: the aggregation flag - if set to True, then aggregation windows are created
     :param resample: the resampling flag - if set to True, then resampling is used in the aggregation windows
+    :param new_features: boolean flag specifying if new features should be added to the existing ones
     :return: the traces extracted in a list, the indices of each trace in a list, and the number of features extracted
     """
 
@@ -354,7 +370,7 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
                 aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
                 timed = True if resample else False
                 windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), aggregation_length, timed,
-                                                     resample)
+                                                     resample, new_features)
                 selected = windowed_data.columns.values
                 num_of_features = len(selected)
 
@@ -428,7 +444,7 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
             aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
             timed = True if resample else False
             windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), aggregation_length, timed,
-                                                 resample)
+                                                 resample, new_features)
             selected = windowed_data.columns.values
             num_of_features = len(selected)
         # and add the new trace
@@ -449,7 +465,7 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
     return traces, traces_indices, num_of_features
 
 
-def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False, resample=False):
+def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False, resample=False, new_features=True):
     """
     Function for extracting traces from the given dataset by first applying a high-level filtering to find windows of
     significant time difference between them to be processed separately by the extract_traces_from_window function. The
@@ -460,6 +476,7 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
     :param dynamic: boolean flag about the use of dynamically changing windows
     :param aggregation: the aggregation flag - if set to True, then aggregation windows are created
     :param resample: the resampling flag - if set to True, then resampling is used in the aggregation windows
+    :param new_features: boolean flag specifying if new features should be added to the existing ones
     :return: creates and stores the traces' file extracted from the input dataframe
     """
     medians = data['date'].sort_values().diff().dt.total_seconds()
@@ -480,11 +497,12 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
             if windowed_data.shape[0] < min_trace_len:
                 min_trace_len = windowed_data.shape[0]
             new_traces, new_indices, num_of_features = extract_traces_from_window(windowed_data, selected, window,
-                                                                                  stride, (min_trace_len, 100),
+                                                                                  stride, (min_trace_len, max_trace_len),
                                                                                   data.shape[0], progress_list,
                                                                                   dynamic=dynamic,
                                                                                   aggregation=aggregation,
-                                                                                  resample=resample)
+                                                                                  resample=resample,
+                                                                                  new_features=new_features)
             traces += new_traces
             traces_indices += new_indices
             starting_index = index
@@ -496,10 +514,11 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
         if data.shape[0] < min_trace_len:
             min_trace_len = data.shape[0]
         new_traces, new_indices, num_of_features = extract_traces_from_window(data, selected, window, stride,
-                                                                              (min_trace_len, 100),
+                                                                              (min_trace_len, max_trace_len),
                                                                               data.shape[0], progress_list,
                                                                               dynamic=dynamic, aggregation=aggregation,
-                                                                              resample=resample)
+                                                                              resample=resample,
+                                                                              new_features=new_features)
         traces += new_traces
         traces_indices += new_indices
 
