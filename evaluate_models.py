@@ -175,15 +175,21 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
 if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
-        debug_model_filepaths = ['outputs/orig_ip_bytes_resp_ip_bytes/Benign-Amazon-Echo-192.168.2.3_dfa.dot'
-            ,'outputs/orig_ip_bytes_resp_ip_bytes/Benign-Phillips-HUE-192.168.1.132_dfa.dot'
-            # , 'outputs/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf_dfa.dot'
-            # , 'outputs/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-9-1-192.168.100.111_dfa.dot'
+        debug_model_filepaths = [
+              'outputs/CTU13/protocol_num_src_bytes_dst_bytes/scenario3-147.32.84.164_resampled_dfa.dot'
+            , 'outputs/CTU13/protocol_num_src_bytes_dst_bytes/scenario3-147.32.87.36_resampled_dfa.dot'
+            , 'outputs/CTU13/protocol_num_src_bytes_dst_bytes/scenario8-147.32.84.164_resampled_dfa.dot'
+            , 'outputs/CTU13/protocol_num_src_bytes_dst_bytes/scenario8-147.32.84.170_resampled_dfa.dot'
+            , 'outputs/CTU13/protocol_num_src_bytes_dst_bytes/scenario9-147.32.84.134_resampled_dfa.dot'
+            , 'outputs/CTU13/protocol_num_src_bytes_dst_bytes/scenario9-147.32.84.170_resampled_dfa.dot'
                            ]
-        debug_train_trace_filepaths = ['Datasets/IOT23/CTU13/orig_ip_bytes_resp_ip_bytes/Benign-Amazon-Echo-192.168.2.3-traces.txt'
-            , 'Datasets/IOT23/CTU13/orig_ip_bytes_resp_ip_bytes/Benign-Phillips-HUE-192.168.1.132-traces.txt'
-            # , 'Datasets/IOT23/CTU13/dst_port_orig_ip_bytes_resp_ip_bytes/Benign-Soomfy-Doorlock-fe80::5bcc:698e:39d5:cdf-traces.txt'
-            # , 'Datasets/IOT23/CTU13/dst_port_protocol_num_orig_ip_bytes/Malware-Capture-9-1-192.168.100.111-traces.txt'
+        debug_train_trace_filepaths = [
+              'Datasets/CTU13/training/protocol_num_src_bytes_dst_bytes/scenario3-147.32.84.164-traces_resampled_reduced.txt'
+            , 'Datasets/CTU13/training/protocol_num_src_bytes_dst_bytes/scenario3-147.32.87.36-traces_resampled_reduced.txt'
+            , 'Datasets/CTU13/training/protocol_num_src_bytes_dst_bytes/scenario8-147.32.84.164-traces_resampled_reduced.txt'
+            , 'Datasets/CTU13/training/protocol_num_src_bytes_dst_bytes/scenario8-147.32.84.170-traces_resampled_reduced.txt'
+            , 'Datasets/CTU13/training/protocol_num_src_bytes_dst_bytes/scenario9-147.32.84.134-traces_resampled_reduced.txt'
+            , 'Datasets/CTU13/training/protocol_num_src_bytes_dst_bytes/scenario9-147.32.84.170-traces_resampled_reduced.txt'
                                        ]
 
         debug_methods = [
@@ -249,22 +255,41 @@ if __name__ == '__main__':
 
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
-        debug_test_filepaths = [('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-traces.txt',
-                                 'Datasets/IOT23/Malware-Capture-8-1')
-            # , ('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-20-1-192.168.100.103-traces.txt',
-            #    'Datasets/IOT23/Malware-Capture-20-1')
-            # , ('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-21-1-192.168.100.113-traces.txt',
-            #    'Datasets/IOT23/Malware-Capture-21-1')
-            # , ('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-34-1-192.168.1.195-traces.txt',
-            #    'Datasets/IOT23/Malware-Capture-34-1')
-            # , ('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-42-1-192.168.1.197-traces.txt',
-            #     'Datasets/IOT23/Malware-Capture-42-1')
-            # , ('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-traces.txt',
-            #    'Datasets/IOT23/Malware-Capture-44-1')
-            # , ('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.1-traces.txt',
-            #    'Datasets/IOT23/Malware-Capture-1-1')
-            , ('Datasets/IOT23/test/orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.103-traces.txt',
-               'Datasets/IOT23/Malware-Capture-1-1')
+        debug_test_filepaths = [
+              ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario5-147.32.80.9-traces.txt',
+               'Datasets/CTU13/scenario5')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario5-147.32.84.134-traces.txt',
+               'Datasets/CTU13/scenario5')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario5-147.32.84.164-traces.txt',
+               'Datasets/CTU13/scenario5')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario5-147.32.84.165-traces.txt',
+               'Datasets/CTU13/scenario5')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario5-147.32.84.170-traces.txt',
+                'Datasets/CTU13/scenario5')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario5-147.32.87.36-traces.txt',
+               'Datasets/CTU13/scenario5')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario6-147.32.80.9-traces.txt',
+               'Datasets/CTU13/scenario6')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario6-147.32.84.134-traces.txt',
+               'Datasets/CTU13/scenario6')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario6-147.32.84.164-traces.txt',
+               'Datasets/CTU13/scenario6')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario6-147.32.84.165-traces.txt',
+               'Datasets/CTU13/scenario6')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario6-147.32.84.170-traces.txt',
+               'Datasets/CTU13/scenario6')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario6-147.32.87.36-traces.txt',
+               'Datasets/CTU13/scenario6')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario7-147.32.84.134-traces.txt',
+               'Datasets/CTU13/scenario7')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario7-147.32.84.164-traces.txt',
+               'Datasets/CTU13/scenario7')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario7-147.32.84.165-traces.txt',
+               'Datasets/CTU13/scenario7')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario7-147.32.84.170-traces.txt',
+               'Datasets/CTU13/scenario7')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario7-147.32.87.36-traces.txt',
+               'Datasets/CTU13/scenario7')
                                       ]
         m = len(debug_test_filepaths)
     else:
@@ -311,20 +336,30 @@ if __name__ == '__main__':
             assert (len(predictions.keys()) == np.size(true_labels, 0)), \
                 "Dimension mismatch between true and predicted labels!!"
 
-            # TODO: The mapping between the string representation of the labels and their int value should become more
-            #  robust so that other datasets can be used too
             # Save the results as a dictionary of dictionaries with the first level keys being the test set name, the
             # second level keys being the tre CTU13 model information, and the values being the results
-            if i == 0:
-                results[test_trace_name] = {models_info[i]: produce_evaluation_metrics(dict2list(predictions),
-                                                                                       list(map(lambda x: 1
-                                                                                       if x == 'Malicious' else 0,
-                                                                                                true_labels.tolist())))}
+            if flag == 'CTU-bi':
+                if i == 0:
+                    results[test_trace_name] = {models_info[i]: produce_evaluation_metrics(dict2list(predictions),
+                                                                                           list(map(lambda x: 1
+                                                                                           if 'Botnet' in x else 0,
+                                                                                                    true_labels.tolist())))}
+                else:
+                    results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
+                                                                                          list(map(lambda x: 1
+                                                                                          if 'Botnet' in x else 0,
+                                                                                                   true_labels.tolist())))
             else:
-                results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
-                                                                                      list(map(lambda x: 1
-                                                                                      if x == 'Malicious' else 0,
-                                                                                               true_labels.tolist())))
+                if i == 0:
+                    results[test_trace_name] = {models_info[i]: produce_evaluation_metrics(dict2list(predictions),
+                                                                                           list(map(lambda x: 1
+                                                                                           if x == 'Malicious' else 0,
+                                                                                                    true_labels.tolist())))}
+                else:
+                    results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
+                                                                                          list(map(lambda x: 1
+                                                                                          if x == 'Malicious' else 0,
+                                                                                                   true_labels.tolist())))
 
     # finally save all the results for each testing trace
     results_filename = input('Provide the relative path for the filename of the results: ')

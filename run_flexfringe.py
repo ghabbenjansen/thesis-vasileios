@@ -45,9 +45,9 @@ def flexfringe(*args, **kwargs):
     extension = re.search('(.+?)-traces', args[0].split('/')[-1]).group(1)
     # add this naming in case aggregation windows have been used
     if 'aggregated' in args[0]:
-        extension += '_aggregated'
+        extension += ('_aggregated' + ('_reduced' if 'reduced' in args[0] else ''))
     if 'resampled' in args[0]:
-        extension += '_resampled'
+        extension += ('_resampled' + ('_reduced' if 'reduced' in args[0] else ''))
     new_file_name = extension + "_dfa.dot"
     new_file = os.path.join("outputs/" + dataset_name + '/' + features, new_file_name)
 
