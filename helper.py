@@ -340,8 +340,6 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
                     # first check the case of a very large window
                     while window_len > max_trace_length:
                         print('-------------- Too many flows in the trace ==> Reducing time window... --------------')
-                        if window_len == 165:
-                            print('found it')
                         window /= magnifier
                         if stride >= window:
                             stride = window / 5
@@ -512,14 +510,16 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
     num_of_features = len(selected)
     if len(high_level_window_indices) != 0:
         print(str(len(high_level_window_indices)) + ' of high level windows identified!!')
-        for i, index in enumerate(high_level_window_indices):
-            windowed_data = data[index:].copy(deep=True) if i == len(high_level_window_indices) - 1 \
-                else data[starting_index:index].copy(deep=True)
+        for i in range(len(high_level_window_indices) + 1):
+            index = data.shape[0] if i == len(high_level_window_indices) else high_level_window_indices[i]
+            windowed_data = data[starting_index:index].copy(deep=True)
             window, stride = set_windowing_vars(windowed_data)
             min_trace_len = int(max(windowed_data.shape[0] / 10000, 10))
-            max_trace_len = int(max(windowed_data.shape[0] / 100, 1000))
+            max_trace_len = int(max(windowed_data.shape[0] / 100, 500))
             if windowed_data.shape[0] < min_trace_len:
                 min_trace_len = windowed_data.shape[0]
+            if max_trace_len > 500:
+                max_trace_len = 500
             new_traces, new_indices, num_of_features = extract_traces_from_window(windowed_data, selected, window,
                                                                                   stride, (min_trace_len, max_trace_len),
                                                                                   data.shape[0], progress_list,
@@ -534,9 +534,11 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
         print('All the dataset is taken into account!!')
         window, stride = set_windowing_vars(data)
         min_trace_len = int(max(data.shape[0] / 10000, 10))
-        max_trace_len = int(max(data.shape[0] / 100, 1000))
+        max_trace_len = int(max(data.shape[0] / 100, 500))
         if data.shape[0] < min_trace_len:
             min_trace_len = data.shape[0]
+        if max_trace_len > 500:
+            max_trace_len = 500
         new_traces, new_indices, num_of_features = extract_traces_from_window(data, selected, window, stride,
                                                                               (min_trace_len, max_trace_len),
                                                                               data.shape[0], progress_list,

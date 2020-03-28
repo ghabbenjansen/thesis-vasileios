@@ -181,10 +181,10 @@ def remove_background(df):
 
 if __name__ == '__main__':
     # filepath = input("Enter the desired filepath: ")
-    filepath = 'Datasets/CTU13/scenario13/scenario13_ctu13.binetflow.txt'
+    filepath = 'Datasets/UNSW-NB15/UNSW-NB15_1.csv'
 
     # Choose between the flags CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT
-    flag = 'CTU-bi'
+    flag = 'UNSW'
     # while True:
     #     flag = input("Enter the desired flag (CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT): ")
     #     if flag in ['CTU-uni', 'CTU-bi', 'CTU-mixed', 'CICIDS', 'CIDDS', 'UNSW', 'IOT']:
@@ -264,7 +264,8 @@ if __name__ == '__main__':
         data['dst_port'].fillna('-1', inplace=True)
 
         # add the numerical representation of the categorical data
-        protocol_categories = ['udp', 'tcp', 'icmp', 'arp', 'igmp']
+        # TODO: re-extract features to match the newly added protocol implementation
+        protocol_categories = ['udp', 'tcp', 'icmp', 'arp', 'igmp', 'rtp']
         data['protocol_num'] = pd.Categorical(data['protocol'], categories=protocol_categories).codes
         # data['state_num'] = pd.Categorical(data['state'], categories=data['state'].unique()).codes
 
@@ -352,10 +353,12 @@ if __name__ == '__main__':
         # parse duration as float
         data['duration'] = data['duration'].astype(float)
 
+        # for now the state and service features are kept but are ignored in the pipeline
         # add the numerical representation of the categorical data
-        data['protocol_num'] = pd.Categorical(data['protocol'], categories=data['protocol'].unique()).codes
-        data['service_num'] = pd.Categorical(data['service'], categories=data['service'].unique()).codes
-        data['state_num'] = pd.Categorical(data['state'], categories=data['state'].unique()).codes
+        protocol_categories = ['udp', 'tcp', 'icmp', 'arp', 'igmp', 'rtp', 'irtp', 'sctp', 'ospf']
+        data['protocol_num'] = pd.Categorical(data['protocol'], categories=protocol_categories).codes
+        # data['service_num'] = pd.Categorical(data['service'], categories=data['service'].unique()).codes
+        # data['state_num'] = pd.Categorical(data['state'], categories=data['state'].unique()).codes
 
         # split the data according to their labels and sort them by date
         anomalous = data[data['label'] == 1]

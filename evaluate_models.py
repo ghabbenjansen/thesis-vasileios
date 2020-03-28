@@ -255,40 +255,44 @@ if __name__ == '__main__':
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
         debug_test_filepaths = [
-              ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario5-147.32.80.9-traces.txt',
-               'Datasets/CTU13/scenario5')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario5-147.32.84.134-traces.txt',
-               'Datasets/CTU13/scenario5')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario5-147.32.84.164-traces.txt',
-               'Datasets/CTU13/scenario5')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario5-147.32.84.165-traces.txt',
-               'Datasets/CTU13/scenario5')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario5-147.32.84.170-traces.txt',
-                'Datasets/CTU13/scenario5')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario5-147.32.87.36-traces.txt',
-               'Datasets/CTU13/scenario5')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario6-147.32.80.9-traces.txt',
-               'Datasets/CTU13/scenario6')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario6-147.32.84.134-traces.txt',
-               'Datasets/CTU13/scenario6')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario6-147.32.84.164-traces.txt',
-               'Datasets/CTU13/scenario6')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario6-147.32.84.165-traces.txt',
-               'Datasets/CTU13/scenario6')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario6-147.32.84.170-traces.txt',
-               'Datasets/CTU13/scenario6')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario6-147.32.87.36-traces.txt',
-               'Datasets/CTU13/scenario6')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario7-147.32.84.134-traces.txt',
-               'Datasets/CTU13/scenario7')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario7-147.32.84.164-traces.txt',
-               'Datasets/CTU13/scenario7')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario7-147.32.84.165-traces.txt',
-               'Datasets/CTU13/scenario7')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario7-147.32.84.170-traces.txt',
-               'Datasets/CTU13/scenario7')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario7-147.32.87.36-traces.txt',
-               'Datasets/CTU13/scenario7')
+              ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.1.20-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.80.9-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.134-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.164-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.165-traces.txt',
+                'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.170-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.191-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.192-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.193-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.204-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.205-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.206-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.207-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.208-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.209-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.87.11-traces.txt',
+               'Datasets/CTU13/scenario10')
+            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.87.36-traces.txt',
+               'Datasets/CTU13/scenario10')
+            # , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario11-147.32.84.191-traces.txt',
+            #    'Datasets/CTU13/scenario11')
+            # , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario11-147.32.84.192-traces.txt',
+            #    'Datasets/CTU13/scenario11')
                                       ]
         m = len(debug_test_filepaths)
     else:
