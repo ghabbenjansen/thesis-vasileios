@@ -38,31 +38,6 @@ def select_connections(init_data, threshold=50, create_features=False):
     return sel_data
 
 
-def select_hosts(init_data, threshold=50, create_features=False):
-    """
-    Function for keeping only the flows of source IPs with at least a threshold number of records in the data.
-    Also some extra features are added, while the numerical representation of labels and detailed labels is introduced
-    :param init_data: the initial data
-    :param threshold: the threshold number of source-destination IP pairs
-    :param create_features: a boolean for creating new features in the dataset
-    :return: the selected data
-    """
-    host_cnts = init_data.groupby(by='src_ip').agg(['count']).reset_index()
-    sel_data = init_data.loc[(init_data['src_ip'].isin(host_cnts.loc[host_cnts[('date', 'count')] >
-                                                                     threshold]['src_ip']))].reset_index(drop=True)
-    sel_data['label_num'] = pd.Categorical(sel_data['label'], categories=sel_data['label'].unique()).codes
-    if 'detailed_label' in sel_data.columns:
-        sel_data['detailed_label_num'] = pd.Categorical(sel_data['detailed_label'],
-                                                        categories=sel_data['detailed_label'].unique()).codes
-    if create_features:
-        sel_data['orig_packets_per_s'] = sel_data['orig_packets'] / sel_data['duration']
-        sel_data['resp_packets_per_s'] = sel_data['resp_packets'] / sel_data['duration']
-        sel_data['orig_bytes_per_s'] = sel_data['orig_ip_bytes'] / sel_data['duration']
-        sel_data['resp_bytes_per_s'] = sel_data['resp_ip_bytes'] / sel_data['duration']
-
-    return sel_data
-
-
 def outlier_removal(data, method="z-score", feat=None, label=None):
     """
     Function for removing outliers from the dataset by checking the z-score (flag=1), the interquartile range (flag=2),

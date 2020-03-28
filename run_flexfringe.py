@@ -3,7 +3,6 @@ import os
 import glob
 import graphviz
 import helper
-from connection_clustering import select_hosts
 import pandas as pd
 import re
 from copy import deepcopy
@@ -147,7 +146,7 @@ if __name__ == '__main__':
                 old_selected = deepcopy(selected)
 
             # for testing keep only hosts that have at least 2 flows so that enough information is available
-            data = select_hosts(data, 2)
+            data = helper.select_hosts(data, 2)
             # extract the data per host
             for host in data['src_ip'].unique():
                 print('Extracting traces for host ' + host)
@@ -220,7 +219,7 @@ if __name__ == '__main__':
                 old_selected = deepcopy(selected)
 
             # select only hosts with significant number of flows (currently over 200)
-            data = select_hosts(data, 200)
+            data = helper.select_hosts(data, 200)
 
             # initialize an empty list to hold the filepaths of the trace files for each host
             traces_filepaths = []

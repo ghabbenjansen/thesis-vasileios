@@ -54,7 +54,6 @@ def predict_on_model(model, method, clustering_method='', weighted=True):
     """
     predictions = dict()
     weights = dict()
-    # TODO: check the label types provided by each prediction method and adjust them accordingly
     for node_label in model.nodes_dict.keys():
         # the node needs to have test set to predict on and
         if node_label != 'root' and len(model.nodes_dict[node_label].testing_indices) != 0:
@@ -75,7 +74,7 @@ def predict_on_model(model, method, clustering_method='', weighted=True):
                     pred = model.nodes_dict[node_label].predict_on_probabilities(
                         model.nodes_dict[node_label].training_vars['quantile_values'])
             else:
-                # if this state is unseen in CTU13 predict anomaly -> this shouldn't happen though
+                # if this state is unseen in training predict anomaly -> this shouldn't happen though
                 print('State ' + node_label + ' has less than 3 observations!!!')
                 pred = len(model.nodes_dict[node_label].testing_indices) * [1]
             assert (len(pred) == len(model.nodes_dict[node_label].testing_indices)), "Dimension mismatch!!"

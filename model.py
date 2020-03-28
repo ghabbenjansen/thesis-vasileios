@@ -109,15 +109,14 @@ class ModelNode:
         if bool(self.observed_indices):
             quantile_values = dict()
             for attribute, attribute_values in self.observed_attributes.items():
-                quantile_values[attribute] = [np.quantile(np.array(attribute_values), 0.25)]
-                quantile_values[attribute] += [np.quantile(np.array(attribute_values), 0.5)]
-                quantile_values[attribute] += [np.quantile(np.array(attribute_values), 0.75)]
+                attribute_arr = np.array(attribute_values)
+                quantile_values[attribute] = np.quantile(attribute_arr, [0.25, 0.5, 0.75])
             return quantile_values
         else:
             print('No observed attributes on node ' + self.label)
             return dict()
 
-    def predict_on_probabilities(self, quantile_values, epsilon=0.0001, prediction_type='hard'):
+    def predict_on_probabilities(self, quantile_values, epsilon='auto', prediction_type='hard'):
         """
         Function for predicting anomalies given the quantile probabilities of a node. Given the observed values for each
         attribute and the quantile in which they belong, the associated probabilities are retrieved and the anomaly
@@ -130,6 +129,12 @@ class ModelNode:
         """
         x_test = self.attributes2dataset(self.testing_attributes).values
         n_cols = np.size(x_test, 1)     # retrieve the number of columns, meaning the number of attributes
+        # in case the classification threshold is set to auto, then its value is equal to the mean of the max and min
+        # of the products of quantile probabilities of the features
+        if epsilon == 'auto':
+            min_accumulated_prob = np.prod([min(self.quantile_probs[str(i)]) for i in range(n_cols)])
+            max_accumulated_prob = np.prod([max(self.quantile_probs[str(i)]) for i in range(n_cols)])
+            epsilon = (max_accumulated_prob + min_accumulated_prob) / 2     # probably should be set to a lower value
         # create a vectorized function for finding the quantile index of an attribute value given the quantile limits
         vectorized_quantile_num = np.vectorize(lambda x, y_list: len([y for y in y_list if x > y]), excluded=['y_list'])
         # apply the vectorized function for each attribute (column) and create a new array with the quantile indices
@@ -159,13 +164,13 @@ class ModelNode:
         x_train = self.attributes2dataset(self.observed_attributes).values
         transformer = RobustScaler().fit(x_train)
         if clustering_method == "hdbscan":
-            # transformer = RobustScaler().fit(x_train)
-            clusterer = hdbscan.HDBSCAN(min_cluster_size=ceil(x_train.shape[0]/2), allow_single_cluster=True,
+            clusterer = hdbscan.HDBSCAN(min_cluster_size=min(ceil(x_train.shape[0]/2), 5), allow_single_cluster=True,
                                         prediction_data=True).fit(transformer.transform(x_train))
         elif clustering_method == "isolation forest":
             clusterer = IsolationForest().fit(transformer.transform(x_train))
         elif clustering_method == "LOF":
-            clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/10), novelty=True).fit(transformer.transform(x_train))
+            clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/10), novelty=True).\
+                fit(transformer.transform(x_train))
         else:
             clusterer = KMeans(n_clusters=2).fit(transformer.transform(x_train))
         return clusterer, transformer
@@ -248,10 +253,11 @@ class ModelNode:
         try:
             kernel = gaussian_kde(np.transpose(transformer.transform(x_train)))
         except np.linalg.LinAlgError:
-            kernel = gaussian_kde(np.transpose(transformer.transform(x_train) + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
+            kernel = gaussian_kde(np.transpose(transformer.transform(x_train) +
+                                               0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
         return kernel, transformer
 
-    def predict_on_gaussian(self, kernel, transformer, epsilon=0.000001, prediction_type='hard'):
+    def predict_on_gaussian(self, kernel, transformer, epsilon='auto', prediction_type='hard'):
         """
         Function for predicting anomalies on the fitted multivariate gaussian distribution
         :param kernel: the fitted multivariate gaussian kernel
@@ -261,6 +267,12 @@ class ModelNode:
         :return: the prediction labels
         """
         x_test = np.transpose(transformer.transform(self.attributes2dataset(self.testing_attributes).values))
+        # in case the classification threshold is set to auto, then its value is equal to the mean of the max and min
+        # of the estimated pdf evaluated on the training set of the node
+        if epsilon == 'auto':
+            x_train = np.transpose(transformer.transform(self.attributes2dataset(self.observed_attributes).values))
+            train_labels = kernel.evaluate(x_train)
+            epsilon = (max(train_labels) + min(train_labels))/2     # probably should be set to a lower value
 
         # old gaussian predictions
         # sigma_det = np.linalg.det(sigma)    # the determinant of the covariance matrix
@@ -270,6 +282,7 @@ class ModelNode:
         #                                                    x_test[:, i].reshape([x_test.shape[0], 1]) - m) / 2)
         #                                     / ((2 * pi) ** (x_test.shape[0] / 2) * sqrt(sigma_det)))
         #                         for i in range(x_test.shape[1])])
+
         test_labels = kernel.evaluate(x_test)
         if prediction_type == 'hard':
             test_labels = (test_labels < epsilon).astype(np.int)
