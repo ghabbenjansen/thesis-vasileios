@@ -175,25 +175,37 @@ if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
         debug_model_filepaths = [
-              'outputs/CTU13/protocol_num_src_bytes_dst_bytes/scenario3-147.32.84.164_resampled_dfa.dot'
-            , 'outputs/CTU13/protocol_num_src_bytes_dst_bytes/scenario3-147.32.87.36_resampled_dfa.dot'
-            , 'outputs/CTU13/protocol_num_src_bytes_dst_bytes/scenario8-147.32.84.164_resampled_dfa.dot'
-            , 'outputs/CTU13/protocol_num_src_bytes_dst_bytes/scenario8-147.32.84.170_resampled_dfa.dot'
-            , 'outputs/CTU13/protocol_num_src_bytes_dst_bytes/scenario9-147.32.84.134_resampled_dfa.dot'
-            , 'outputs/CTU13/protocol_num_src_bytes_dst_bytes/scenario9-147.32.84.170_resampled_dfa.dot'
+              'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-10.40.85.1_resampled_reduced_dfa.dot'
+            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-10.40.85.10_resampled_reduced_dfa.dot'
+            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-10.40.182.1_resampled_reduced_dfa.dot'
+            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.0_resampled_reduced_dfa.dot'
+            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.1_resampled_reduced_dfa.dot'
+            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.2_resampled_reduced_dfa.dot'
+            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.3_resampled_reduced_dfa.dot'
+            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.4_resampled_reduced_dfa.dot'
+            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.5_resampled_reduced_dfa.dot'
+            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.6_resampled_reduced_dfa.dot'
+            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.7_resampled_reduced_dfa.dot'
+            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-175.45.176.2_resampled_reduced_dfa.dot'
                            ]
         debug_train_trace_filepaths = [
-              'Datasets/CTU13/training/protocol_num_src_bytes_dst_bytes/scenario3-147.32.84.164-traces_resampled_reduced.txt'
-            , 'Datasets/CTU13/training/protocol_num_src_bytes_dst_bytes/scenario3-147.32.87.36-traces_resampled_reduced.txt'
-            , 'Datasets/CTU13/training/protocol_num_src_bytes_dst_bytes/scenario8-147.32.84.164-traces_resampled_reduced.txt'
-            , 'Datasets/CTU13/training/protocol_num_src_bytes_dst_bytes/scenario8-147.32.84.170-traces_resampled_reduced.txt'
-            , 'Datasets/CTU13/training/protocol_num_src_bytes_dst_bytes/scenario9-147.32.84.134-traces_resampled_reduced.txt'
-            , 'Datasets/CTU13/training/protocol_num_src_bytes_dst_bytes/scenario9-147.32.84.170-traces_resampled_reduced.txt'
+              'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-10.40.85.1-traces_resampled_reduced.txt'
+            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-10.40.85.10-traces_resampled_reduced.txt'
+            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-10.40.182.1-traces_resampled_reduced.txt'
+            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.0-traces_resampled_reduced.txt'
+            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.1-traces_resampled_reduced.txt'
+            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.2-traces_resampled_reduced.txt'
+            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.3-traces_resampled_reduced.txt'
+            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.4-traces_resampled_reduced.txt'
+            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.5-traces_resampled_reduced.txt'
+            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.6-traces_resampled_reduced.txt'
+            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.7-traces_resampled_reduced.txt'
+            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-175.45.176.2-traces_resampled_reduced.txt'
                                        ]
 
         debug_methods = [
             'clustering'
-            , 'multivariate gaussian'
+            # , 'multivariate gaussian'
             # , 'probabilistic'
                          ]
 
@@ -214,7 +226,7 @@ if __name__ == '__main__':
                 else:
                     parameters += [(model_filepath, trace_filepath, method)]
 
-        flag = 'CTU-bi'
+        flag = 'UNSW'
         n = len(parameters)
     else:
         flag = int(input('Provide the type of dataset to be used: '))
@@ -255,44 +267,44 @@ if __name__ == '__main__':
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
         debug_test_filepaths = [
-              ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.1.20-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.80.9-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.134-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.164-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.165-traces.txt',
-                'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.170-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.191-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.192-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.193-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.204-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.205-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.206-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.207-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.208-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.84.209-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.87.11-traces.txt',
-               'Datasets/CTU13/scenario10')
-            , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario10-147.32.87.36-traces.txt',
-               'Datasets/CTU13/scenario10')
-            # , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario11-147.32.84.191-traces.txt',
-            #    'Datasets/CTU13/scenario11')
-            # , ('Datasets/CTU13/test/protocol_num_src_bytes_dst_bytes/scenario11-147.32.84.192-traces.txt',
-            #    'Datasets/CTU13/scenario11')
+              ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.4-traces.txt',
+               'Datasets/UNSW-NB15/UNSW-NB15-3')
+            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.10-traces.txt',
+               'Datasets/UNSW-NB15/UNSW-NB15-3')
+            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.13-traces.txt',
+               'Datasets/UNSW-NB15/UNSW-NB15-3')
+            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.14-traces.txt',
+               'Datasets/UNSW-NB15/UNSW-NB15-3')
+            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.15-traces.txt',
+               'Datasets/UNSW-NB15/UNSW-NB15-3')
+            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.17-traces.txt',
+               'Datasets/UNSW-NB15/UNSW-NB15-3')
+            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.19-traces.txt',
+               'Datasets/UNSW-NB15/UNSW-NB15-3')
+            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-175.45.176.1-traces.txt',
+               'Datasets/UNSW-NB15/UNSW-NB15-3')
+            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-175.45.176.2-traces.txt',
+               'Datasets/UNSW-NB15/UNSW-NB15-3')
+            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-175.45.176.3-traces.txt',
+               'Datasets/UNSW-NB15/UNSW-NB15-3')
+            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.3-traces.txt',
+            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
+            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.4-traces.txt',
+            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
+            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.5-traces.txt',
+            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
+            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.6-traces.txt',
+            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
+            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.7-traces.txt',
+            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
+            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.8-traces.txt',
+            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
+            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.9-traces.txt',
+            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
+            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.1-traces.txt',
+            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
+            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.3-traces.txt',
+            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
                                       ]
         m = len(debug_test_filepaths)
     else:
@@ -319,9 +331,12 @@ if __name__ == '__main__':
         if flag == 'CTU-bi':
             normal = pd.read_pickle(test_data_filepath + '/binetflow_normal.pkl')
             anomalous = pd.read_pickle(test_data_filepath + '/binetflow_anomalous.pkl')
-        else:
+        elif flag == 'IOT':
             normal = pd.read_pickle(test_data_filepath + '/zeek_normal.pkl')
             anomalous = pd.read_pickle(test_data_filepath + '/zeek_anomalous.pkl')
+        else:
+            normal = pd.read_pickle(test_data_filepath + '/normal.pkl')
+            anomalous = pd.read_pickle(test_data_filepath + '/anomalous.pkl')
         all_data = pd.concat([normal, anomalous], ignore_index=True).reset_index(drop=True)
         # keep only the source ip currently under evaluation and sort values by date
         all_data = all_data[all_data['src_ip'] == host_ip].sort_values(by='date').reset_index(drop=True)
@@ -352,7 +367,7 @@ if __name__ == '__main__':
                                                                                           list(map(lambda x: 1
                                                                                           if 'Botnet' in x else 0,
                                                                                                    true_labels.tolist())))
-            else:
+            elif flag == 'IOT':
                 if i == 0:
                     results[test_trace_name] = {models_info[i]: produce_evaluation_metrics(dict2list(predictions),
                                                                                            list(map(lambda x: 1
@@ -363,6 +378,13 @@ if __name__ == '__main__':
                                                                                           list(map(lambda x: 1
                                                                                           if x == 'Malicious' else 0,
                                                                                                    true_labels.tolist())))
+            else:
+                if i == 0:
+                    results[test_trace_name] = {models_info[i]: produce_evaluation_metrics(dict2list(predictions),
+                                                                                           true_labels.tolist())}
+                else:
+                    results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
+                                                                                          true_labels.tolist())
 
     # finally save all the results for each testing trace
     results_filename = input('Provide the relative path for the filename of the results: ')

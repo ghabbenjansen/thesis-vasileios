@@ -1,5 +1,7 @@
 import pandas as pd
 import socket
+from os import path
+import pickle
 
 
 def preprocess_unidirectional_data(filepath):
@@ -108,12 +110,12 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, background=True, exp
     elif flag == 'UNSW':
         names = ['src_ip', 'src_port', 'dst_ip', 'dst_port', 'protocol', 'state', 'duration', 'src_bytes',
                  'dst_bytes', 'missed_src_bytes', 'missed_dst_bytes', 'service', 'src_packets', 'dst_packets',
-                 'start_time', 'end_time', 'detailed_label', 'label']
+                 'date', 'end_date', 'detailed_label', 'label']
         usecols = [_ for _ in range(0, 9)] + [_ for _ in range(11, 14)] + [16, 17, 28, 29, 47, 48]
         na_values = ['-']
         skiprows = []
         dateparse = lambda x: pd.to_datetime(x, unit='s')
-        parse_field = ['start_time', 'end_time']
+        parse_field = ['date', 'end_date']
         # special handling for the first dataset of the UNSW datasets
         if '1' in filepath.split('/')[2]:
             skiprows = 1
@@ -181,7 +183,7 @@ def remove_background(df):
 
 if __name__ == '__main__':
     # filepath = input("Enter the desired filepath: ")
-    filepath = 'Datasets/UNSW-NB15/UNSW-NB15_1.csv'
+    filepath = 'Datasets/UNSW-NB15/UNSW-NB15_4.csv'
 
     # Choose between the flags CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT
     flag = 'UNSW'
@@ -333,8 +335,17 @@ if __name__ == '__main__':
         anomalous.to_pickle('/'.join(filepath.split('/')[0:3]) + '/zeek_anomalous.pkl')
         normal.to_pickle('/'.join(filepath.split('/')[0:3]) + '/zeek_normal.pkl')
     elif flag == 'UNSW':
+        # fill appropriately columns that contain too many NaN values
+        data['detailed_label'].fillna('missing', inplace=True)
+        data['service'].fillna('missing', inplace=True)
+        data['src_port'].fillna('-1', inplace=True)
+        data['dst_port'].fillna('-1', inplace=True)
+
         # handle special hexadecimal values in the destination port columns
-        data['dst_port'] = data['dst_port'].apply(lambda x: int(x, 16) if 'x' in x else x)
+        if data.src_port.dtype == object:
+            data['src_port'] = data['src_port'].apply(lambda x: int(x, 16) if 'x' in x else x)
+        if data.dst_port.dtype == object:
+            data['dst_port'] = data['dst_port'].apply(lambda x: int(x, 16) if 'x' in x else x)
 
         # parse packets, bytes, and ports as integers instead of strings
         data['src_port'] = data['src_port'].astype(int)
@@ -346,16 +357,22 @@ if __name__ == '__main__':
         data['src_packets'] = data['src_packets'].astype(int)
         data['dst_packets'] = data['dst_packets'].astype(int)
 
-        # fill appropriately columns that contain too many NaN values
-        data['detailed_label'].fillna('missing', inplace=True)
-        data['service'].fillna('missing', inplace=True)
-
         # parse duration as float
         data['duration'] = data['duration'].astype(float)
 
         # for now the state and service features are kept but are ignored in the pipeline
         # add the numerical representation of the categorical data
-        protocol_categories = ['udp', 'tcp', 'icmp', 'arp', 'igmp', 'rtp', 'irtp', 'sctp', 'ospf']
+        protocol_names_filepath = '/'.join(filepath.split('/')[0:2]) + '/protocol_names.pkl'
+        if path.exists(protocol_names_filepath):
+            with open(protocol_names_filepath, 'rb') as f:
+                protocol_categories = pickle.load(f)
+        else:
+            protocol_categories = data.protocol.unique().tolist()
+            with open(protocol_names_filepath, 'wb') as f:
+                pickle.dump(protocol_categories, f)
+
+        if not set(data.protocol.unique().tolist()).issubset(set(protocol_categories)):
+            print('New protocol types found!!!!')
         data['protocol_num'] = pd.Categorical(data['protocol'], categories=protocol_categories).codes
         # data['service_num'] = pd.Categorical(data['service'], categories=data['service'].unique()).codes
         # data['state_num'] = pd.Categorical(data['state'], categories=data['state'].unique()).codes
@@ -363,11 +380,13 @@ if __name__ == '__main__':
         # split the data according to their labels and sort them by date
         anomalous = data[data['label'] == 1]
         anomalous = anomalous.reset_index(drop=True)
-        anomalous.sort_values(by=['start_time'], inplace=True)
+        anomalous.sort_values(by=['date'], inplace=True)
+        anomalous.reset_index(drop=True, inplace=True)
 
         normal = data[data['label'] == 0]
         normal = normal.reset_index(drop=True)
-        normal.sort_values(by=['start_time'], inplace=True)
+        normal.sort_values(by=['date'], inplace=True)
+        normal.reset_index(drop=True, inplace=True)
 
         # save the separated data
         anomalous.to_pickle('/'.join(filepath.split('/')[0:2]) + '/' + filepath.split('/')[2].split('.')[0] +

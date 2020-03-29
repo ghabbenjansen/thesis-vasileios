@@ -87,7 +87,7 @@ if __name__ == '__main__':
     # first check why we want to run flexfringe (CTU13 or testing - in the second case only the traces are extracted)
     # check if there is a need to create the trace file or there is already there
     testing = int(input('Training or testing (training: 0 | testing: 1)? '))
-    flag = 'CTU-bi'
+    flag = 'UNSW'
 
     if not testing:
         # only if it is for CTU13 this question will be asked
@@ -101,7 +101,7 @@ if __name__ == '__main__':
         with_discretization = int(
             input('Discretize numeric features (ports, bytes, duration, packets) (no: 0 | yes: 1)? '))
         # set the features to be used in the multivariate modelling
-        if flag == 'CTU-bi':
+        if flag in ['CTU-bi', 'UNSW']:
             selected = [
                 # 'src_port'
                 # , 'dst_port'
@@ -127,9 +127,12 @@ if __name__ == '__main__':
             if flag == 'CTU-bi':
                 normal = pd.read_pickle(testing_filepath + '/binetflow_normal.pkl')
                 anomalous = pd.read_pickle(testing_filepath + '/binetflow_anomalous.pkl')
-            else:
+            elif flag == 'IOT':
                 normal = pd.read_pickle(testing_filepath + '/zeek_normal.pkl')
                 anomalous = pd.read_pickle(testing_filepath + '/zeek_anomalous.pkl')
+            else:
+                normal = pd.read_pickle(testing_filepath + '/normal.pkl')
+                anomalous = pd.read_pickle(testing_filepath + '/anomalous.pkl')
             data = pd.concat([normal, anomalous], ignore_index=True).reset_index(drop=True)
 
             if with_discretization:
@@ -199,8 +202,10 @@ if __name__ == '__main__':
 
             if flag == 'CTU-bi':
                 data = pd.read_pickle(training_filepath + '/binetflow_normal.pkl')
-            else:
+            elif flag == 'IOT':
                 data = pd.read_pickle(training_filepath + '/zeek_normal.pkl')
+            else:
+                data = pd.read_pickle(training_filepath + '/normal.pkl')
 
             if with_discretization:
                 # first find the discretization limits for each feature

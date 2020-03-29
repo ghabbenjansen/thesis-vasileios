@@ -514,6 +514,10 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
             index = data.shape[0] if i == len(high_level_window_indices) else high_level_window_indices[i]
             windowed_data = data[starting_index:index].copy(deep=True)
             window, stride = set_windowing_vars(windowed_data)
+            # special handle in case a zero length window has been returned
+            if window.total_seconds() == 0:
+                window = pd.to_timedelta('25ms')
+                stride = pd.to_timedelta('5ms')
             min_trace_len = int(max(windowed_data.shape[0] / 10000, 10))
             max_trace_len = int(max(windowed_data.shape[0] / 100, 500))
             if windowed_data.shape[0] < min_trace_len:
@@ -533,6 +537,10 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
     else:
         print('All the dataset is taken into account!!')
         window, stride = set_windowing_vars(data)
+        # special handle in case a zero length window has been returned
+        if window.total_seconds() == 0:
+            window = pd.to_timedelta('25ms')
+            stride = pd.to_timedelta('5ms')
         min_trace_len = int(max(data.shape[0] / 10000, 10))
         max_trace_len = int(max(data.shape[0] / 100, 500))
         if data.shape[0] < min_trace_len:
