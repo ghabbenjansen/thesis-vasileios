@@ -87,7 +87,7 @@ if __name__ == '__main__':
     # first check why we want to run flexfringe (CTU13 or testing - in the second case only the traces are extracted)
     # check if there is a need to create the trace file or there is already there
     testing = int(input('Training or testing (training: 0 | testing: 1)? '))
-    flag = 'UNSW'
+    flag = 'CICIDS'
 
     if not testing:
         # only if it is for CTU13 this question will be asked
@@ -101,7 +101,7 @@ if __name__ == '__main__':
         with_discretization = int(
             input('Discretize numeric features (ports, bytes, duration, packets) (no: 0 | yes: 1)? '))
         # set the features to be used in the multivariate modelling
-        if flag in ['CTU-bi', 'UNSW']:
+        if flag in ['CTU-bi', 'UNSW', 'CICIDS']:
             selected = [
                 # 'src_port'
                 # , 'dst_port'
@@ -149,7 +149,9 @@ if __name__ == '__main__':
                 old_selected = deepcopy(selected)
 
             # for testing keep only hosts that have at least 2 flows so that enough information is available
-            data = helper.select_hosts(data, 2)
+            #  currently only ips with at least 2000 flows are used for testing
+            data = helper.select_hosts(data, 2000)
+            print('Number of hosts to be processed: ' + str(data['src_ip'].unique().shape[0]))
             # extract the data per host
             for host in data['src_ip'].unique():
                 print('Extracting traces for host ' + host)
@@ -223,8 +225,9 @@ if __name__ == '__main__':
                     selected += [feature + '_num']
                 old_selected = deepcopy(selected)
 
-            # select only hosts with significant number of flows (currently over 200)
-            data = helper.select_hosts(data, 200)
+            # select only hosts with significant number of flows (currently over 1000)
+            data = helper.select_hosts(data, 1000)
+            print('Number of hosts to be processed: ' + str(data['src_ip'].unique().shape[0]))
 
             # initialize an empty list to hold the filepaths of the trace files for each host
             traces_filepaths = []

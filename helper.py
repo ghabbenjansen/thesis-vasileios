@@ -333,6 +333,7 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
                         window = stride * 5
 
                 # set the parameters for the length adjustment process of each trace
+                init_magnifier = 2
                 magnifier = 2
                 reducer = 0.05
                 # check that the trace length conforms to the specified limits
@@ -371,7 +372,7 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
                     magnifier = round(magnifier, len(str(reducer).split('.')[1]))
                     # in case that the fluctuations cannot be dealt with the current values, refine them and start over
                     if magnifier <= 1:
-                        magnifier = 2
+                        magnifier = init_magnifier + 1
                         reducer = reducer/2
 
                     # limit case to prevent endless loop
@@ -519,11 +520,11 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
                 window = pd.to_timedelta('25ms')
                 stride = pd.to_timedelta('5ms')
             min_trace_len = int(max(windowed_data.shape[0] / 10000, 10))
-            max_trace_len = int(max(windowed_data.shape[0] / 100, 500))
+            max_trace_len = int(max(windowed_data.shape[0] / 100, 1500))
             if windowed_data.shape[0] < min_trace_len:
                 min_trace_len = windowed_data.shape[0]
-            if max_trace_len > 500:
-                max_trace_len = 500
+            if max_trace_len > 1500:
+                max_trace_len = 1500
             new_traces, new_indices, num_of_features = extract_traces_from_window(windowed_data, selected, window,
                                                                                   stride, (min_trace_len, max_trace_len),
                                                                                   data.shape[0], progress_list,
@@ -542,11 +543,11 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
             window = pd.to_timedelta('25ms')
             stride = pd.to_timedelta('5ms')
         min_trace_len = int(max(data.shape[0] / 10000, 10))
-        max_trace_len = int(max(data.shape[0] / 100, 500))
+        max_trace_len = int(max(data.shape[0] / 100, 1500))
         if data.shape[0] < min_trace_len:
             min_trace_len = data.shape[0]
-        if max_trace_len > 500:
-            max_trace_len = 500
+        if max_trace_len > 1500:
+            max_trace_len = 1500
         new_traces, new_indices, num_of_features = extract_traces_from_window(data, selected, window, stride,
                                                                               (min_trace_len, max_trace_len),
                                                                               data.shape[0], progress_list,

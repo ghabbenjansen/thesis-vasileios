@@ -121,8 +121,10 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, background=True, exp
             skiprows = 1
     # Netflow data from CICIDS2017 dataset
     elif flag == 'CICIDS':
+        # in this dataset the features 'total length of forward packets' and 'total length of
+        # backward packets' have been considered as sent and received bytes
         names = ['src_ip', 'src_port', 'dst_ip', 'dst_port', 'protocol', 'date', 'duration', 'total_fwd_packets',
-                 'total_bwd_packets', 'total_len_fwd_packets', 'total_len_bwd_packets', 'label']
+                 'total_bwd_packets', 'src_bytes', 'dst_bytes', 'label']
         usecols = [_ for _ in range(1, 12)] + [84]
         dateparse = lambda x: pd.to_datetime(x, dayfirst=True)
     # Netflow data from CIDDS dataset
@@ -142,12 +144,12 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, background=True, exp
             # read the data into a dataframe according to the background flag
             data = pd.read_csv(filepath, delimiter=delimiter, header=header, names=names, parse_dates=parse_field,
                                date_parser=dateparse, usecols=usecols, na_values=na_values, error_bad_lines=expl,
-                               engine=engine, skiprows=skiprows, skipfooter=skipfooter) if background else \
+                               engine=engine, skiprows=skiprows, skipfooter=skipfooter, encoding='latin_1') if background else \
                 pd.concat(remove_background(chunk) for chunk in pd.read_csv(filepath, chunksize=100000,
                                                                             delimiter=delimiter,
                                                                             parse_dates=parse_field,
                                                                             date_parser=dateparse,
-                                                                            error_bad_lines=expl,
+                                                                            error_bad_lines=True,
                                                                             engine=engine,
                                                                             skiprows=skiprows,
                                                                             skipfooter=skipfooter))
@@ -183,10 +185,10 @@ def remove_background(df):
 
 if __name__ == '__main__':
     # filepath = input("Enter the desired filepath: ")
-    filepath = 'Datasets/UNSW-NB15/UNSW-NB15_4.csv'
+    filepath = 'Datasets/CICIDS2017/Thursday_morning/Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv'
 
     # Choose between the flags CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT
-    flag = 'UNSW'
+    flag = 'CICIDS'
     # while True:
     #     flag = input("Enter the desired flag (CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT): ")
     #     if flag in ['CTU-uni', 'CTU-bi', 'CTU-mixed', 'CICIDS', 'CIDDS', 'UNSW', 'IOT']:
@@ -394,13 +396,16 @@ if __name__ == '__main__':
         normal.to_pickle('/'.join(filepath.split('/')[0:2]) + '/' + filepath.split('/')[2].split('.')[0] +
                          '_normal.pkl')
     elif flag == 'CICIDS':
+        # drop rows with NaN values (mostly for the Thursday morning dataset)
+        data.dropna(inplace=True)
+
         # parse packets, bytes, and ports as integers instead of strings
         data['src_port'] = data['src_port'].astype(int)
         data['dst_port'] = data['dst_port'].astype(int)
         data['total_fwd_packets'] = data['total_fwd_packets'].astype(int)
         data['total_bwd_packets'] = data['total_bwd_packets'].astype(int)
-        data['total_len_fwd_packets'] = data['total_len_fwd_packets'].astype(int)
-        data['total_len_bwd_packets'] = data['total_len_bwd_packets'].astype(int)
+        data['src_bytes'] = data['src_bytes'].astype(int)
+        data['dst_bytes'] = data['dst_bytes'].astype(int)
         data['protocol_num'] = data['protocol'].astype(int)
 
         # convert the numerical protocol values to strings according to their code
@@ -414,16 +419,16 @@ if __name__ == '__main__':
         anomalous = data[data['label'] != 'BENIGN']
         anomalous = anomalous.reset_index(drop=True)
         anomalous.sort_values(by=['date'], inplace=True)
+        anomalous.reset_index(drop=True, inplace=True)
 
         normal = data[data['label'] == 'BENIGN']
         normal = normal.reset_index(drop=True)
         normal.sort_values(by=['date'], inplace=True)
+        normal.reset_index(drop=True, inplace=True)
 
         # save the separated data
-        anomalous.to_pickle('/'.join(filepath.split('/')[0:2]) + '/' + filepath.split('/')[2].split('.')[0] +
-                            '_anomalous.pkl')
-        normal.to_pickle('/'.join(filepath.split('/')[0:2]) + '/' + filepath.split('/')[2].split('.')[0] +
-                         '_normal.pkl')
+        anomalous.to_pickle('/'.join(filepath.split('/')[0:3]) + '/anomalous.pkl')
+        normal.to_pickle('/'.join(filepath.split('/')[0:3]) + '/normal.pkl')
     else:
         # handle some special occasions in the bytes attribute
         data['bytes'] = data['bytes'].apply(lambda x: int(float(x[:-1])*1e6) if 'M' in x else x)

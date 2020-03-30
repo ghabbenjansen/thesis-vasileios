@@ -175,32 +175,34 @@ if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
         debug_model_filepaths = [
-              'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-10.40.85.1_resampled_reduced_dfa.dot'
-            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-10.40.85.10_resampled_reduced_dfa.dot'
-            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-10.40.182.1_resampled_reduced_dfa.dot'
-            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.0_resampled_reduced_dfa.dot'
-            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.1_resampled_reduced_dfa.dot'
-            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.2_resampled_reduced_dfa.dot'
-            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.3_resampled_reduced_dfa.dot'
-            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.4_resampled_reduced_dfa.dot'
-            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.5_resampled_reduced_dfa.dot'
-            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.6_resampled_reduced_dfa.dot'
-            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.7_resampled_reduced_dfa.dot'
-            , 'outputs/UNSW-NB15/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-175.45.176.2_resampled_reduced_dfa.dot'
+              'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.3_resampled_reduced_dfa.dot'
+            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.5_resampled_reduced_dfa.dot'
+            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.8_resampled_reduced_dfa.dot'
+            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.9_resampled_reduced_dfa.dot'
+            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.12_resampled_reduced_dfa.dot'
+            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.14_resampled_reduced_dfa.dot'
+            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.15_resampled_reduced_dfa.dot'
+            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.16_resampled_reduced_dfa.dot'
+            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.17_resampled_reduced_dfa.dot'
+            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.19_resampled_reduced_dfa.dot'
+            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.25_resampled_reduced_dfa.dot'
+            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.50_resampled_reduced_dfa.dot'
+            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.51_resampled_reduced_dfa.dot'
                            ]
         debug_train_trace_filepaths = [
-              'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-10.40.85.1-traces_resampled_reduced.txt'
-            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-10.40.85.10-traces_resampled_reduced.txt'
-            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-10.40.182.1-traces_resampled_reduced.txt'
-            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.0-traces_resampled_reduced.txt'
-            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.1-traces_resampled_reduced.txt'
-            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.2-traces_resampled_reduced.txt'
-            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.3-traces_resampled_reduced.txt'
-            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.4-traces_resampled_reduced.txt'
-            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.5-traces_resampled_reduced.txt'
-            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.6-traces_resampled_reduced.txt'
-            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-59.166.0.7-traces_resampled_reduced.txt'
-            , 'Datasets/UNSW-NB15/training/protocol_num_src_bytes_dst_bytes/UNSW-NB15-4-175.45.176.2-traces_resampled_reduced.txt'
+              'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.3-traces_resampled_reduced.txt'
+            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.5-traces_resampled_reduced.txt'
+            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.8-traces_resampled_reduced.txt'
+            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.9-traces_resampled_reduced.txt'
+            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.12-traces_resampled_reduced.txt'
+            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.14-traces_resampled_reduced.txt'
+            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.15-traces_resampled_reduced.txt'
+            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.16-traces_resampled_reduced.txt'
+            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.17-traces_resampled_reduced.txt'
+            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.19-traces_resampled_reduced.txt'
+            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.25-traces_resampled_reduced.txt'
+            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.50-traces_resampled_reduced.txt'
+            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.51-traces_resampled_reduced.txt'
                                        ]
 
         debug_methods = [
@@ -226,7 +228,7 @@ if __name__ == '__main__':
                 else:
                     parameters += [(model_filepath, trace_filepath, method)]
 
-        flag = 'UNSW'
+        flag = 'CICIDS'
         n = len(parameters)
     else:
         flag = int(input('Provide the type of dataset to be used: '))
@@ -267,34 +269,34 @@ if __name__ == '__main__':
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
         debug_test_filepaths = [
-              ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.4-traces.txt',
-               'Datasets/UNSW-NB15/UNSW-NB15-3')
-            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.10-traces.txt',
-               'Datasets/UNSW-NB15/UNSW-NB15-3')
-            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.13-traces.txt',
-               'Datasets/UNSW-NB15/UNSW-NB15-3')
-            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.14-traces.txt',
-               'Datasets/UNSW-NB15/UNSW-NB15-3')
-            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.15-traces.txt',
-               'Datasets/UNSW-NB15/UNSW-NB15-3')
-            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.17-traces.txt',
-               'Datasets/UNSW-NB15/UNSW-NB15-3')
-            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.19-traces.txt',
-               'Datasets/UNSW-NB15/UNSW-NB15-3')
-            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-175.45.176.1-traces.txt',
-               'Datasets/UNSW-NB15/UNSW-NB15-3')
-            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-175.45.176.2-traces.txt',
-               'Datasets/UNSW-NB15/UNSW-NB15-3')
-            , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-175.45.176.3-traces.txt',
-               'Datasets/UNSW-NB15/UNSW-NB15-3')
-            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.3-traces.txt',
-            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
-            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.4-traces.txt',
-            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
-            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.5-traces.txt',
-            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
-            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.6-traces.txt',
-            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
+              ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-172.16.0.1-traces.txt',
+               'Datasets/CICIDS2017/Thursday_morning')
+            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.3-traces.txt',
+               'Datasets/CICIDS2017/Thursday_morning')
+            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.5-traces.txt',
+               'Datasets/CICIDS2017/Thursday_morning')
+            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.8-traces.txt',
+               'Datasets/CICIDS2017/Thursday_morning')
+            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.9-traces.txt',
+               'Datasets/CICIDS2017/Thursday_morning')
+            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.12-traces.txt',
+               'Datasets/CICIDS2017/Thursday_morning')
+            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.14-traces.txt',
+               'Datasets/CICIDS2017/Thursday_morning')
+            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.15-traces.txt',
+               'Datasets/CICIDS2017/Thursday_morning')
+            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.16-traces.txt',
+               'Datasets/CICIDS2017/Thursday_morning')
+            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.17-traces.txt',
+               'Datasets/CICIDS2017/Thursday_morning')
+            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.19-traces.txt',
+               'Datasets/CICIDS2017/Thursday_morning')
+            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.25-traces.txt',
+               'Datasets/CICIDS2017/Thursday_morning')
+            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.50-traces.txt',
+               'Datasets/CICIDS2017/Thursday_morning')
+            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.51-traces.txt',
+               'Datasets/CICIDS2017/Thursday_morning')
             # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.7-traces.txt',
             #    'Datasets/UNSW-NB15/UNSW-NB15-3')
             # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.8-traces.txt',
@@ -378,13 +380,24 @@ if __name__ == '__main__':
                                                                                           list(map(lambda x: 1
                                                                                           if x == 'Malicious' else 0,
                                                                                                    true_labels.tolist())))
-            else:
+            elif flag == 'UNSW':
                 if i == 0:
                     results[test_trace_name] = {models_info[i]: produce_evaluation_metrics(dict2list(predictions),
                                                                                            true_labels.tolist())}
                 else:
                     results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
                                                                                           true_labels.tolist())
+            else:
+                if i == 0:
+                    results[test_trace_name] = {models_info[i]: produce_evaluation_metrics(dict2list(predictions),
+                                                                                           list(map(lambda x: 1
+                                                                                           if x != 'BENIGN' else 0,
+                                                                                                    true_labels.tolist())))}
+                else:
+                    results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
+                                                                                          list(map(lambda x: 1
+                                                                                          if x != 'BENIGN' else 0,
+                                                                                                   true_labels.tolist())))
 
     # finally save all the results for each testing trace
     results_filename = input('Provide the relative path for the filename of the results: ')
