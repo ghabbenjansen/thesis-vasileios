@@ -40,7 +40,8 @@ def flexfringe(*args, **kwargs):
     old_file = os.path.join("outputs", "final.json")
     # extract the features that have been used
     features = args[0].split('/')[-2]
-    dataset_name = args[0].split('/')[-4]
+    dataset_name = args[0].split('/')[1]
+    analysis_level = args[0].split('/')[-3]
     extension = re.search('(.+?)-traces', args[0].split('/')[-1]).group(1)
     # add this naming in case aggregation windows have been used
     if 'aggregated' in args[0]:
@@ -48,7 +49,7 @@ def flexfringe(*args, **kwargs):
     if 'resampled' in args[0]:
         extension += ('_resampled' + ('_reduced' if 'reduced' in args[0] else ''))
     new_file_name = extension + "_dfa.dot"
-    new_file = os.path.join("outputs/" + dataset_name + '/' + features, new_file_name)
+    new_file = os.path.join("outputs/" + dataset_name + '/' + analysis_level + '/' + features, new_file_name)
 
     # create the directory if it does not exist and rename the created dot file
     os.makedirs(os.path.dirname(new_file), exist_ok=True)
@@ -56,8 +57,8 @@ def flexfringe(*args, **kwargs):
 
     # and open the output dot file
     try:
-        with open("outputs/" + dataset_name + '/' + features + "/" + new_file_name) as fh:
-            return fh.read(), "outputs/" + dataset_name + '/' + features + "/" + new_file_name
+        with open("outputs/" + dataset_name + '/' + analysis_level + '/' + features + "/" + new_file_name) as fh:
+            return fh.read(), "outputs/" + dataset_name + '/' + analysis_level + '/' + features + "/" + new_file_name
     except FileNotFoundError:
         pass
 
@@ -87,7 +88,7 @@ if __name__ == '__main__':
     # first check why we want to run flexfringe (CTU13 or testing - in the second case only the traces are extracted)
     # check if there is a need to create the trace file or there is already there
     testing = int(input('Training or testing (training: 0 | testing: 1)? '))
-    flag = 'CICIDS'
+    flag = 'IOT'
 
     if not testing:
         # only if it is for CTU13 this question will be asked
@@ -114,12 +115,15 @@ if __name__ == '__main__':
             selected = [
                 # 'src_port'
                 # , 'dst_port'
-                # , 'protocol_num'
+                'protocol_num'
                 # , 'duration'
-                'orig_ip_bytes'
+                , 'orig_ip_bytes'
                 , 'resp_ip_bytes'
             ]
         old_selected = deepcopy(selected)
+
+        host_level = int(input('Select the type of modelling to be conducted (connection level: 0 | host level: 1): '))
+        analysis_type = 'host_level' if host_level else 'connection_level'
 
         if testing:
             # set the input filepath of the dataframes' directory
@@ -136,7 +140,7 @@ if __name__ == '__main__':
             data = pd.concat([normal, anomalous], ignore_index=True).reset_index(drop=True)
 
             if with_discretization:
-                # first retireve the discretization limits to be used for each feature
+                # first retrieve the discretization limits to be used for each feature
                 discretization_filepath = input('Provide the filepath of the discretization limits: ')
                 with open(discretization_filepath, 'rb') as f:
                     discretization_dict = pickle.load(f)
@@ -150,13 +154,27 @@ if __name__ == '__main__':
 
             # for testing keep only hosts that have at least 2 flows so that enough information is available
             #  currently only ips with at least 2000 flows are used for testing
-            data = helper.select_hosts(data, 2000)
-            print('Number of hosts to be processed: ' + str(data['src_ip'].unique().shape[0]))
+            if host_level:
+                data = helper.select_hosts(data, 2)
+                instances = data['src_ip'].unique()
+                print('Number of hosts to be processed: ' + str(instances.shape[0]))
+            else:
+                data = helper.select_connections(data, 2)
+                instances = data.groupby(['src_ip', 'dst_ip']).size().reset_index().values.tolist()
+                print('Number of connections to be processed: ' + str(len(instances)))
             # extract the data per host
-            for host in data['src_ip'].unique():
-                print('Extracting traces for host ' + host)
-                host_data = data[data['src_ip'] == host].sort_values(by='date').reset_index(drop=True)
-                print('The number of flows for this host are: ' + str(host_data.shape[0]))
+            for instance in instances:
+                if host_level:
+                    instance_name = instance
+                    print('Extracting traces for host ' + instance_name)
+                    instance_data = data.loc[data['src_ip'] == instance].sort_values(by='date').reset_index(drop=True)
+                    print('The number of flows for this host are: ' + str(instance_data.shape[0]))
+                else:
+                    instance_name = instance[0] + '-' + instance[1]
+                    print('Extracting traces for connection ' + instance_name)
+                    instance_data = data.loc[(data['src_ip'] == instance[0]) & (data['dst_ip'] == instance[1])].\
+                        sort_values(by='date').reset_index(drop=True)
+                    print('The number of flows for this connection are: ' + str(instance_data.shape[0]))
 
                 # first ask if new features has been added during training
                 new_features = int(input('Were there any new features added during training (no: 0 | yes: 1)? '))
@@ -172,19 +190,24 @@ if __name__ == '__main__':
                     resample = False if aggregation == 1 else True
                     aggregation = True
                     if resample:
-                        traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + \
-                                          '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + host + \
-                                          '-traces_resampled.txt'
-                    else:
-                        traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' \
+                        traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + analysis_type + '/' \
                                           + '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
-                                          host + '-traces_aggregated.txt'
+                                          instance_name + '-traces_resampled.txt'
+                    else:
+                        traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + analysis_type + '/' \
+                                          + '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
+                                          instance_name + '-traces_aggregated.txt'
                     # add also the destination ip in case of aggregation
-                    selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
+                    if host_level:
+                        selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
+                    else:
+                        if resample:
+                            selected += ['date']
                 # if no new features have been added
                 else:
-                    traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + '_'.join(old_selected) + \
-                                      '/' + testing_filepath.split('/')[2] + '-' + host + '-traces.txt'
+                    traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + analysis_type + '/' + \
+                                      '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
+                                      instance_name + '-traces.txt'
                     aggregation = False
                     resample = False
 
@@ -192,7 +215,7 @@ if __name__ == '__main__':
                 os.makedirs(os.path.dirname(traces_filepath), exist_ok=True)
 
                 # and extract the traces
-                helper.extract_traces(host_data, traces_filepath, selected, dynamic=True, aggregation=aggregation,
+                helper.extract_traces(instance_data, traces_filepath, selected, dynamic=True, aggregation=aggregation,
                                       resample=resample)
                 # finally reset the selected features
                 selected = deepcopy(old_selected)
@@ -225,18 +248,32 @@ if __name__ == '__main__':
                     selected += [feature + '_num']
                 old_selected = deepcopy(selected)
 
-            # select only hosts with significant number of flows (currently over 1000)
-            data = helper.select_hosts(data, 1000)
-            print('Number of hosts to be processed: ' + str(data['src_ip'].unique().shape[0]))
+            # select only instances with significant number of flows (currently over 1000)
+            if host_level:
+                data = helper.select_hosts(data, 500)
+                instances = data['src_ip'].unique()
+                print('Number of hosts to be processed: ' + str(instances.shape[0]))
+            else:
+                data = helper.select_connections(data, 1000)
+                instances = data.groupby(['src_ip', 'dst_ip']).size().reset_index().values.tolist()
+                print('Number of connections to be processed: ' + str(len(instances)))
 
             # initialize an empty list to hold the filepaths of the trace files for each host
             traces_filepaths = []
 
             # extract the data per host
-            for host in data['src_ip'].unique():
-                print('Extracting traces for host ' + host)
-                host_data = data[data['src_ip'] == host].sort_values(by='date').reset_index(drop=True)
-                print('The number of flows for this host are: ' + str(host_data.shape[0]))
+            for instance in instances:
+                if host_level:
+                    instance_name = instance
+                    print('Extracting traces for host ' + instance_name)
+                    instance_data = data.loc[data['src_ip'] == instance].sort_values(by='date').reset_index(drop=True)
+                    print('The number of flows for this host are: ' + str(instance_data.shape[0]))
+                else:
+                    instance_name = instance[0] + '-' + instance[1]
+                    print('Extracting traces for connection ' + instance_name)
+                    instance_data = data.loc[(data['src_ip'] == instance[0]) & (data['dst_ip'] == instance[1])].\
+                        sort_values(by='date').reset_index(drop=True)
+                    print('The number of flows for this connection are: ' + str(instance_data.shape[0]))
 
                 # first ask if new features are to be added
                 new_features = int(input('Are there any new features to be added (no: 0 | yes: 1)? '))
@@ -249,30 +286,36 @@ if __name__ == '__main__':
                 # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of the
                 # helper.py file
                 if not aggregation:
-                    traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
-                                      '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' + host + \
-                                      '-traces.txt'
+                    traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type + '/' \
+                                      + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' + \
+                                      instance_name + '-traces.txt'
                     aggregation = False
                     resample = False
                 else:
                     resample = False if aggregation == 1 else True
                     aggregation = True
                     if resample:
-                        traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
-                                          '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' + \
-                                          host + '-traces_resampled' + ('' if new_features else '_reduced') + '.txt'
+                        traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type \
+                                          + '/' + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' \
+                                          + instance_name + '-traces_resampled' + ('' if new_features else '_reduced') \
+                                          + '.txt'
                     else:
-                        traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + \
-                                          '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' + \
-                                          host + '-traces_aggregated' + ('' if new_features else '_reduced') + '.txt'
+                        traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type \
+                                          + '/' + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' \
+                                          + instance_name + '-traces_aggregated' + ('' if new_features else '_reduced') \
+                                          + '.txt'
                     # add also the destination ip in case of aggregation
-                    selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
+                    if host_level:
+                        selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
+                    else:
+                        if resample:
+                            selected += ['date']
 
                 # create the directory if it does not exist
                 os.makedirs(os.path.dirname(traces_filepath), exist_ok=True)
 
                 # and extract the traces
-                helper.extract_traces(host_data, traces_filepath, selected, dynamic=True, aggregation=aggregation,
+                helper.extract_traces(instance_data, traces_filepath, selected, dynamic=True, aggregation=aggregation,
                                       resample=resample, new_features=bool(new_features))
 
                 # add the trace filepath of each host's traces to the list

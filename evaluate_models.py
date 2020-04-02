@@ -175,34 +175,34 @@ if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
         debug_model_filepaths = [
-              'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.3_resampled_reduced_dfa.dot'
-            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.5_resampled_reduced_dfa.dot'
-            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.8_resampled_reduced_dfa.dot'
-            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.9_resampled_reduced_dfa.dot'
-            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.12_resampled_reduced_dfa.dot'
-            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.14_resampled_reduced_dfa.dot'
-            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.15_resampled_reduced_dfa.dot'
-            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.16_resampled_reduced_dfa.dot'
-            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.17_resampled_reduced_dfa.dot'
-            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.19_resampled_reduced_dfa.dot'
-            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.25_resampled_reduced_dfa.dot'
-            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.50_resampled_reduced_dfa.dot'
-            , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.51_resampled_reduced_dfa.dot'
+              'outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Benign-Amazon-Echo-192.168.2.3-192.168.2.1_resampled_reduced_dfa.dot'
+            , 'outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Benign-Phillips-HUE-192.168.1.132-192.168.1.1_resampled_reduced_dfa.dot'
+            , 'outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.103-37.187.104.44_resampled_reduced_dfa.dot'
+            , 'outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.103-89.221.214.130_resampled_reduced_dfa.dot'
+            , 'outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.103-147.231.100.5_resampled_reduced_dfa.dot'
+            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.14_resampled_reduced_dfa.dot'
+            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.15_resampled_reduced_dfa.dot'
+            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.16_resampled_reduced_dfa.dot'
+            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.17_resampled_reduced_dfa.dot'
+            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.19_resampled_reduced_dfa.dot'
+            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.25_resampled_reduced_dfa.dot'
+            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.50_resampled_reduced_dfa.dot'
+            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.51_resampled_reduced_dfa.dot'
                            ]
         debug_train_trace_filepaths = [
-              'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.3-traces_resampled_reduced.txt'
-            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.5-traces_resampled_reduced.txt'
-            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.8-traces_resampled_reduced.txt'
-            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.9-traces_resampled_reduced.txt'
-            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.12-traces_resampled_reduced.txt'
-            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.14-traces_resampled_reduced.txt'
-            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.15-traces_resampled_reduced.txt'
-            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.16-traces_resampled_reduced.txt'
-            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.17-traces_resampled_reduced.txt'
-            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.19-traces_resampled_reduced.txt'
-            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.25-traces_resampled_reduced.txt'
-            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.50-traces_resampled_reduced.txt'
-            , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.51-traces_resampled_reduced.txt'
+              'Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Benign-Amazon-Echo-192.168.2.3-192.168.2.1-traces_resampled_reduced.txt'
+            , 'Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Benign-Phillips-HUE-192.168.1.132-192.168.1.1-traces_resampled_reduced.txt'
+            , 'Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.103-37.187.104.44-traces_resampled_reduced.txt'
+            , 'Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.103-89.221.214.130-traces_resampled_reduced.txt'
+            , 'Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.103-147.231.100.5-traces_resampled_reduced.txt'
+            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.14-traces_resampled_reduced.txt'
+            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.15-traces_resampled_reduced.txt'
+            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.16-traces_resampled_reduced.txt'
+            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.17-traces_resampled_reduced.txt'
+            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.19-traces_resampled_reduced.txt'
+            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.25-traces_resampled_reduced.txt'
+            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.50-traces_resampled_reduced.txt'
+            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.51-traces_resampled_reduced.txt'
                                        ]
 
         debug_methods = [
@@ -228,7 +228,7 @@ if __name__ == '__main__':
                 else:
                     parameters += [(model_filepath, trace_filepath, method)]
 
-        flag = 'CICIDS'
+        flag = 'IOT'
         n = len(parameters)
     else:
         flag = int(input('Provide the type of dataset to be used: '))
@@ -240,17 +240,17 @@ if __name__ == '__main__':
         if debugging:
             model_filepath = parameters[i][0]
         else:
-            model_filepath = input('Give the relative path of the model to be used for CTU13: ')
+            model_filepath = input('Give the relative path of the model to be used for training: ')
         model = parse_dot(model_filepath)
         if debugging:
             traces_filepath = parameters[i][1]
         else:
-            traces_filepath = input('Give the relative path of the trace to be used for CTU13 on the given model: ')
+            traces_filepath = input('Give the relative path of the trace to be used for training on the given model: ')
         indices_filepath = '.'.join(traces_filepath.split('.')[:-1]) + '_indices.pkl'
         if debugging:
             method = parameters[i][2]
         else:
-            method = input('Give the name of the CTU13 method to be used (clustering | multivariate gaussian | '
+            method = input('Give the name of the training method to be used (clustering | multivariate gaussian | '
                            'probabilistic): ')
         clustering_method = None
         if method == 'clustering':
@@ -269,36 +269,36 @@ if __name__ == '__main__':
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
         debug_test_filepaths = [
-              ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-172.16.0.1-traces.txt',
-               'Datasets/CICIDS2017/Thursday_morning')
-            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.3-traces.txt',
-               'Datasets/CICIDS2017/Thursday_morning')
-            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.5-traces.txt',
-               'Datasets/CICIDS2017/Thursday_morning')
-            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.8-traces.txt',
-               'Datasets/CICIDS2017/Thursday_morning')
-            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.9-traces.txt',
-               'Datasets/CICIDS2017/Thursday_morning')
-            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.12-traces.txt',
-               'Datasets/CICIDS2017/Thursday_morning')
-            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.14-traces.txt',
-               'Datasets/CICIDS2017/Thursday_morning')
-            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.15-traces.txt',
-               'Datasets/CICIDS2017/Thursday_morning')
-            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.16-traces.txt',
-               'Datasets/CICIDS2017/Thursday_morning')
-            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.17-traces.txt',
-               'Datasets/CICIDS2017/Thursday_morning')
-            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.19-traces.txt',
-               'Datasets/CICIDS2017/Thursday_morning')
-            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.25-traces.txt',
-               'Datasets/CICIDS2017/Thursday_morning')
-            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.50-traces.txt',
-               'Datasets/CICIDS2017/Thursday_morning')
-            , ('Datasets/CICIDS2017/test/protocol_num_src_bytes_dst_bytes/Thursday_morning-192.168.10.51-traces.txt',
-               'Datasets/CICIDS2017/Thursday_morning')
-            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.7-traces.txt',
-            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
+              ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-31.31.74.35-traces.txt',
+               'Datasets/IOT23/Malware-Capture-8-1')
+            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-37.157.198.150-traces.txt',
+               'Datasets/IOT23/Malware-Capture-8-1')
+            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-80.79.25.111-traces.txt',
+               'Datasets/IOT23/Malware-Capture-8-1')
+            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-81.2.254.224-traces.txt',
+               'Datasets/IOT23/Malware-Capture-8-1')
+            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-128.185.250.50-traces.txt',
+               'Datasets/IOT23/Malware-Capture-8-1')
+            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-147.231.100.5-traces.txt',
+               'Datasets/IOT23/Malware-Capture-8-1')
+            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-147.251.48.140-traces.txt',
+               'Datasets/IOT23/Malware-Capture-8-1')
+            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-178.128.185.250-traces.txt',
+               'Datasets/IOT23/Malware-Capture-8-1')
+            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-37.187.104.44-traces.txt',
+               'Datasets/IOT23/Malware-Capture-44-1')
+            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-45.32.4.67-traces.txt',
+               'Datasets/IOT23/Malware-Capture-44-1')
+            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-46.101.251.172-traces.txt',
+               'Datasets/IOT23/Malware-Capture-44-1')
+            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-77.78.107.252-traces.txt',
+               'Datasets/IOT23/Malware-Capture-44-1')
+            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-81.2.248.189-traces.txt',
+               'Datasets/IOT23/Malware-Capture-44-1')
+            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-81.2.254.224-traces.txt',
+               'Datasets/IOT23/Malware-Capture-44-1')
+            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-94.124.107.190-traces.txt',
+               'Datasets/IOT23/Malware-Capture-44-1')
             # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.8-traces.txt',
             #    'Datasets/UNSW-NB15/UNSW-NB15-3')
             # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.9-traces.txt',
@@ -322,9 +322,10 @@ if __name__ == '__main__':
         test_trace_name = '.'.join(test_traces_filepath.split('/')[-1].split('.')[0:-1])
         print('-------------------------------- Evaluating on ' + test_trace_name + ' --------------------------------')
         results[test_trace_name] = dict()
-        # and retrieve the host IP to use it for true label extraction
-        host_ip_matcher = re.search("-(\d+\.\d+\.\d+\.\d+)-|-([^-]+::.+:.+:.+:[^-]+)-", test_traces_filepath)
-        host_ip = host_ip_matcher.group(1) if host_ip_matcher.group(1) is not None else host_ip_matcher.group(2)
+        # and retrieve the IPs to use for true label extraction
+        ips = []
+        for ip_tuple in re.findall("-(\d+\.\d+\.\d+\.\d+)|-([^-]+::[^-]+:[^-]+:[^-]+:[^-]+)", test_traces_filepath):
+            ips += [ip_tuple[0] if ip_tuple[0] != '' else ip_tuple[1]]
         # retrieve the actual dataset so that the true labels can be extracted
         if debugging:
             test_data_filepath = debug_test_filepaths[j][1]
@@ -340,8 +341,15 @@ if __name__ == '__main__':
             normal = pd.read_pickle(test_data_filepath + '/normal.pkl')
             anomalous = pd.read_pickle(test_data_filepath + '/anomalous.pkl')
         all_data = pd.concat([normal, anomalous], ignore_index=True).reset_index(drop=True)
-        # keep only the source ip currently under evaluation and sort values by date
-        all_data = all_data[all_data['src_ip'] == host_ip].sort_values(by='date').reset_index(drop=True)
+        # keep only the flows currently under evaluation based on the ips extracted from the testing traces' filepath
+        # and sort values by date
+        if len(ips) == 1:
+            # host level analysis
+            all_data = all_data[all_data['src_ip'] == ips[0]].sort_values(by='date').reset_index(drop=True)
+        else:
+            # connection level analysis
+            all_data = all_data[(all_data['src_ip'] == ips[0]) & (all_data['dst_ip'] == ips[1])].sort_values(by='date')\
+                .reset_index(drop=True)
         true_labels = all_data['label'].values
         # needed to map datetimes to indices in case of resampled datasets
         true_datetimes = all_data['date'] if 'resampled' in test_traces_filepath else None
