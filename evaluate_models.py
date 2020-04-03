@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import pickle
 import re
+import glob
 
 debugging = 1
 
@@ -174,36 +175,8 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
 if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
-        debug_model_filepaths = [
-              'outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Benign-Amazon-Echo-192.168.2.3-192.168.2.1_resampled_reduced_dfa.dot'
-            , 'outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Benign-Phillips-HUE-192.168.1.132-192.168.1.1_resampled_reduced_dfa.dot'
-            , 'outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.103-37.187.104.44_resampled_reduced_dfa.dot'
-            , 'outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.103-89.221.214.130_resampled_reduced_dfa.dot'
-            , 'outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.103-147.231.100.5_resampled_reduced_dfa.dot'
-            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.14_resampled_reduced_dfa.dot'
-            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.15_resampled_reduced_dfa.dot'
-            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.16_resampled_reduced_dfa.dot'
-            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.17_resampled_reduced_dfa.dot'
-            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.19_resampled_reduced_dfa.dot'
-            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.25_resampled_reduced_dfa.dot'
-            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.50_resampled_reduced_dfa.dot'
-            # , 'outputs/CICIDS2017/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.51_resampled_reduced_dfa.dot'
-                           ]
-        debug_train_trace_filepaths = [
-              'Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Benign-Amazon-Echo-192.168.2.3-192.168.2.1-traces_resampled_reduced.txt'
-            , 'Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Benign-Phillips-HUE-192.168.1.132-192.168.1.1-traces_resampled_reduced.txt'
-            , 'Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.103-37.187.104.44-traces_resampled_reduced.txt'
-            , 'Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.103-89.221.214.130-traces_resampled_reduced.txt'
-            , 'Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1-192.168.100.103-147.231.100.5-traces_resampled_reduced.txt'
-            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.14-traces_resampled_reduced.txt'
-            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.15-traces_resampled_reduced.txt'
-            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.16-traces_resampled_reduced.txt'
-            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.17-traces_resampled_reduced.txt'
-            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.19-traces_resampled_reduced.txt'
-            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.25-traces_resampled_reduced.txt'
-            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.50-traces_resampled_reduced.txt'
-            # , 'Datasets/CICIDS2017/training/protocol_num_src_bytes_dst_bytes/Monday-192.168.10.51-traces_resampled_reduced.txt'
-                                       ]
+        debug_model_filepaths = glob.glob('outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1*.dot')
+        debug_train_trace_filepaths = glob.glob('Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1*.txt')
 
         debug_methods = [
             'clustering'
@@ -268,46 +241,8 @@ if __name__ == '__main__':
 
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
-        debug_test_filepaths = [
-              ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-31.31.74.35-traces.txt',
-               'Datasets/IOT23/Malware-Capture-8-1')
-            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-37.157.198.150-traces.txt',
-               'Datasets/IOT23/Malware-Capture-8-1')
-            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-80.79.25.111-traces.txt',
-               'Datasets/IOT23/Malware-Capture-8-1')
-            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-81.2.254.224-traces.txt',
-               'Datasets/IOT23/Malware-Capture-8-1')
-            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-128.185.250.50-traces.txt',
-               'Datasets/IOT23/Malware-Capture-8-1')
-            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-147.231.100.5-traces.txt',
-               'Datasets/IOT23/Malware-Capture-8-1')
-            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-147.251.48.140-traces.txt',
-               'Datasets/IOT23/Malware-Capture-8-1')
-            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-8-1-192.168.100.113-178.128.185.250-traces.txt',
-               'Datasets/IOT23/Malware-Capture-8-1')
-            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-37.187.104.44-traces.txt',
-               'Datasets/IOT23/Malware-Capture-44-1')
-            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-45.32.4.67-traces.txt',
-               'Datasets/IOT23/Malware-Capture-44-1')
-            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-46.101.251.172-traces.txt',
-               'Datasets/IOT23/Malware-Capture-44-1')
-            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-77.78.107.252-traces.txt',
-               'Datasets/IOT23/Malware-Capture-44-1')
-            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-81.2.248.189-traces.txt',
-               'Datasets/IOT23/Malware-Capture-44-1')
-            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-81.2.254.224-traces.txt',
-               'Datasets/IOT23/Malware-Capture-44-1')
-            , ('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-44-1-192.168.1.199-94.124.107.190-traces.txt',
-               'Datasets/IOT23/Malware-Capture-44-1')
-            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.8-traces.txt',
-            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
-            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-59.166.0.9-traces.txt',
-            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
-            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.1-traces.txt',
-            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
-            # , ('Datasets/UNSW-NB15/test/protocol_num_src_bytes_dst_bytes/UNSW-NB15-3-149.171.126.3-traces.txt',
-            #    'Datasets/UNSW-NB15/UNSW-NB15-3')
-                                      ]
+        debug_test_trace_filepaths = glob.glob('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-20-1*.txt')
+        debug_test_filepaths = list(zip(debug_test_trace_filepaths, len(debug_test_trace_filepaths) * ['Datasets/IOT23/Malware-Capture-20-1']))
         m = len(debug_test_filepaths)
     else:
         m = int(input('Provide the number of testing sets: '))
