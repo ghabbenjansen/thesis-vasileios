@@ -5,6 +5,7 @@ import numpy as np
 import pickle
 import re
 import glob
+from collections import defaultdict
 
 debugging = 1
 
@@ -166,7 +167,7 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
             print('Accuracy: ' + str(accuracy))
             print('Precision: ' + str(precision))
             print('Recall: ' + str(recall))
-        return accuracy, precision, recall
+        return TP, TN, FP, FN, accuracy, precision, recall
     else:
         # TODO: implement the soft prediction part
         return 0, 0, 0
@@ -246,7 +247,7 @@ if __name__ == '__main__':
         m = len(debug_test_filepaths)
     else:
         m = int(input('Provide the number of testing sets: '))
-    results = {}
+    results = defaultdict(dict)
     for j in range(m):
         if debugging:
             test_traces_filepath = debug_test_filepaths[j][0]
@@ -288,6 +289,8 @@ if __name__ == '__main__':
         true_labels = all_data['label'].values
         # needed to map datetimes to indices in case of resampled datasets
         true_datetimes = all_data['date'] if 'resampled' in test_traces_filepath else None
+        # keep one dictionary to aggregate the results of each model over all flows on the test set
+        accumulated_results = defaultdict(lambda: np.zeros(4))
         for i in range(n):
             print("Let's use model " + models_info[i] + '!!!')
             models[i].reset_attributes(attribute_type='test')
@@ -300,47 +303,46 @@ if __name__ == '__main__':
                 "Dimension mismatch between true and predicted labels!!"
 
             # Save the results as a dictionary of dictionaries with the first level keys being the test set name, the
-            # second level keys being the tre CTU13 model information, and the values being the results
+            # second level keys being the training model information, and the values being the results
             if flag == 'CTU-bi':
-                if i == 0:
-                    results[test_trace_name] = {models_info[i]: produce_evaluation_metrics(dict2list(predictions),
-                                                                                           list(map(lambda x: 1
-                                                                                           if 'Botnet' in x else 0,
-                                                                                                    true_labels.tolist())))}
-                else:
-                    results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
-                                                                                          list(map(lambda x: 1
-                                                                                          if 'Botnet' in x else 0,
-                                                                                                   true_labels.tolist())))
+                results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
+                                                                                      list(map(lambda x: 1
+                                                                                      if 'Botnet' in x
+                                                                                      else 0, true_labels.tolist())))
             elif flag == 'IOT':
-                if i == 0:
-                    results[test_trace_name] = {models_info[i]: produce_evaluation_metrics(dict2list(predictions),
-                                                                                           list(map(lambda x: 1
-                                                                                           if x == 'Malicious' else 0,
-                                                                                                    true_labels.tolist())))}
-                else:
-                    results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
-                                                                                          list(map(lambda x: 1
-                                                                                          if x == 'Malicious' else 0,
-                                                                                                   true_labels.tolist())))
+                results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
+                                                                                      list(map(lambda x: 1
+                                                                                      if x == 'Malicious'
+                                                                                      else 0, true_labels.tolist())))
             elif flag == 'UNSW':
-                if i == 0:
-                    results[test_trace_name] = {models_info[i]: produce_evaluation_metrics(dict2list(predictions),
-                                                                                           true_labels.tolist())}
-                else:
-                    results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
-                                                                                          true_labels.tolist())
+                results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
+                                                                                      true_labels.tolist())
             else:
-                if i == 0:
-                    results[test_trace_name] = {models_info[i]: produce_evaluation_metrics(dict2list(predictions),
-                                                                                           list(map(lambda x: 1
-                                                                                           if x != 'BENIGN' else 0,
-                                                                                                    true_labels.tolist())))}
-                else:
-                    results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
-                                                                                          list(map(lambda x: 1
-                                                                                          if x != 'BENIGN' else 0,
-                                                                                                   true_labels.tolist())))
+                results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
+                                                                                      list(map(lambda x: 1
+                                                                                      if x != 'BENIGN'
+                                                                                      else 0, true_labels.tolist())))
+            # update also the accumulated results | only TP, TN, FP, FN are passed
+            accumulated_results[models_info[i]] += np.array(results[test_trace_name][models_info[i]][0:4])
+
+        # print the aggregated results per model for the current test case
+        print('---------- Total results for ' + test_trace_name + ' per model ----------')
+        for i in range(n):
+            print('---- Model ' + models_info[i] + ' ----')
+            model_TP = accumulated_results[models_info[i]][0]
+            model_TN = accumulated_results[models_info[i]][1]
+            model_FP = accumulated_results[models_info[i]][2]
+            model_FN = accumulated_results[models_info[i]][3]
+            model_accuracy = (model_TP + model_TN) / (model_TP + model_TN + model_FP + model_FN)
+            model_precision = -1 if model_TP + model_FP == 0 else model_TP / (model_TP + model_FP)
+            model_recall = -1 if model_TP + model_FN == 0 else model_TP / (model_TP + model_FN)
+            print('TP: ' + str(model_TP) + ' TN: ' + str(model_TN) + ' FP: ' + str(model_FP) + ' FN:' + str(model_FN))
+            print('Accuracy: ' + str(model_accuracy))
+            print('Precision: ' + str(model_precision))
+            print('Recall: ' + str(model_recall))
+            # and add them in the results dict
+            results[test_trace_name]['total' + models_info[i]] = (model_TP, model_TN, model_FP, model_FN,
+                                                                  model_accuracy, model_precision, model_recall)
 
     # finally save all the results for each testing trace
     results_filename = input('Provide the relative path for the filename of the results: ')
