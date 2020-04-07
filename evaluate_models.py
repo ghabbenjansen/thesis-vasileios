@@ -173,6 +173,24 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
         return 0, 0, 0
 
 
+def print_total_results(results):
+    for test_set_name in list(filter(lambda x: 'total' in x, results.keys())):
+        print('-------------------- Total results for ' + test_set_name + ' --------------------')
+        for model_name in results[test_set_name].keys():
+            print('---- Model ' + model_name + ' ----')
+            model_TP = results[test_set_name][model_name][0]
+            model_TN = results[test_set_name][model_name][1]
+            model_FP = results[test_set_name][model_name][2]
+            model_FN = results[test_set_name][model_name][3]
+            model_accuracy = (model_TP + model_TN) / (model_TP + model_TN + model_FP + model_FN)
+            model_precision = -1 if model_TP + model_FP == 0 else model_TP / (model_TP + model_FP)
+            model_recall = -1 if model_TP + model_FN == 0 else model_TP / (model_TP + model_FN)
+            print('TP: ' + str(model_TP) + ' TN: ' + str(model_TN) + ' FP: ' + str(model_FP) + ' FN:' + str(model_FN))
+            print('Accuracy: ' + str(model_accuracy))
+            print('Precision: ' + str(model_precision))
+            print('Recall: ' + str(model_recall))
+
+
 if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
@@ -242,12 +260,19 @@ if __name__ == '__main__':
 
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
-        debug_test_trace_filepaths = glob.glob('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-20-1*.txt')
-        debug_test_filepaths = list(zip(debug_test_trace_filepaths, len(debug_test_trace_filepaths) * ['Datasets/IOT23/Malware-Capture-20-1']))
+        debug_test_trace_filepaths = sorted(glob.glob('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/*.txt'))
+        debug_test_set_filepaths = list(map(lambda x: '/'.join(x.split('/')[0:2]) + '/'
+                                                      + '-'.join(x.split('/')[-1].split('-')[:(-3 if 'connection' in x
+                                                                                               else -2)]),
+                                            debug_test_trace_filepaths))
+        debug_test_filepaths = list(zip(debug_test_trace_filepaths, debug_test_set_filepaths))
         m = len(debug_test_filepaths)
     else:
         m = int(input('Provide the number of testing sets: '))
     results = defaultdict(dict)
+    # keep a value showing the last test set tested so that the accumulation of the aggregated results can be refreshed
+    prev_test_path = ''
+    accumulated_results = defaultdict(lambda: np.zeros(4, dtype=int))
     for j in range(m):
         if debugging:
             test_traces_filepath = debug_test_filepaths[j][0]
@@ -290,7 +315,11 @@ if __name__ == '__main__':
         # needed to map datetimes to indices in case of resampled datasets
         true_datetimes = all_data['date'] if 'resampled' in test_traces_filepath else None
         # keep one dictionary to aggregate the results of each model over all flows on the test set
-        accumulated_results = defaultdict(lambda: np.zeros(4))
+        if prev_test_path != test_data_filepath:
+            if len(prev_test_path):
+                results[prev_test_path + '-total'] = accumulated_results
+            accumulated_results = defaultdict(lambda: np.zeros(4, dtype=int))
+            prev_test_path = test_data_filepath
         for i in range(n):
             print("Let's use model " + models_info[i] + '!!!')
             models[i].reset_attributes(attribute_type='test')
@@ -325,24 +354,12 @@ if __name__ == '__main__':
             # update also the accumulated results | only TP, TN, FP, FN are passed
             accumulated_results[models_info[i]] += np.array(results[test_trace_name][models_info[i]][0:4])
 
-        # print the aggregated results per model for the current test case
-        print('---------- Total results for ' + test_trace_name + ' per model ----------')
-        for i in range(n):
-            print('---- Model ' + models_info[i] + ' ----')
-            model_TP = accumulated_results[models_info[i]][0]
-            model_TN = accumulated_results[models_info[i]][1]
-            model_FP = accumulated_results[models_info[i]][2]
-            model_FN = accumulated_results[models_info[i]][3]
-            model_accuracy = (model_TP + model_TN) / (model_TP + model_TN + model_FP + model_FN)
-            model_precision = -1 if model_TP + model_FP == 0 else model_TP / (model_TP + model_FP)
-            model_recall = -1 if model_TP + model_FN == 0 else model_TP / (model_TP + model_FN)
-            print('TP: ' + str(model_TP) + ' TN: ' + str(model_TN) + ' FP: ' + str(model_FP) + ' FN:' + str(model_FN))
-            print('Accuracy: ' + str(model_accuracy))
-            print('Precision: ' + str(model_precision))
-            print('Recall: ' + str(model_recall))
-            # and add them in the results dict
-            results[test_trace_name]['total' + models_info[i]] = (model_TP, model_TN, model_FP, model_FN,
-                                                                  model_accuracy, model_precision, model_recall)
+    # one last addition of the accumulated results in the results dict
+    results[prev_test_path + '-total'] = accumulated_results
+
+    # print the aggregated results for each test set
+    print('------------------------- Aggregated results per test set -------------------------')
+    print_total_results(results)
 
     # finally save all the results for each testing trace
     results_filename = input('Provide the relative path for the filename of the results: ')
