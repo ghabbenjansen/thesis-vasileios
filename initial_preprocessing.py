@@ -49,13 +49,27 @@ def preprocess_unidirectional_data(filepath):
     fout.close()
 
 
-def read_data(filepath, flag='CTU-uni', preprocessing=None, background=True, expl=False):
+def simplecount(filename):
+    """
+    Function for counting the number of lines in a file. This function is needed in the case of the IOT dataset since
+    the last row must be skipped when parsing the file into a dataframe and the option of skipfooter is not available
+    in chunking
+    :param filename: the file path of the file to be processed
+    :return: the number of lines in the file
+    """
+    lines = 0
+    for _ in open(filename):
+        lines += 1
+    return lines
+
+
+def read_data(filepath, flag='CTU-uni', preprocessing=None, chunks=False, expl=False):
     """
     Helper function to read the datasets into a Pandas dataframe
     :param filepath: the relative path of the file to be read
     :param flag: flag showing the origin of the dataset (CTU | CICIDS | CIDDS | IOT | USNW)
     :param preprocessing: flag only applicable to the unidirectional Netflow case of CTU-13
-    :param background: flag showing if the background data should be removed (for the CTU-13 dataset mostly)
+    :param chunks: flag showing if the input data should be parsed in chunks into the dataframe
     :param expl: flag regarding the visualization of the error lines in the dataset
     :return: the dataframe with the data
     """
@@ -81,6 +95,7 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, background=True, exp
     skipfooter = 0
     na_values = []
     parse_field = ['date']
+    encoding = 'utf_8'
     engine = 'python'
 
     # Unidirectional Netflow data from CTU-13 dataset
@@ -102,7 +117,7 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, background=True, exp
                  'orig_bytes', 'resp_bytes', 'state', 'missed_bytes', 'orig_packets', 'orig_ip_bytes', 'resp_packets',
                  'resp_ip_bytes', 'label', 'detailed_label']
         usecols = [0] + [_ for _ in range(2, 12)] + [14] + [_ for _ in range(16, 20)] + [21, 22]
-        skiprows = 8
+        skiprows = 8 if not chunks else [_ for _ in range(0, 8)] + [simplecount(filepath) - 1]
         skipfooter = 1
         na_values = ['-']
         dateparse = lambda x: pd.to_datetime(x, unit='s')
@@ -127,6 +142,7 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, background=True, exp
                  'total_bwd_packets', 'src_bytes', 'dst_bytes', 'label']
         usecols = [_ for _ in range(1, 12)] + [84]
         dateparse = lambda x: pd.to_datetime(x, dayfirst=True)
+        encoding = 'latin_1'
     # Netflow data from CIDDS dataset
     else:
         names = ['date', 'duration', 'protocol', 'src_ip', 'src_port', 'dst_ip', 'dst_port', 'packets', 'bytes',
@@ -144,15 +160,11 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, background=True, exp
             # read the data into a dataframe according to the background flag
             data = pd.read_csv(filepath, delimiter=delimiter, header=header, names=names, parse_dates=parse_field,
                                date_parser=dateparse, usecols=usecols, na_values=na_values, error_bad_lines=expl,
-                               engine=engine, skiprows=skiprows, skipfooter=skipfooter, encoding='latin_1') if background else \
-                pd.concat(remove_background(chunk) for chunk in pd.read_csv(filepath, chunksize=100000,
-                                                                            delimiter=delimiter,
-                                                                            parse_dates=parse_field,
-                                                                            date_parser=dateparse,
-                                                                            error_bad_lines=True,
-                                                                            engine=engine,
-                                                                            skiprows=skiprows,
-                                                                            skipfooter=skipfooter))
+                               engine=engine, skiprows=skiprows, skipfooter=skipfooter, encoding=encoding) if not chunks \
+                else pd.concat(pd.read_csv(filepath, chunksize=1000000, delimiter=delimiter, header=header, names=names,
+                                           parse_dates=parse_field, date_parser=dateparse, usecols=usecols,
+                                           na_values=na_values, error_bad_lines=expl, engine=engine, skiprows=skiprows,
+                                           encoding=encoding))
             cont = False
         except Exception as e:
             errortype = str(e).split('.')[0].strip()
@@ -167,28 +179,15 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, background=True, exp
             else:
                 print(errortype)
 
-    # Separate handling of the background data (for the CTU-13 datasets mostly)
-    if not background:
-        data.to_pickle(filepath + '_no_background.pkl')
     return data
-
-
-def remove_background(df):
-    """
-    Helper function removing background flows from a given dataframe
-    :param df: the dataframe
-    :return: the no-background dataframe
-    """
-    df = df[df['label'] != 'Background']
-    return df
 
 
 if __name__ == '__main__':
     # filepath = input("Enter the desired filepath: ")
-    filepath = 'Datasets/CICIDS2017/Thursday_morning/Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv'
+    filepath = 'Datasets/IOT23/Malware-Capture-39-1/conn.log.labeled.txt'
 
     # Choose between the flags CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT
-    flag = 'CICIDS'
+    flag = 'IOT'
     # while True:
     #     flag = input("Enter the desired flag (CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT): ")
     #     if flag in ['CTU-uni', 'CTU-bi', 'CTU-mixed', 'CICIDS', 'CIDDS', 'UNSW', 'IOT']:
@@ -200,7 +199,7 @@ if __name__ == '__main__':
         data = read_data(filepath, flag=flag, preprocessing='uni' if bool(input("Enable preprocessing (for NO give no "
                                                                                 "answer)? ")) else None)
     else:
-        data = read_data(filepath, flag=flag)
+        data = read_data(filepath, flag=flag, chunks=True)
 
     print('Dataset from ' + filepath + ' has been successfully read!!!\n')
     print('Starting initial preprocessing...\n')
@@ -318,6 +317,9 @@ if __name__ == '__main__':
         # add the numerical representation of the categorical data (hardcoded categorical values are given for
         # universality) # TODO: add such universality to other datasets before use
         protocol_categories = ['udp', 'tcp', 'icmp']
+        # check if no new protocols were found
+        if not set(data.protocol.unique().tolist()).issubset(set(protocol_categories)):
+            print('New protocol types found!!!!')
         data['protocol_num'] = pd.Categorical(data['protocol'], categories=protocol_categories).codes
         state_categories = ['S0', 'S1', 'SF', 'REJ', 'S2', 'S3', 'RSTO', 'RSTR', 'RSTOS0', 'RSTRH', 'SH', 'SHR', 'OTH']
         data['state_num'] = pd.Categorical(data['state'], categories=state_categories).codes
