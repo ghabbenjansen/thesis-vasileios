@@ -254,7 +254,7 @@ if __name__ == '__main__':
                 instances = data['src_ip'].unique()
                 print('Number of hosts to be processed: ' + str(instances.shape[0]))
             else:
-                data = helper.select_connections(data, 1000)
+                data = helper.select_connections(data, 200)
                 instances = data.groupby(['src_ip', 'dst_ip']).size().reset_index().values.tolist()
                 print('Number of connections to be processed: ' + str(len(instances)))
 

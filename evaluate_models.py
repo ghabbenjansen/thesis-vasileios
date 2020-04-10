@@ -174,6 +174,12 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
 
 
 def print_total_results(results):
+    """
+    Function for printing the total results aggregated from each connection on each scenario tested
+    :param results: the directory with the results for each connection of each testing set produced by each training
+    model
+    :return:
+    """
     for test_set_name in list(filter(lambda x: 'total' in x, results.keys())):
         print('-------------------- Total results for ' + test_set_name + ' --------------------')
         for model_name in results[test_set_name].keys():

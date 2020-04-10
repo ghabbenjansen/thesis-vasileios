@@ -13,16 +13,45 @@ from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 
 
-def select_hosts(init_data, threshold=50, create_features=False):
+def check_ips(x, ips_dict, datatype='regular'):
+    """
+    Helper function for swaping the needed values when bidirectional flows are examined. This function is meant
+    to be applied on each row a dataframe.
+    :param x: input row of the dataframe
+    :param ips_dict: a dictionary with the ips seen, when only the source IP is considered as host, and their counts
+    :param datatype: string for separating between the typical representation of column names (src_bytes, dst_bytes) to
+    the IOT-based one (orig_ip_bytes, resp_ip_bytes)
+    :return: the transformed row
+    """
+    # if the destination IP has been seen as a host and has more flows than the current source IP, make the swap
+    if x['dst_ip'] in ips_dict.keys() and ips_dict[x['dst_ip']] > ips_dict[x['src_ip']]:
+        x['src_ip'], x['dst_ip'] = x['dst_ip'], x['src_ip']
+        x['src_port'], x['dst_port'] = x['dst_port'], x['src_port']
+        if datatype == 'regular':
+            x['src_bytes'], x['dst_bytes'] = x['dst_bytes'], x['src_bytes']
+        else:
+            x['orig_ip_bytes'], x['resp_ip_bytes'] = x['resp_ip_bytes'], x['orig_ip_bytes']
+    return x
+
+
+def select_hosts(init_data, threshold=50, bidirectional=False, create_features=False, datatype='regular'):
     """
     Function for keeping only the flows of source IPs with at least a threshold number of records in the data.
     Also some extra features are added in case the create_features flag is on.
     :param init_data: the initial data
-    :param threshold: the threshold number of source-destination IP pairs
-    :param create_features: a boolean for creating new features in the dataset
+    :param threshold: the threshold number of flows per host IP
+    :param bidirectional: a boolean flag for checking for host IPs in both directions (source and destination). If set
+    to False, only source IPs will be considered as hosts
+    :param create_features: a boolean flag for creating new features in the dataset
+    :param datatype: string for separating between the typical representation of column names (src_bytes, dst_bytes) to
+    the IOT-based one (orig_ip_bytes, resp_ip_bytes)
     :return: the selected data
     """
     host_cnts = init_data.groupby(by='src_ip').agg(['count']).reset_index()
+    if bidirectional:
+        ips_counts = dict(host_cnts[['src_ip', 'dst_ip']].values.tolist())
+        init_data = init_data.apply(lambda x: check_ips(x, ips_counts, datatype), axis=1)
+        host_cnts = init_data.groupby(by='src_ip').agg(['count']).reset_index()
     sel_data = init_data.loc[(init_data['src_ip'].isin(host_cnts.loc[host_cnts[('date', 'count')] >
                                                                      threshold]['src_ip']))].reset_index(drop=True)
 
@@ -35,16 +64,50 @@ def select_hosts(init_data, threshold=50, create_features=False):
     return sel_data
 
 
-def select_connections(init_data, threshold=50, create_features=False):
+def check_connections(x, connections_dict, datatype='regular'):
+    """
+    Helper function for swaping the needed values when bidirectional connections are examined. This function is meant
+    to be applied on each row a dataframe.
+    :param x: input row of the dataframe
+    :param connections_dict: a dictionary with the connections seen in the forward direction and their counts
+    :param datatype: string for separating between the typical representation of column names (src_bytes, dst_bytes) to
+    the IOT-based one (orig_ip_bytes, resp_ip_bytes)
+    :return: the transformed row
+    """
+    connection = x['src_ip'] + '-' + x['dst_ip']
+    connection_reversed = x['dst_ip'] + '-' + x['src_ip']
+    # if the connection in the forward direction has been seen as a forward connection and has more flows than the
+    # current forward connection, make the swap
+    if connection_reversed in connections_dict.keys() and connections_dict[connection_reversed] > \
+            connections_dict[connection]:
+        x['src_ip'], x['dst_ip'] = x['dst_ip'], x['src_ip']
+        x['src_port'], x['dst_port'] = x['dst_port'], x['src_port']
+        if datatype == 'regular':
+            x['src_bytes'], x['dst_bytes'] = x['dst_bytes'], x['src_bytes']
+        else:
+            x['orig_ip_bytes'], x['resp_ip_bytes'] = x['resp_ip_bytes'], x['orig_ip_bytes']
+    return x
+
+
+def select_connections(init_data, threshold=50, bidirectional=False, create_features=False, datatype='regular'):
     """
     Function for keeping only the flows with at least a threshold number of source-destination IP pairs in the data.
     Also some extra features are added, while the numerical representation of labels and detailed labels is introduced
     :param init_data: the initial data
-    :param threshold: the threshold number of source-destination IP pairs
-    :param create_features: a boolean for creating new features in the dataset
+    :param threshold: the threshold number of flows per source-destination IP pairs
+    :param bidirectional: a boolean flag for checking for connections in both directions (source and destination). If
+    set to False, only the original direction will be checked
+    :param create_features: a boolean flag for creating new features in the dataset
+    :param datatype: string for separating between the typical representation of column names (src_bytes, dst_bytes) to
+    the IOT-based one (orig_ip_bytes, resp_ip_bytes)
     :return: the selected data
     """
     connections_cnts = init_data.groupby(['src_ip', 'dst_ip']).agg(['count']).reset_index()
+    if bidirectional:
+        connections_counts = dict([[triple[0] + '-' + triple[1], triple[2]] for triple in
+                                   connections_cnts[['src_ip', 'dst_ip', 'protocol']].values.tolist()])
+        init_data = init_data.apply(lambda x: check_connections(x, connections_counts, datatype), axis=1)
+        connections_cnts = init_data.groupby(['src_ip', 'dst_ip']).agg(['count']).reset_index()
     sel_data = init_data.loc[(init_data['src_ip']
                               .isin(connections_cnts.loc[connections_cnts[('date', 'count')] > threshold]['src_ip'])) &
                              (init_data['dst_ip'].isin(connections_cnts.
