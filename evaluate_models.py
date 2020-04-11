@@ -201,7 +201,7 @@ if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
         debug_model_filepaths = glob.glob('outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1*.dot')
-        debug_train_trace_filepaths = glob.glob('Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1*.txt')
+        debug_train_trace_filepaths = glob.glob('Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1*bdr.txt')
 
         debug_methods = [
             'clustering'
@@ -368,6 +368,10 @@ if __name__ == '__main__':
     print_total_results(results)
 
     # finally save all the results for each testing trace
-    results_filename = input('Provide the relative path for the filename of the results: ')
-    with open(results_filename, 'wb') as handle:
-        pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    if debugging:
+        results_filename = '/'.join(debug_test_set_filepaths[0].split('/')[0:2]) + \
+                           '-'.join(map(lambda x: x.split('/')[-1], debug_test_set_filepaths)) + '.pkl'
+    else:
+        results_filename = input('Provide the relative path for the filename of the results: ')
+    with open(results_filename, 'wb') as f:
+        pickle.dump(results, f, protocol=pickle.HIGHEST_PROTOCOL)

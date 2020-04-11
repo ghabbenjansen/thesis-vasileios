@@ -124,6 +124,7 @@ if __name__ == '__main__':
 
         host_level = int(input('Select the type of modelling to be conducted (connection level: 0 | host level: 1): '))
         analysis_type = 'host_level' if host_level else 'connection_level'
+        bidirectional = True
 
         if testing:
             # set the input filepath of the dataframes' directory
@@ -155,11 +156,13 @@ if __name__ == '__main__':
             # for testing keep only hosts that have at least 2 flows so that enough information is available
             #  currently only ips with at least 2000 flows are used for testing
             if host_level:
-                data = helper.select_hosts(data, 2)
+                datatype = 'non-regular' if flag == 'IOT' else 'regular'
+                data = helper.select_hosts(data, 2, bidirectional=bidirectional, datatype=datatype)
                 instances = data['src_ip'].unique()
                 print('Number of hosts to be processed: ' + str(instances.shape[0]))
             else:
-                data = helper.select_connections(data, 2)
+                datatype = 'non-regular' if flag == 'IOT' else 'regular'
+                data = helper.select_connections(data, 2, bidirectional=bidirectional, datatype=datatype)
                 instances = data.groupby(['src_ip', 'dst_ip']).size().reset_index().values.tolist()
                 print('Number of connections to be processed: ' + str(len(instances)))
             # extract the data per host
@@ -192,11 +195,11 @@ if __name__ == '__main__':
                     if resample:
                         traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + analysis_type + '/' \
                                           + '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
-                                          instance_name + '-traces_resampled.txt'
+                                          instance_name + '-traces_resampled' + ('_bdr' if bidirectional else '') + '.txt'
                     else:
                         traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + analysis_type + '/' \
                                           + '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
-                                          instance_name + '-traces_aggregated.txt'
+                                          instance_name + '-traces_aggregated' + ('_bdr' if bidirectional else '') + '.txt'
                     # add also the destination ip in case of aggregation
                     if host_level:
                         selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
@@ -207,7 +210,7 @@ if __name__ == '__main__':
                 else:
                     traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + analysis_type + '/' + \
                                       '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
-                                      instance_name + '-traces.txt'
+                                      instance_name + '-traces' + ('_bdr' if bidirectional else '') + '.txt'
                     aggregation = False
                     resample = False
 
@@ -250,11 +253,13 @@ if __name__ == '__main__':
 
             # select only instances with significant number of flows (currently over 1000)
             if host_level:
-                data = helper.select_hosts(data, 500)
+                datatype = 'non-regular' if flag == 'IOT' else 'regular'
+                data = helper.select_hosts(data, 500, bidirectional=bidirectional, datatype=datatype)
                 instances = data['src_ip'].unique()
                 print('Number of hosts to be processed: ' + str(instances.shape[0]))
             else:
-                data = helper.select_connections(data, 200)
+                datatype = 'non-regular' if flag == 'IOT' else 'regular'
+                data = helper.select_connections(data, 200, bidirectional=bidirectional, datatype=datatype)
                 instances = data.groupby(['src_ip', 'dst_ip']).size().reset_index().values.tolist()
                 print('Number of connections to be processed: ' + str(len(instances)))
 
@@ -288,7 +293,7 @@ if __name__ == '__main__':
                 if not aggregation:
                     traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type + '/' \
                                       + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' + \
-                                      instance_name + '-traces.txt'
+                                      instance_name + '-traces' + ('_bdr' if bidirectional else '') + '.txt'
                     aggregation = False
                     resample = False
                 else:
@@ -298,12 +303,12 @@ if __name__ == '__main__':
                         traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type \
                                           + '/' + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' \
                                           + instance_name + '-traces_resampled' + ('' if new_features else '_reduced') \
-                                          + '.txt'
+                                          + ('_bdr' if bidirectional else '') + '.txt'
                     else:
                         traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type \
                                           + '/' + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' \
                                           + instance_name + '-traces_aggregated' + ('' if new_features else '_reduced') \
-                                          + '.txt'
+                                          + ('_bdr' if bidirectional else '') + '.txt'
                     # add also the destination ip in case of aggregation
                     if host_level:
                         selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
