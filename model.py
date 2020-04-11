@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import operator
 import numpy as np
 import pandas as pd
@@ -169,7 +171,7 @@ class ModelNode:
         elif clustering_method == "isolation forest":
             clusterer = IsolationForest().fit(transformer.transform(x_train))
         elif clustering_method == "LOF":
-            clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/10), novelty=True).\
+            clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/5), novelty=True).\
                 fit(transformer.transform(x_train))
         else:
             clusterer = KMeans(n_clusters=2).fit(transformer.transform(x_train))

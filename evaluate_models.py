@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 from helper import parse_dot, run_traces_on_model, dict2list
 from statistics import median
 import pandas as pd
@@ -6,6 +8,8 @@ import pickle
 import re
 import glob
 from collections import defaultdict
+import sys
+from operator import add
 
 debugging = 1
 
@@ -212,8 +216,8 @@ if __name__ == '__main__':
         debug_clustering_methods = [
             # 'hdbscan'
             # ,
-            'LOF'
-            , 'isolation forest'
+            # 'LOF'
+            'isolation forest'
             # , 'kmeans'
         ]
 
@@ -266,7 +270,9 @@ if __name__ == '__main__':
 
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
-        debug_test_trace_filepaths = sorted(glob.glob('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/*.txt'))
+        # get the testing traces filepath pattern through STDIN mostly so that datasets can run in parallel
+        # debug_test_trace_filepaths = sorted(glob.glob('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/*.txt'))
+        debug_test_trace_filepaths = sorted(glob.glob(sys.argv[1]))
         debug_test_set_filepaths = list(map(lambda x: '/'.join(x.split('/')[0:2]) + '/'
                                                       + '-'.join(x.split('/')[-1].split('-')[:(-3 if 'connection' in x
                                                                                                else -2)]),
@@ -278,7 +284,7 @@ if __name__ == '__main__':
     results = defaultdict(dict)
     # keep a value showing the last test set tested so that the accumulation of the aggregated results can be refreshed
     prev_test_path = ''
-    accumulated_results = defaultdict(lambda: np.zeros(4, dtype=int))
+    accumulated_results = defaultdict(list)
     for j in range(m):
         if debugging:
             test_traces_filepath = debug_test_filepaths[j][0]
@@ -324,7 +330,7 @@ if __name__ == '__main__':
         if prev_test_path != test_data_filepath:
             if len(prev_test_path):
                 results[prev_test_path + '-total'] = accumulated_results
-            accumulated_results = defaultdict(lambda: np.zeros(4, dtype=int))
+            accumulated_results = defaultdict(list)
             prev_test_path = test_data_filepath
         for i in range(n):
             print("Let's use model " + models_info[i] + '!!!')
@@ -358,7 +364,11 @@ if __name__ == '__main__':
                                                                                       if x != 'BENIGN'
                                                                                       else 0, true_labels.tolist())))
             # update also the accumulated results | only TP, TN, FP, FN are passed
-            accumulated_results[models_info[i]] += np.array(results[test_trace_name][models_info[i]][0:4])
+            if len(accumulated_results[models_info[i]]):
+                accumulated_results[models_info[i]] = list(map(add, accumulated_results[models_info[i]],
+                                                               results[test_trace_name][models_info[i]][0:4]))
+            else:
+                accumulated_results[models_info[i]] = list(results[test_trace_name][models_info[i]][0:4])
 
     # one last addition of the accumulated results in the results dict
     results[prev_test_path + '-total'] = accumulated_results
@@ -369,8 +379,8 @@ if __name__ == '__main__':
 
     # finally save all the results for each testing trace
     if debugging:
-        results_filename = '/'.join(debug_test_set_filepaths[0].split('/')[0:2]) + \
-                           '-'.join(map(lambda x: x.split('/')[-1], debug_test_set_filepaths)) + '.pkl'
+        results_filename = '/'.join(debug_test_set_filepaths[0].split('/')[0:2]) + '/' + \
+                           '-'.join(set(map(lambda x: x.split('/')[-1], debug_test_set_filepaths))) + '_results.pkl'
     else:
         results_filename = input('Provide the relative path for the filename of the results: ')
     with open(results_filename, 'wb') as f:

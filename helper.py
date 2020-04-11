@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 from pandas.tseries.offsets import DateOffset
 from copy import deepcopy
 from scipy.stats import mode
