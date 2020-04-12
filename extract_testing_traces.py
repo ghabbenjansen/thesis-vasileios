@@ -5,14 +5,16 @@ import helper
 import pandas as pd
 from copy import deepcopy
 import pickle
+import sys
 
 
 if __name__ == '__main__':
     # first set the flag of the type of dataset to be used
     flag = 'IOT'
     # Check if discretization is enabled
-    with_discretization = int(
-        input('Discretize numeric features (ports, bytes, duration, packets) (no: 0 | yes: 1)? '))
+    # with_discretization = int(
+    #     input('Discretize numeric features (ports, bytes, duration, packets) (no: 0 | yes: 1)? '))
+    with_discretization = 0
     # set the features to be used in the multivariate modelling
     if flag in ['CTU-bi', 'UNSW', 'CICIDS']:
         selected = [
@@ -34,12 +36,14 @@ if __name__ == '__main__':
         ]
     old_selected = deepcopy(selected)
 
-    host_level = int(input('Select the type of modelling to be conducted (connection level: 0 | host level: 1): '))
+    # host_level = int(input('Select the type of modelling to be conducted (connection level: 0 | host level: 1): '))
+    host_level = 0
     analysis_type = 'host_level' if host_level else 'connection_level'
     bidirectional = False
 
     # set the input filepath of the dataframes' directory
-    testing_filepath = input('Give the relative path of the dataset to be used for testing: ')
+    # testing_filepath = input('Give the relative path of the dataset to be used for testing: ')
+    testing_filepath = sys.argv[1]
     if flag == 'CTU-bi':
         normal = pd.read_pickle(testing_filepath + '/binetflow_normal.pkl')
         anomalous = pd.read_pickle(testing_filepath + '/binetflow_anomalous.pkl')
@@ -91,7 +95,8 @@ if __name__ == '__main__':
             print('The number of flows for this connection are: ' + str(instance_data.shape[0]))
 
         # first ask if new features has been added during training
-        new_features = int(input('Were there any new features added during training (no: 0 | yes: 1)? '))
+        # new_features = int(input('Were there any new features added during training (no: 0 | yes: 1)? '))
+        new_features = 0
 
         if new_features:
             # extract the traces and save them in the traces' filepath

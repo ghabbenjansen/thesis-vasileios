@@ -204,8 +204,8 @@ def print_total_results(results):
 if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
-        debug_model_filepaths = sorted(glob.glob('outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-42-*.dot'))
-        debug_train_trace_filepaths = sorted(glob.glob('Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-42-*.txt'))
+        debug_model_filepaths = sorted(glob.glob('outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-*.dot'))
+        debug_train_trace_filepaths = sorted(glob.glob('Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-*bdr.txt'))
 
         debug_methods = [
             'clustering'
