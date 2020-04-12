@@ -136,7 +136,7 @@ class ModelNode:
         if epsilon == 'auto':
             min_accumulated_prob = np.prod([min(self.quantile_probs[str(i)]) for i in range(n_cols)])
             max_accumulated_prob = np.prod([max(self.quantile_probs[str(i)]) for i in range(n_cols)])
-            epsilon = (max_accumulated_prob + min_accumulated_prob) / 2     # probably should be set to a lower value
+            epsilon = min_accumulated_prob + (max_accumulated_prob - min_accumulated_prob)/1000000
         # create a vectorized function for finding the quantile index of an attribute value given the quantile limits
         vectorized_quantile_num = np.vectorize(lambda x, y_list: len([y for y in y_list if x > y]), excluded=['y_list'])
         # apply the vectorized function for each attribute (column) and create a new array with the quantile indices
@@ -171,7 +171,7 @@ class ModelNode:
         elif clustering_method == "isolation forest":
             clusterer = IsolationForest().fit(transformer.transform(x_train))
         elif clustering_method == "LOF":
-            clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/5), novelty=True).\
+            clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/10), novelty=True).\
                 fit(transformer.transform(x_train))
         else:
             clusterer = KMeans(n_clusters=2).fit(transformer.transform(x_train))
@@ -274,7 +274,7 @@ class ModelNode:
         if epsilon == 'auto':
             x_train = np.transpose(transformer.transform(self.attributes2dataset(self.observed_attributes).values))
             train_labels = kernel.evaluate(x_train)
-            epsilon = (max(train_labels) + min(train_labels))/2     # probably should be set to a lower value
+            epsilon = min(train_labels) / 1000000
 
         # old gaussian predictions
         # sigma_det = np.linalg.det(sigma)    # the determinant of the covariance matrix

@@ -87,17 +87,10 @@ def show(data, filepath):
 
 
 if __name__ == '__main__':
-    # first check why we want to run flexfringe (CTU13 or testing - in the second case only the traces are extracted)
-    # check if there is a need to create the trace file or there is already there
-    testing = int(input('Training or testing (training: 0 | testing: 1)? '))
+    # first set the flag of the type of dataset to be used
     flag = 'IOT'
 
-    if not testing:
-        # only if it is for CTU13 this question will be asked
-        with_trace = int(input('Is there a trace file (no: 0 | yes: 1)? '))
-    else:
-        # otherwise we need to create the trace file
-        with_trace = 0
+    with_trace = int(input('Is there a trace file (no: 0 | yes: 1)? '))
 
     if not with_trace:
         # first check if discretization is enabled
@@ -116,7 +109,7 @@ if __name__ == '__main__':
         else:
             selected = [
                 # 'src_port'
-                # , 'dst_port'
+                # 'dst_port'
                 'protocol_num'
                 # , 'duration'
                 , 'orig_ip_bytes'
@@ -126,220 +119,120 @@ if __name__ == '__main__':
 
         host_level = int(input('Select the type of modelling to be conducted (connection level: 0 | host level: 1): '))
         analysis_type = 'host_level' if host_level else 'connection_level'
-        bidirectional = True
+        bidirectional = False
 
-        if testing:
-            # set the input filepath of the dataframes' directory
-            testing_filepath = input('Give the relative path of the dataset to be used for testing: ')
-            if flag == 'CTU-bi':
-                normal = pd.read_pickle(testing_filepath + '/binetflow_normal.pkl')
-                anomalous = pd.read_pickle(testing_filepath + '/binetflow_anomalous.pkl')
-            elif flag == 'IOT':
-                normal = pd.read_pickle(testing_filepath + '/zeek_normal.pkl')
-                anomalous = pd.read_pickle(testing_filepath + '/zeek_anomalous.pkl')
-            else:
-                normal = pd.read_pickle(testing_filepath + '/normal.pkl')
-                anomalous = pd.read_pickle(testing_filepath + '/anomalous.pkl')
-            data = pd.concat([normal, anomalous], ignore_index=True).reset_index(drop=True)
+        # set the input filepath
+        training_filepath = input('Give the relative path of the dataframe to be used for training: ')
 
-            if with_discretization:
-                # first retrieve the discretization limits to be used for each feature
-                discretization_filepath = input('Provide the filepath of the discretization limits: ')
-                with open(discretization_filepath, 'rb') as f:
-                    discretization_dict = pickle.load(f)
-                # then apply discretization to the appropriate features
-                for feature in discretization_dict.keys():
-                    data[feature + '_num'] = data[feature].apply(helper.find_percentile,
-                                                                 args=(discretization_dict[feature],))
-                    selected.remove(feature)
-                    selected += [feature + '_num']
-                old_selected = deepcopy(selected)
-
-            # for testing keep only hosts that have at least 2 flows so that enough information is available
-            #  currently only ips with at least 2000 flows are used for testing
-            if host_level:
-                datatype = 'non-regular' if flag == 'IOT' else 'regular'
-                data = helper.select_hosts(data, 2, bidirectional=bidirectional, datatype=datatype)
-                instances = data['src_ip'].unique()
-                print('Number of hosts to be processed: ' + str(instances.shape[0]))
-            else:
-                datatype = 'non-regular' if flag == 'IOT' else 'regular'
-                data = helper.select_connections(data, 2, bidirectional=bidirectional, datatype=datatype)
-                instances = data.groupby(['src_ip', 'dst_ip']).size().reset_index().values.tolist()
-                print('Number of connections to be processed: ' + str(len(instances)))
-            # extract the data per host
-            for instance in instances:
-                if host_level:
-                    instance_name = instance
-                    print('Extracting traces for host ' + instance_name)
-                    instance_data = data.loc[data['src_ip'] == instance].sort_values(by='date').reset_index(drop=True)
-                    print('The number of flows for this host are: ' + str(instance_data.shape[0]))
-                else:
-                    instance_name = instance[0] + '-' + instance[1]
-                    print('Extracting traces for connection ' + instance_name)
-                    instance_data = data.loc[(data['src_ip'] == instance[0]) & (data['dst_ip'] == instance[1])].\
-                        sort_values(by='date').reset_index(drop=True)
-                    print('The number of flows for this connection are: ' + str(instance_data.shape[0]))
-
-                # first ask if new features has been added during training
-                new_features = int(input('Were there any new features added during training (no: 0 | yes: 1)? '))
-
-                if new_features:
-                    # extract the traces and save them in the traces' filepath
-                    aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | '
-                                            'yes-resample: 2 )? '))
-
-                    # set the traces output filepath depending on the aggregation value
-                    # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of
-                    # the helper.py file
-                    resample = False if aggregation == 1 else True
-                    aggregation = True
-                    if resample:
-                        traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + analysis_type + '/' \
-                                          + '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
-                                          instance_name + '-traces_resampled' + ('_bdr' if bidirectional else '') + '.txt'
-                    else:
-                        traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + analysis_type + '/' \
-                                          + '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
-                                          instance_name + '-traces_aggregated' + ('_bdr' if bidirectional else '') + '.txt'
-                    # add also the destination ip in case of aggregation
-                    if host_level:
-                        selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
-                    else:
-                        if resample:
-                            selected += ['date']
-                # if no new features have been added
-                else:
-                    traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + analysis_type + '/' + \
-                                      '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
-                                      instance_name + '-traces' + ('_bdr' if bidirectional else '') + '.txt'
-                    aggregation = False
-                    resample = False
-
-                # create the directory if it does not exist
-                os.makedirs(os.path.dirname(traces_filepath), exist_ok=True)
-
-                # and extract the traces
-                helper.extract_traces(instance_data, traces_filepath, selected, dynamic=True, aggregation=aggregation,
-                                      resample=resample)
-                # finally reset the selected features
-                selected = deepcopy(old_selected)
-
+        if flag == 'CTU-bi':
+            data = pd.read_pickle(training_filepath + '/binetflow_normal.pkl')
+        elif flag == 'IOT':
+            data = pd.read_pickle(training_filepath + '/zeek_normal.pkl')
         else:
+            data = pd.read_pickle(training_filepath + '/normal.pkl')
 
-            # set the input filepath
-            training_filepath = input('Give the relative path of the dataframe to be used for training: ')
+        if with_discretization:
+            # first find the discretization limits for each feature
+            discretization_dict = helper.find_discretization_clusters(data, [sel for sel in old_selected if 'num'
+                                                                             not in sel])
+            # and store them in a pickle in the training scenario's directory
+            discretization_filepath = training_filepath + '/discretization_limits.pkl'
+            with open(discretization_filepath, 'wb') as f:
+                pickle.dump(discretization_dict, f)
+            # then for each feature discretize its values and add the new features in the dataframe
+            for feature in discretization_dict.keys():
+                data[feature + '_num'] = data[feature].apply(helper.find_percentile,
+                                                             args=(discretization_dict[feature],))
+                selected.remove(feature)
+                selected += [feature + '_num']
+            old_selected = deepcopy(selected)
 
-            if flag == 'CTU-bi':
-                data = pd.read_pickle(training_filepath + '/binetflow_normal.pkl')
-            elif flag == 'IOT':
-                data = pd.read_pickle(training_filepath + '/zeek_normal.pkl')
-            else:
-                data = pd.read_pickle(training_filepath + '/normal.pkl')
+        # select only instances with significant number of flows (currently over 1000)
+        if host_level:
+            datatype = 'non-regular' if flag == 'IOT' else 'regular'
+            data = helper.select_hosts(data, 500, bidirectional=bidirectional, datatype=datatype)
+            instances = data['src_ip'].unique()
+            print('Number of hosts to be processed: ' + str(instances.shape[0]))
+        else:
+            datatype = 'non-regular' if flag == 'IOT' else 'regular'
+            data = helper.select_connections(data, 200, bidirectional=bidirectional, datatype=datatype)
+            instances = data.groupby(['src_ip', 'dst_ip']).size().reset_index().values.tolist()
+            print('Number of connections to be processed: ' + str(len(instances)))
 
-            if with_discretization:
-                # first find the discretization limits for each feature
-                discretization_dict = helper.find_discretization_clusters(data, [sel for sel in old_selected if 'num'
-                                                                                 not in sel])
-                # and store them in a pickle in the training scenario's directory
-                discretization_filepath = training_filepath + '/discretization_limits.pkl'
-                with open(discretization_filepath, 'wb') as f:
-                    pickle.dump(discretization_dict, f)
-                # then for each feature discretize its values and add the new features in the dataframe
-                for feature in discretization_dict.keys():
-                    data[feature + '_num'] = data[feature].apply(helper.find_percentile,
-                                                                 args=(discretization_dict[feature],))
-                    selected.remove(feature)
-                    selected += [feature + '_num']
-                old_selected = deepcopy(selected)
+        # initialize an empty list to hold the filepaths of the trace files for each host
+        traces_filepaths = []
 
-            # select only instances with significant number of flows (currently over 1000)
+        # extract the data per host
+        for instance in instances:
             if host_level:
-                datatype = 'non-regular' if flag == 'IOT' else 'regular'
-                data = helper.select_hosts(data, 500, bidirectional=bidirectional, datatype=datatype)
-                instances = data['src_ip'].unique()
-                print('Number of hosts to be processed: ' + str(instances.shape[0]))
+                instance_name = instance
+                print('Extracting traces for host ' + instance_name)
+                instance_data = data.loc[data['src_ip'] == instance].sort_values(by='date').reset_index(drop=True)
+                print('The number of flows for this host are: ' + str(instance_data.shape[0]))
             else:
-                datatype = 'non-regular' if flag == 'IOT' else 'regular'
-                data = helper.select_connections(data, 200, bidirectional=bidirectional, datatype=datatype)
-                instances = data.groupby(['src_ip', 'dst_ip']).size().reset_index().values.tolist()
-                print('Number of connections to be processed: ' + str(len(instances)))
+                instance_name = instance[0] + '-' + instance[1]
+                print('Extracting traces for connection ' + instance_name)
+                instance_data = data.loc[(data['src_ip'] == instance[0]) & (data['dst_ip'] == instance[1])].\
+                    sort_values(by='date').reset_index(drop=True)
+                print('The number of flows for this connection are: ' + str(instance_data.shape[0]))
 
-            # initialize an empty list to hold the filepaths of the trace files for each host
-            traces_filepaths = []
+            # first ask if new features are to be added
+            new_features = int(input('Are there any new features to be added (no: 0 | yes: 1)? '))
 
-            # extract the data per host
-            for instance in instances:
+            # extract the traces and save them in the traces' filepath
+            aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | yes-resample:'
+                                    ' 2 )? '))
+
+            # set the traces output filepath depending on the aggregation value
+            # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of the
+            # helper.py file
+            if not aggregation:
+                traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type + '/' \
+                                  + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' + \
+                                  instance_name + '-traces' + ('_bdr' if bidirectional else '') + '.txt'
+                aggregation = False
+                resample = False
+            else:
+                resample = False if aggregation == 1 else True
+                aggregation = True
+                if resample:
+                    traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type \
+                                      + '/' + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' \
+                                      + instance_name + '-traces_resampled' + ('' if new_features else '_reduced') \
+                                      + ('_bdr' if bidirectional else '') + '.txt'
+                else:
+                    traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type \
+                                      + '/' + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' \
+                                      + instance_name + '-traces_aggregated' + ('' if new_features else '_reduced') \
+                                      + ('_bdr' if bidirectional else '') + '.txt'
+                # add also the destination ip in case of aggregation
                 if host_level:
-                    instance_name = instance
-                    print('Extracting traces for host ' + instance_name)
-                    instance_data = data.loc[data['src_ip'] == instance].sort_values(by='date').reset_index(drop=True)
-                    print('The number of flows for this host are: ' + str(instance_data.shape[0]))
+                    selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
                 else:
-                    instance_name = instance[0] + '-' + instance[1]
-                    print('Extracting traces for connection ' + instance_name)
-                    instance_data = data.loc[(data['src_ip'] == instance[0]) & (data['dst_ip'] == instance[1])].\
-                        sort_values(by='date').reset_index(drop=True)
-                    print('The number of flows for this connection are: ' + str(instance_data.shape[0]))
-
-                # first ask if new features are to be added
-                new_features = int(input('Are there any new features to be added (no: 0 | yes: 1)? '))
-
-                # extract the traces and save them in the traces' filepath
-                aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | yes-resample:'
-                                        ' 2 )? '))
-
-                # set the traces output filepath depending on the aggregation value
-                # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of the
-                # helper.py file
-                if not aggregation:
-                    traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type + '/' \
-                                      + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' + \
-                                      instance_name + '-traces' + ('_bdr' if bidirectional else '') + '.txt'
-                    aggregation = False
-                    resample = False
-                else:
-                    resample = False if aggregation == 1 else True
-                    aggregation = True
                     if resample:
-                        traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type \
-                                          + '/' + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' \
-                                          + instance_name + '-traces_resampled' + ('' if new_features else '_reduced') \
-                                          + ('_bdr' if bidirectional else '') + '.txt'
-                    else:
-                        traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type \
-                                          + '/' + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' \
-                                          + instance_name + '-traces_aggregated' + ('' if new_features else '_reduced') \
-                                          + ('_bdr' if bidirectional else '') + '.txt'
-                    # add also the destination ip in case of aggregation
-                    if host_level:
-                        selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
-                    else:
-                        if resample:
-                            selected += ['date']
+                        selected += ['date']
 
-                # create the directory if it does not exist
-                os.makedirs(os.path.dirname(traces_filepath), exist_ok=True)
+            # create the directory if it does not exist
+            os.makedirs(os.path.dirname(traces_filepath), exist_ok=True)
 
-                # and extract the traces
-                helper.extract_traces(instance_data, traces_filepath, selected, dynamic=True, aggregation=aggregation,
-                                      resample=resample, new_features=bool(new_features))
+            # and extract the traces
+            helper.extract_traces(instance_data, traces_filepath, selected, dynamic=True, aggregation=aggregation,
+                                  resample=resample, new_features=bool(new_features))
 
-                # add the trace filepath of each host's traces to the list
-                traces_filepaths += [traces_filepath]
-                # and reset the selected features
-                selected = deepcopy(old_selected)
+            # add the trace filepath of each host's traces to the list
+            traces_filepaths += [traces_filepath]
+            # and reset the selected features
+            selected = deepcopy(old_selected)
     else:
         # in case the traces' filepath already exists, provide it (in this case only one path - NOT a list
         traces_filepaths = [input('Give the path to the input file for flexfringe: ')]
 
-    if not testing:
-        # create a model for each host
-        for traces_filepath in traces_filepaths:
-            # and set the flags for flexfringe
-            extra_args = input('Give any flag arguments for flexfinge in a key value way separated by comma in between '
-                               'e.g. key1:value1,ke2:value2,...: ').split(',')
+    # create a model for each host
+    for traces_filepath in traces_filepaths:
+        # and set the flags for flexfringe
+        extra_args = input('Give any flag arguments for flexfinge in a key value way separated by comma in between '
+                           'e.g. key1:value1,ke2:value2,...: ').split(',')
 
-            # run flexfringe to produce the automaton and plot it
-            modelled_data, storing_path = flexfringe(traces_filepath, **dict([arg.split(':') for arg in extra_args]))
-            show(modelled_data, storing_path)
+        # run flexfringe to produce the automaton and plot it
+        modelled_data, storing_path = flexfringe(traces_filepath, **dict([arg.split(':') for arg in extra_args]))
+        show(modelled_data, storing_path)

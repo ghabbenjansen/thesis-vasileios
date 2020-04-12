@@ -477,7 +477,7 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
 
             # create aggregated features if needed (currently with a hard-coded window length)
             if aggregation:
-                aggregation_length = '1S' if resample else min(10, int(len(windowed_data.index)))
+                aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
                 timed = True if resample else False
                 windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), aggregation_length, timed,
                                                      resample, new_features)
@@ -551,7 +551,7 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
         assertion_dict.update(zip(data.index[time_mask].tolist(), len(data.index[time_mask].tolist()) * [True]))
         # check for aggregation
         if aggregation:
-            aggregation_length = '1S' if resample else min(10, int(len(windowed_data.index)))
+            aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
             timed = True if resample else False
             windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), aggregation_length, timed,
                                                  resample, new_features)

@@ -204,20 +204,20 @@ def print_total_results(results):
 if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
-        debug_model_filepaths = glob.glob('outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1*.dot')
-        debug_train_trace_filepaths = glob.glob('Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-1*bdr.txt')
+        debug_model_filepaths = sorted(glob.glob('outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-42-*.dot'))
+        debug_train_trace_filepaths = sorted(glob.glob('Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-42-*.txt'))
 
         debug_methods = [
             'clustering'
-            # , 'multivariate gaussian'
+            , 'multivariate gaussian'
             # , 'probabilistic'
                          ]
 
         debug_clustering_methods = [
             # 'hdbscan'
             # ,
-            # 'LOF'
-            'isolation forest'
+            'LOF'
+            , 'isolation forest'
             # , 'kmeans'
         ]
 
@@ -318,11 +318,20 @@ if __name__ == '__main__':
         # and sort values by date
         if len(ips) == 1:
             # host level analysis
-            all_data = all_data[all_data['src_ip'] == ips[0]].sort_values(by='date').reset_index(drop=True)
+            if 'bdr' in test_traces_filepath:
+                all_data = all_data[(all_data['src_ip'] == ips[0]) | (all_data['dst_ip'] == ips[0])]\
+                    .sort_values(by='date').reset_index(drop=True)
+            else:
+                all_data = all_data[all_data['src_ip'] == ips[0]].sort_values(by='date').reset_index(drop=True)
         else:
             # connection level analysis
-            all_data = all_data[(all_data['src_ip'] == ips[0]) & (all_data['dst_ip'] == ips[1])].sort_values(by='date')\
-                .reset_index(drop=True)
+            if 'bdr' in test_traces_filepath:
+                all_data = all_data[((all_data['src_ip'] == ips[0]) & (all_data['dst_ip'] == ips[1])) |
+                                    ((all_data['dst_ip'] == ips[0]) & (all_data['src_ip'] == ips[1]))] \
+                    .sort_values(by='date').reset_index(drop=True)
+            else:
+                all_data = all_data[(all_data['src_ip'] == ips[0]) & (all_data['dst_ip'] == ips[1])]\
+                    .sort_values(by='date').reset_index(drop=True)
         true_labels = all_data['label'].values
         # needed to map datetimes to indices in case of resampled datasets
         true_datetimes = all_data['date'] if 'resampled' in test_traces_filepath else None
