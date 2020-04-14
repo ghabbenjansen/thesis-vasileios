@@ -157,24 +157,27 @@ class ModelNode:
             test_labels = (test_labels < epsilon).astype(np.int)
         return test_labels
 
-    def fit_clusters_on_observed(self, clustering_method='kmeans'):
+    def fit_clusters_on_observed(self, clustering_method='kmeans', transformer=None):
         """
         Function for fitting clusters on the data points observed at each state/node
         :param clustering_method: the clustering method (currently kmeans | hdbscan | Isolation Forest | LOF)
+        :param transformer: flag showing if RobustScaler should be used to normalize and scale the data
         :return: the fitted cluster estimator, and a normalization transformer in case it was used
         """
         x_train = self.attributes2dataset(self.observed_attributes).values
-        transformer = RobustScaler().fit(x_train)
+        if transformer is not None:
+            transformer = RobustScaler().fit(x_train)
+            x_train = transformer.transform(x_train)
         if clustering_method == "hdbscan":
             clusterer = hdbscan.HDBSCAN(min_cluster_size=min(ceil(x_train.shape[0]/2), 5), allow_single_cluster=True,
-                                        prediction_data=True).fit(transformer.transform(x_train))
+                                        prediction_data=True).fit(x_train)
         elif clustering_method == "isolation forest":
-            clusterer = IsolationForest().fit(transformer.transform(x_train))
+            clusterer = IsolationForest().fit(x_train)
         elif clustering_method == "LOF":
             clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/10), novelty=True).\
-                fit(transformer.transform(x_train))
+                fit(x_train)
         else:
-            clusterer = KMeans(n_clusters=2).fit(transformer.transform(x_train))
+            clusterer = KMeans(n_clusters=2).fit(x_train)
         return clusterer, transformer
 
     def predict_on_clusters(self, clusterer, clustering_method='kmeans', clustering_type='hard', transformer=None):
@@ -237,14 +240,17 @@ class ModelNode:
                 test_labels = clusterer.transform(x_test)
         return test_labels
 
-    def fit_multivariate_gaussian(self):
+    def fit_multivariate_gaussian(self, transformer=None):
         """
         Function for fitting a multivariate gaussian distribution on the the data points observed at each state/node
+        :param transformer: flag showing if RobustScaler should be used to normalize and scale the data
         :return: the estimated mean and covariance matrix of the fitted distribution
         """
         # features in rows and samples in columns
         x_train = self.attributes2dataset(self.observed_attributes).values
-        transformer = RobustScaler().fit(x_train)
+        if transformer is not None:
+            transformer = RobustScaler().fit(x_train)
+            x_train = transformer.transform(x_train)
         # x_train = np.transpose(self.attributes2dataset(self.observed_attributes).values)
 
         # old gaussian fitting
@@ -253,13 +259,12 @@ class ModelNode:
         # sigma = np.dot(x_train - m, (x_train - m).T) / x_train.shape[1]     # the estimated covariance matrix
         # return m, sigma
         try:
-            kernel = gaussian_kde(np.transpose(transformer.transform(x_train)))
+            kernel = gaussian_kde(np.transpose(x_train))
         except np.linalg.LinAlgError:
-            kernel = gaussian_kde(np.transpose(transformer.transform(x_train) +
-                                               0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
+            kernel = gaussian_kde(np.transpose(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
         return kernel, transformer
 
-    def predict_on_gaussian(self, kernel, transformer, epsilon='auto', prediction_type='hard'):
+    def predict_on_gaussian(self, kernel, transformer=None, epsilon='auto', prediction_type='hard'):
         """
         Function for predicting anomalies on the fitted multivariate gaussian distribution
         :param kernel: the fitted multivariate gaussian kernel
@@ -268,13 +273,19 @@ class ModelNode:
         :param prediction_type: the prediction type (hard or soft)
         :return: the prediction labels
         """
-        x_test = np.transpose(transformer.transform(self.attributes2dataset(self.testing_attributes).values))
+        if transformer is not None:
+            x_test = np.transpose(transformer.transform(self.attributes2dataset(self.testing_attributes).values))
+        else:
+            x_test = np.transpose(self.attributes2dataset(self.testing_attributes).values)
         # in case the classification threshold is set to auto, then its value is equal to the mean of the max and min
         # of the estimated pdf evaluated on the training set of the node
         if epsilon == 'auto':
-            x_train = np.transpose(transformer.transform(self.attributes2dataset(self.observed_attributes).values))
+            if transformer is not None:
+                x_train = np.transpose(transformer.transform(self.attributes2dataset(self.observed_attributes).values))
+            else:
+                x_train = np.transpose(self.attributes2dataset(self.observed_attributes).values)
             train_labels = kernel.evaluate(x_train)
-            epsilon = min(train_labels) / 1000000
+            epsilon = min(train_labels) / 100000000
 
         # old gaussian predictions
         # sigma_det = np.linalg.det(sigma)    # the determinant of the covariance matrix

@@ -240,52 +240,61 @@ def calculate_window_mask(data, start_date, end_date):
     return (data['date'] >= start_date) & (data['date'] <= end_date)
 
 
-def aggregate_in_windows(data, window, timed=False, resample=False, new_features=True):
+def aggregate_in_windows(data, selected_features, window, timed=False, resample=False, new_features=True):
     """
     Function for aggregating specific features of a dataframe in rolling windows of length window
     Currently the following features are taken into account: source port, destination ip/port, originator's bytes,
     responder's bytes, duration, and protocol
     :param data: the input dataframe
+    :param selected_features: the features that are contained in the dataframe (this value is passed even if it can be
+    inferred by the columns of the dataframe for ordering purposes between different runs of the function)
     :param window: the window length
     :param timed: boolean flag specifying if aggregation window should take into account the timestamps
     :param resample: boolean flag specifying if aggregation window should be rolling or resampling
     :param new_features: boolean flag specifying if new features should be added to the existing ones
     :return: a dataframe with the aggregated features
     """
-    old_column_names = deepcopy(data.columns.values)
+    old_column_names = deepcopy(selected_features)
     # if the timed flag is True then timestamps are used as indices
     if timed:
         data.set_index('date', inplace=True)
     if not resample:
-        # check for ports in features
-        for feature in [column_name for column_name in old_column_names if 'port' in column_name]:
-            if new_features:
-                data['unique_' + feature + 's'] = data[feature].rolling(window, min_periods=1).apply(lambda x:
-                                                                                                     len(set(x)),
-                                                                                                     raw=False)
-                data['std_' + feature + 's'] = data[feature].rolling(window, min_periods=1).std()
-            else:
+        for feature in old_column_names:
+            # check for ports in features
+            if 'port' in feature:
+                if new_features:
+                    data['unique_' + feature + 's'] = data[feature].rolling(window, min_periods=1).apply(lambda x:
+                                                                                                         len(set(x)),
+                                                                                                         raw=False)
+                    data['std_' + feature + 's'] = data[feature].rolling(window, min_periods=1).std()
+                else:
+                    data['median_' + feature] = data[feature].rolling(window, min_periods=1).median()
+            # check for protocol
+            if 'protocol_num' in feature:
+                data['argmax_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1).\
+                    apply(lambda x: mode(x)[0], raw=False)
+                if new_features:
+                    data['std_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1).std()
+            # check for duration in features
+            if 'duration' in feature:
                 data['median_' + feature] = data[feature].rolling(window, min_periods=1).median()
-        # check for protocol
-        if 'protocol_num' in old_column_names:
-            data['argmax_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1).\
-                apply(lambda x: mode(x)[0], raw=False)
-            if new_features:
-                data['std_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1).std()
-        # check for duration in features
-        for feature in [column_name for column_name in old_column_names if 'duration' in column_name]:
-            data['median_' + feature] = data[feature].rolling(window, min_periods=1).median()
-            if new_features:
-                data['std_' + feature] = data[feature].rolling(window, min_periods=1).std()
-        # check for bytes in features
-        for feature in [column_name for column_name in old_column_names if 'bytes' in column_name]:
-            data['median_' + feature] = data[feature].rolling(window, min_periods=1).median()
-            if new_features:
-                data['std_' + feature] = data[feature].rolling(window, min_periods=1).std()
-        if new_features:
-            if 'dst_ip' in old_column_names:
-                data['unique_dst_ips'] = pd.DataFrame(pd.Categorical(data['dst_ip']).codes, index=data.index).\
-                    rolling(window, min_periods=1).apply(lambda x: len(set(x)), raw=False)
+                if new_features:
+                    data['std_' + feature] = data[feature].rolling(window, min_periods=1).std()
+            # check for bytes in features
+            if 'bytes' in feature:
+                data['median_' + feature] = data[feature].rolling(window, min_periods=1).median()
+                if new_features:
+                    data['std_' + feature] = data[feature].rolling(window, min_periods=1).std()
+            # check for date difference in features
+            if 'date_diff' in feature:
+                data['median_' + feature] = data[feature].rolling(window, min_periods=1).median()
+                if new_features:
+                    data['std_' + feature] = data[feature].rolling(window, min_periods=1).std()
+            # check for destination IP in features in case new features are considered
+            if 'dst_ip' in feature:
+                if new_features:
+                    data['unique_dst_ips'] = pd.DataFrame(pd.Categorical(data['dst_ip']).codes, index=data.index).\
+                        rolling(window, min_periods=1).apply(lambda x: len(set(x)), raw=False)
         data.drop(columns=old_column_names, inplace=True)
         data.bfill(axis='rows', inplace=True)
     else:
@@ -293,32 +302,39 @@ def aggregate_in_windows(data, window, timed=False, resample=False, new_features
         frames = []
         new_column_names = []
         # check for ports in features
-        for feature in [column_name for column_name in old_column_names if 'port' in column_name]:
-            new_column_names += (['unique' + feature + 's', 'std_' + feature + 's'] if new_features else
-                                 ['median_' + feature])
-            frames += ([data[feature].resample(window).nunique(), data[feature].resample(window).std()] if
-                       new_features else [data[feature].resample(window).median()])
-        # check for protocol
-        if 'protocol_num' in old_column_names:
-            new_column_names += (['argmax_protocol_num', 'std_protocol_num'] if new_features else
-                                 ['argmax_protocol_num'])
-            frames += ([data['protocol_num'].resample(window).apply(lambda x: mode(x)[0]),
-                       data['protocol_num'].resample(window).std()] if new_features else
-                       [data['protocol_num'].resample(window).apply(lambda x: mode(x)[0])])
-        # check for duration in features
-        for feature in [column_name for column_name in old_column_names if 'duration' in column_name]:
-            new_column_names += (['median_' + feature, 'std_' + feature] if new_features else ['median_' + feature])
-            frames += ([data[feature].resample(window).median(), data[feature].resample(window).std()] if
-                       new_features else [data[feature].resample(window).median()])
-        # check for bytes in features
-        for feature in [column_name for column_name in old_column_names if 'bytes' in column_name]:
-            new_column_names += (['median_' + feature, 'std_' + feature] if new_features else ['median_' + feature])
-            frames += ([data[feature].resample(window).median(), data[feature].resample(window).std()] if new_features
-                       else [data[feature].resample(window).median()])
-        if new_features:
-            if 'dst_ip' in old_column_names:
-                new_column_names += ['unique_dst_ips']
-                frames += [data['dst_ip'].resample(window).nunique()]
+        for feature in old_column_names:
+            if 'port' in feature:
+                new_column_names += (['unique' + feature + 's', 'std_' + feature + 's'] if new_features else
+                                     ['median_' + feature])
+                frames += ([data[feature].resample(window).nunique(), data[feature].resample(window).std()] if
+                           new_features else [data[feature].resample(window).median()])
+            # check for protocol
+            if 'protocol_num' in feature:
+                new_column_names += (['argmax_protocol_num', 'std_protocol_num'] if new_features else
+                                     ['argmax_protocol_num'])
+                frames += ([data['protocol_num'].resample(window).apply(lambda x: mode(x)[0]),
+                           data['protocol_num'].resample(window).std()] if new_features else
+                           [data['protocol_num'].resample(window).apply(lambda x: mode(x)[0])])
+            # check for duration in features
+            if 'duration' in feature:
+                new_column_names += (['median_' + feature, 'std_' + feature] if new_features else ['median_' + feature])
+                frames += ([data[feature].resample(window).median(), data[feature].resample(window).std()] if
+                           new_features else [data[feature].resample(window).median()])
+            # check for bytes in features
+            if 'bytes' in feature:
+                new_column_names += (['median_' + feature, 'std_' + feature] if new_features else ['median_' + feature])
+                frames += ([data[feature].resample(window).median(), data[feature].resample(window).std()]
+                           if new_features else [data[feature].resample(window).median()])
+            # check for date difference in features
+            if 'date_diff' in feature:
+                new_column_names += (['median_' + feature, 'std_' + feature] if new_features else ['median_' + feature])
+                frames += ([data[feature].resample(window).median(), data[feature].resample(window).std()] if
+                           new_features else [data[feature].resample(window).median()])
+            # check for destination IP in features in case new features are considered
+            if 'dst_ip' in feature:
+                if new_features:
+                    new_column_names += ['unique_dst_ips']
+                    frames += [data['dst_ip'].resample(window).nunique()]
         data = pd.concat(frames, axis=1)
         data.columns = new_column_names
         data.dropna(inplace=True)
@@ -479,13 +495,13 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
             if aggregation:
                 aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
                 timed = True if resample else False
-                windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), aggregation_length, timed,
-                                                     resample, new_features)
+                windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), selected,
+                                                     aggregation_length, timed, resample, new_features)
                 selected = windowed_data.columns.values
                 num_of_features = len(selected)
 
             # extract the trace of this window and add it to the traces' list
-            ints = False if aggregation or 'duration' in old_selected else True
+            ints = False if aggregation or 'duration' in old_selected or 'date_diff' in old_selected else True
             # this case applies only on resampling in case there are no more than 1 flow per resampling window
             # TODO: maybe check if flows are missed when resampling is used
             if windowed_data.shape[0] != 0:
@@ -553,12 +569,12 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
         if aggregation:
             aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
             timed = True if resample else False
-            windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), aggregation_length, timed,
-                                                 resample, new_features)
+            windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), selected, aggregation_length,
+                                                 timed, resample, new_features)
             selected = windowed_data.columns.values
             num_of_features = len(selected)
         # and add the new trace
-        ints = False if aggregation or 'duration' in old_selected else True
+        ints = False if aggregation or 'duration' in old_selected or 'date_diff' in old_selected else True
         if windowed_data.shape[0] != 0:     # for the resampling case
             traces += [convert2flexfringe_format(windowed_data[selected], ints)]
         # store also the starting and the ending index of the current time window

@@ -14,7 +14,7 @@ from operator import add
 debugging = 1
 
 
-def train_model(traces_filepath, indices_filepath, model, method, clustering_method=None):
+def train_model(traces_filepath, indices_filepath, model, method, clustering_method=None, transformer=None):
     """
     Function for CTU13 an input model given some input traces stored in the provided filepath. The traces are firstly
     run on the model, so that each state of the model can be updated with the records passing from it. Subsequently, the
@@ -24,23 +24,23 @@ def train_model(traces_filepath, indices_filepath, model, method, clustering_met
     :param model: the given model
     :param method: the CTU13 method to be used (currently probabilistic | multivariate gaussian | clustering)
     :param clustering_method: the clustering method to be used if clustering has been selected as method, otherwise None
+    :param transformer: flag showing if RobustScaler should be used to normalize and scale the data
     :return: the trained model
     """
     model = run_traces_on_model(traces_filepath, indices_filepath, model)
     model.set_all_weights(model.get_maximum_weight())
     for node_label in model.nodes_dict.keys():
-        # TODO: understand why the second clause is needed -> shouldn't be
         if node_label != 'root' and len(model.nodes_dict[node_label].observed_indices) > 2:
             if method == 'clustering':
                 model.nodes_dict[node_label].training_vars['clusterer'], \
                 model.nodes_dict[node_label].training_vars['transformer'] = model.nodes_dict[node_label].\
-                    fit_clusters_on_observed(clustering_method)
+                    fit_clusters_on_observed(clustering_method, transformer)
             elif method == "multivariate gaussian":
                 # model.nodes_dict[node_label].training_vars['m'], model.nodes_dict[node_label].training_vars['sigma'] = \
                 #     model.nodes_dict[node_label].fit_multivariate_gaussian()
                 model.nodes_dict[node_label].training_vars['kernel'], \
                 model.nodes_dict[node_label].training_vars['transformer'] = \
-                    model.nodes_dict[node_label].fit_multivariate_gaussian()
+                    model.nodes_dict[node_label].fit_multivariate_gaussian(transformer)
             else:
                 model.nodes_dict[node_label].training_vars['quantile_values'] = \
                     model.nodes_dict[node_label].fit_quantiles_on_observed()
@@ -204,12 +204,12 @@ def print_total_results(results):
 if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
-        debug_model_filepaths = sorted(glob.glob('outputs/IOT23/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-*.dot'))
-        debug_train_trace_filepaths = sorted(glob.glob('Datasets/IOT23/training/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/Malware-Capture-1-*bdr.txt'))
+        debug_model_filepaths = sorted(glob.glob('outputs/IOT23/connection_level/dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes_date_diff/Malware-Capture-1-*103_*.dot'))
+        debug_train_trace_filepaths = sorted(glob.glob('Datasets/IOT23/training/connection_level/dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes_date_diff/Malware-Capture-1-*103-traces*.txt'))
 
         debug_methods = [
             'clustering'
-            , 'multivariate gaussian'
+            # , 'multivariate gaussian'
             # , 'probabilistic'
                          ]
 

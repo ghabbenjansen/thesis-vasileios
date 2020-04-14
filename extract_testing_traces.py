@@ -19,20 +19,22 @@ if __name__ == '__main__':
     if flag in ['CTU-bi', 'UNSW', 'CICIDS']:
         selected = [
             # 'src_port'
-            # , 'dst_port'
-            'protocol_num'
+            'dst_port'
+            , 'protocol_num'
             # , 'duration'
             , 'src_bytes'
             , 'dst_bytes'
+            , 'date_diff'
                     ]
     else:
         selected = [
             # 'src_port'
-            # 'dst_port'
-            'protocol_num'
+            'dst_port'
+            , 'protocol_num'
             # , 'duration'
             , 'orig_ip_bytes'
             , 'resp_ip_bytes'
+            , 'date_diff'
         ]
     old_selected = deepcopy(selected)
 
@@ -42,8 +44,8 @@ if __name__ == '__main__':
     bidirectional = False
 
     # set the input filepath of the dataframes' directory
-    # testing_filepath = input('Give the relative path of the dataset to be used for testing: ')
-    testing_filepath = sys.argv[1]
+    testing_filepath = input('Give the relative path of the dataset to be used for testing: ')
+    # testing_filepath = sys.argv[1]
     if flag == 'CTU-bi':
         normal = pd.read_pickle(testing_filepath + '/binetflow_normal.pkl')
         anomalous = pd.read_pickle(testing_filepath + '/binetflow_anomalous.pkl')
@@ -93,6 +95,10 @@ if __name__ == '__main__':
             instance_data = data.loc[(data['src_ip'] == instance[0]) & (data['dst_ip'] == instance[1])].\
                 sort_values(by='date').reset_index(drop=True)
             print('The number of flows for this connection are: ' + str(instance_data.shape[0]))
+
+        # create a column with the time difference between consecutive flows
+        instance_data['date_diff'] = instance_data['date'].sort_values().diff().astype('timedelta64[ms]') * 0.001
+        instance_data['date_diff'].fillna(0, inplace=True)
 
         # first ask if new features has been added during training
         # new_features = int(input('Were there any new features added during training (no: 0 | yes: 1)? '))
