@@ -32,9 +32,11 @@ if __name__ == '__main__':
             'dst_port'
             , 'protocol_num'
             # , 'duration'
-            , 'orig_ip_bytes'
-            , 'resp_ip_bytes'
-            , 'date_diff'
+            # 'orig_ip_bytes'
+            # , 'resp_ip_bytes'
+            # , 'date_diff'
+            , 'orig_bytes_per_packet'
+            , 'resp_bytes_per_packet'
         ]
     old_selected = deepcopy(selected)
 
@@ -99,6 +101,12 @@ if __name__ == '__main__':
         # create a column with the time difference between consecutive flows
         instance_data['date_diff'] = instance_data['date'].sort_values().diff().astype('timedelta64[ms]') * 0.001
         instance_data['date_diff'].fillna(0, inplace=True)
+
+        # create column with the ratio of bytes to packets
+        instance_data['orig_bytes_per_packet'] = instance_data['orig_ip_bytes'] / instance_data['orig_packets']
+        instance_data['orig_bytes_per_packet'].fillna(0, inplace=True)
+        instance_data['resp_bytes_per_packet'] = instance_data['resp_ip_bytes'] / instance_data['resp_packets']
+        instance_data['resp_bytes_per_packet'].fillna(0, inplace=True)
 
         # first ask if new features has been added during training
         # new_features = int(input('Were there any new features added during training (no: 0 | yes: 1)? '))

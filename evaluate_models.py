@@ -204,12 +204,12 @@ def print_total_results(results):
 if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
-        debug_model_filepaths = sorted(glob.glob('outputs/IOT23/connection_level/dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes_date_diff/Malware-Capture-1-*103_*.dot'))
-        debug_train_trace_filepaths = sorted(glob.glob('Datasets/IOT23/training/connection_level/dst_port_protocol_num_orig_ip_bytes_resp_ip_bytes_date_diff/Malware-Capture-1-*103-traces*.txt'))
+        debug_model_filepaths = sorted(glob.glob('outputs/IOT23/connection_level/dst_port_protocol_num_orig_bytes_per_packet_resp_bytes_per_packet/Malware-Capture-17-*.dot'))
+        debug_train_trace_filepaths = sorted(glob.glob('Datasets/IOT23/training/connection_level/dst_port_protocol_num_orig_bytes_per_packet_resp_bytes_per_packet/Malware-Capture-17-*.txt'))
 
         debug_methods = [
             'clustering'
-            # , 'multivariate gaussian'
+            , 'multivariate gaussian'
             # , 'probabilistic'
                          ]
 

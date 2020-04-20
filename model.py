@@ -172,7 +172,7 @@ class ModelNode:
             clusterer = hdbscan.HDBSCAN(min_cluster_size=min(ceil(x_train.shape[0]/2), 5), allow_single_cluster=True,
                                         prediction_data=True).fit(x_train)
         elif clustering_method == "isolation forest":
-            clusterer = IsolationForest().fit(x_train)
+            clusterer = IsolationForest(max_samples=0.1).fit(x_train)
         elif clustering_method == "LOF":
             clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/10), novelty=True).\
                 fit(x_train)
