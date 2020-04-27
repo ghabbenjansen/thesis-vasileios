@@ -5,6 +5,101 @@ from collections import Counter
 import matplotlib.pyplot as plt
 
 
+def separate_by_connections(data, threshold):
+    """
+    Function for grouping a dataset of flows according to their source-destination IP pairs and then splitting the data
+    to those with long connections (connections with more than threshold flows) and short connections (connections with
+    less than threshold flows). The intuition is that connections with too few flows cannot be properly modelled by the
+    multivariate version of flexfringe. Thus, they will be dealt in a different way.
+    :param data: the NetFlow dataset
+    :param threshold: the threshold number of flows to be considered as a separation limit
+    :return: the two split datasets according to the number of flows per connection
+    """
+    connections_cnts = data.groupby(['src_ip', 'dst_ip']).agg(['count']).reset_index()
+
+    big_connections = connections_cnts[connections_cnts[('date', 'count')] > threshold]
+    small_connections = connections_cnts[connections_cnts[('date', 'count')] <= threshold]
+
+    big_data = data.loc[(data['src_ip'].isin(big_connections['src_ip'])) &
+                        (data['dst_ip'].isin(big_connections['dst_ip']))].sort_values(by='date').reset_index(drop=True)
+    small_data = data.loc[(data['src_ip'].isin(small_connections['src_ip'])) &
+                          (data['dst_ip'].isin(small_connections['dst_ip']))].sort_values(by='date').reset_index(drop=True)
+
+    return big_data, small_data
+
+
+def separate_by_ports(data, threshold):
+    """
+    Function for grouping a dataset of flows by their destination ports. The flows are separated according to the number
+    of times specific ports appear. The intuition here is that for connections with small number of flows it is highly
+    likely that flows pointing to similar ports will demonstrate also similar
+    behaviour even if they are directed to different IPs.
+    :param data: the NetFlow dataset
+    :param threshold: the threshold number of flows to be considered as a separation limit
+    :return: the two split datasets according to the distribution of ports
+    """
+    ports_cnts = data.groupby(['dst_port']).agg(['count']).reset_index()
+
+    ports_many_flows = ports_cnts[ports_cnts[('date', 'count')] > threshold]
+    ports_few_flows = ports_cnts[ports_cnts[('date', 'count')] <= threshold]
+
+    data_with_few_ports = data.loc[data['dst_port'].isin(ports_many_flows['dst_port'])].reset_index(
+        drop=True)
+    data_with_lots_ports = data.loc[data['dst_port'].isin(ports_few_flows['dst_port'])].reset_index(
+        drop=True)
+
+    return data_with_few_ports, data_with_lots_ports
+
+
+def separate_by_dst_bytes(data):
+    """
+    Function for separating a dataset of flows by the number of bytes received. The intuition here is that flows with
+    zero bytes received could possibly be malicious.
+    :param data: the NetFlow dataset
+    :return: the two split datasets according to the number of bytes received
+    """
+    # TODO: add distinction in case the IOT dataset is not used
+    zero_dst_data = data[data['resp_ip_bytes'] == 0].reset_index(drop=True)
+    non_zero_dst_data = data[data['resp_ip_bytes'] != 0].reset_index(drop=True)
+    return zero_dst_data, non_zero_dst_data
+
+
+def apply_kmeans(x):
+    """
+    Function for applying k-means clustering to a given set of data. Before clustering, the ELBOW method is applied to
+    decide on the number of clusters to be used.
+    :param x: the input dataset
+    :return: the fitted clusters
+    """
+    print('----------------------- Finding optimal number of clusters -----------------------')
+    Sum_of_squared_distances = []
+    for k in range(1, 11):
+        if x.shape[0] > 100000:
+            km = MiniBatchKMeans(n_clusters=k, random_state=0, batch_size=10000)
+        else:
+            km = KMeans(n_clusters=k, random_state=0)
+        km = km.fit(x)
+        Sum_of_squared_distances.append(km.inertia_)
+
+    plt.figure()
+    plt.plot(range(1, 11), Sum_of_squared_distances, 'bx-')
+    plt.xlabel('k')
+    plt.ylabel('Sum_of_squared_distances')
+    plt.title('Elbow Method For Optimal k')
+    plt.grid()
+    plt.show()
+
+    # provide the desired number of discretization points according to the ELBOW plot
+    num_clusters = int(input('Enter your preferred number of clusters: '))
+
+    if x.shape[0] > 100000:
+        kmeans = MiniBatchKMeans(n_clusters=num_clusters, random_state=0, batch_size=10000).fit(x)
+    else:
+        kmeans = KMeans(n_clusters=num_clusters, random_state=0).fit(x)
+
+    return kmeans
+
+
 if __name__ == '__main__':
     filepath = 'Datasets/IOT23/Malware-Capture-8-1'
     normal = pd.read_pickle(filepath + '/zeek_normal.pkl')
