@@ -186,10 +186,10 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, chunks=False, expl=F
 
 if __name__ == '__main__':
     # filepath = input("Enter the desired filepath: ")
-    filepath = 'Datasets/IOT23/Malware-Capture-39-1/conn.log.labeled.txt'
+    filepath = 'Datasets/CTU13/scenario1/scenario01_ctu13.binetflow.txt'
 
     # Choose between the flags CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT
-    flag = 'IOT'
+    flag = 'CTU-bi'
     # while True:
     #     flag = input("Enter the desired flag (CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT): ")
     #     if flag in ['CTU-uni', 'CTU-bi', 'CTU-mixed', 'CICIDS', 'CIDDS', 'UNSW', 'IOT']:

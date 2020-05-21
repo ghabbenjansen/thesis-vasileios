@@ -10,7 +10,7 @@ import sys
 
 if __name__ == '__main__':
     # first set the flag of the type of dataset to be used
-    flag = 'IOT'
+    flag = 'CTU-bi'
     # Check if discretization is enabled
     # with_discretization = int(
     #     input('Discretize numeric features (ports, bytes, duration, packets) (no: 0 | yes: 1)? '))
@@ -24,7 +24,7 @@ if __name__ == '__main__':
             # , 'duration'
             , 'src_bytes'
             , 'dst_bytes'
-            , 'date_diff'
+            # , 'date_diff'
                     ]
     else:
         selected = [
@@ -41,7 +41,7 @@ if __name__ == '__main__':
     old_selected = deepcopy(selected)
 
     # host_level = int(input('Select the type of modelling to be conducted (connection level: 0 | host level: 1): '))
-    host_level = 0
+    host_level = 1
     analysis_type = 'host_level' if host_level else 'connection_level'
     bidirectional = False
 
@@ -75,13 +75,13 @@ if __name__ == '__main__':
     # for testing keep only hosts that have at least 2 flows so that enough information is available
     #  currently only ips with at least 2000 flows are used for testing
     if host_level:
-        datatype = 'non-regular' if flag == 'IOT' else 'regular'
-        data = helper.select_hosts(data, 1, bidirectional=bidirectional, datatype=datatype)
+        # datatype = 'non-regular' if flag == 'IOT' else 'regular'
+        # data = helper.select_hosts(data, 1, bidirectional=bidirectional, datatype=datatype)
         instances = data['src_ip'].unique()
         print('Number of hosts to be processed: ' + str(instances.shape[0]))
     else:
-        datatype = 'non-regular' if flag == 'IOT' else 'regular'
-        data = helper.select_connections(data, 1, bidirectional=bidirectional, datatype=datatype)
+        # datatype = 'non-regular' if flag == 'IOT' else 'regular'
+        # data = helper.select_connections(data, 1, bidirectional=bidirectional, datatype=datatype)
         instances = data.groupby(['src_ip', 'dst_ip']).size().reset_index().values.tolist()
         print('Number of connections to be processed: ' + str(len(instances)))
     # extract the data per host
@@ -102,11 +102,11 @@ if __name__ == '__main__':
         instance_data['date_diff'] = instance_data['date'].sort_values().diff().astype('timedelta64[ms]') * 0.001
         instance_data['date_diff'].fillna(0, inplace=True)
 
-        # create column with the ratio of bytes to packets
-        instance_data['orig_bytes_per_packet'] = instance_data['orig_ip_bytes'] / instance_data['orig_packets']
-        instance_data['orig_bytes_per_packet'].fillna(0, inplace=True)
-        instance_data['resp_bytes_per_packet'] = instance_data['resp_ip_bytes'] / instance_data['resp_packets']
-        instance_data['resp_bytes_per_packet'].fillna(0, inplace=True)
+        # # create column with the ratio of bytes to packets
+        # instance_data['orig_bytes_per_packet'] = instance_data['orig_ip_bytes'] / instance_data['orig_packets']
+        # instance_data['orig_bytes_per_packet'].fillna(0, inplace=True)
+        # instance_data['resp_bytes_per_packet'] = instance_data['resp_ip_bytes'] / instance_data['resp_packets']
+        # instance_data['resp_bytes_per_packet'].fillna(0, inplace=True)
 
         # first ask if new features has been added during training
         # new_features = int(input('Were there any new features added during training (no: 0 | yes: 1)? '))

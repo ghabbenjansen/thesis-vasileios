@@ -204,8 +204,8 @@ def print_total_results(results):
 if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
-        debug_model_filepaths = sorted(glob.glob('outputs/IOT23/connection_level/dst_port_protocol_num_orig_bytes_per_packet_resp_bytes_per_packet/Malware-Capture-17-*.dot'))
-        debug_train_trace_filepaths = sorted(glob.glob('Datasets/IOT23/training/connection_level/dst_port_protocol_num_orig_bytes_per_packet_resp_bytes_per_packet/Malware-Capture-17-*.txt'))
+        debug_model_filepaths = sorted(glob.glob('outputs/CTU13/host_level/dst_port_protocol_num_src_bytes_dst_bytes/*_resampled_reduced_dfa.dot'))
+        debug_train_trace_filepaths = sorted(glob.glob('Datasets/CTU13/training/host_level/dst_port_protocol_num_src_bytes_dst_bytes/*-traces.txt'))
 
         debug_methods = [
             'clustering'
@@ -223,6 +223,9 @@ if __name__ == '__main__':
 
         parameters = []
         for model_filepath, trace_filepath in zip(debug_model_filepaths, debug_train_trace_filepaths):
+            # check that the right model and trace files are used
+            assert (re.search('-(.+?)_', model_filepath.split('/')[-1]).group(1) ==
+                    re.search('-(.+)-', trace_filepath.split('/')[-1]).group(1)), "Model-trace mismatch!!"
             for method in debug_methods:
                 if method == 'clustering':
                     for clutering_method in debug_clustering_methods:
@@ -230,7 +233,7 @@ if __name__ == '__main__':
                 else:
                     parameters += [(model_filepath, trace_filepath, method)]
 
-        flag = 'IOT'
+        flag = 'CTU-bi'
         n = len(parameters)
     else:
         flag = int(input('Provide the type of dataset to be used: '))
@@ -271,8 +274,7 @@ if __name__ == '__main__':
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
         # get the testing traces filepath pattern through STDIN mostly so that datasets can run in parallel
-        # debug_test_trace_filepaths = sorted(glob.glob('Datasets/IOT23/test/connection_level/protocol_num_orig_ip_bytes_resp_ip_bytes/*.txt'))
-        debug_test_trace_filepaths = sorted(glob.glob(sys.argv[1]))
+        debug_test_trace_filepaths = sorted(glob.glob('Datasets/CTU13/test/host_level/dst_port_protocol_num_src_bytes_dst_bytes/*-traces.txt'))
         debug_test_set_filepaths = list(map(lambda x: '/'.join(x.split('/')[0:2]) + '/'
                                                       + '-'.join(x.split('/')[-1].split('-')[:(-3 if 'connection' in x
                                                                                                else -2)]),
@@ -333,6 +335,7 @@ if __name__ == '__main__':
                 all_data = all_data[(all_data['src_ip'] == ips[0]) & (all_data['dst_ip'] == ips[1])]\
                     .sort_values(by='date').reset_index(drop=True)
         true_labels = all_data['label'].values
+        # TODO: add different analysis level statistics in the results (host - connection) and detailed labels
         # needed to map datetimes to indices in case of resampled datasets
         true_datetimes = all_data['date'] if 'resampled' in test_traces_filepath else None
         # keep one dictionary to aggregate the results of each model over all flows on the test set

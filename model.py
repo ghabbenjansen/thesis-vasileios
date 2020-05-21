@@ -251,7 +251,6 @@ class ModelNode:
         if transformer is not None:
             transformer = RobustScaler().fit(x_train)
             x_train = transformer.transform(x_train)
-        # x_train = np.transpose(self.attributes2dataset(self.observed_attributes).values)
 
         # old gaussian fitting
         # m = np.sum(x_train, axis=1) / x_train.shape[1]     # the estimated mean
@@ -285,7 +284,7 @@ class ModelNode:
             else:
                 x_train = np.transpose(self.attributes2dataset(self.observed_attributes).values)
             train_labels = kernel.evaluate(x_train)
-            epsilon = min(train_labels) / 100000000
+            epsilon = min(train_labels) / 1000      # this value should be tuned
 
         # old gaussian predictions
         # sigma_det = np.linalg.det(sigma)    # the determinant of the covariance matrix
@@ -348,17 +347,15 @@ class Model:
                 # then if there are destination nodes
                 if len(self.nodes_dict[src_node_label].dst_nodes) != 0:
                     # there should be only one otherwise there would be conditions around
-                    if len(self.nodes_dict[src_node_label].dst_nodes) != 1:
-                        print('Something went wrong -> Only one destination state should exist in non-conditional '
-                              'cases!!!!')
-                        return -1
+                    assert (len(self.nodes_dict[src_node_label].dst_nodes) != 1), 'Something went wrong: Only one ' \
+                                                                                  'destination state should exist in ' \
+                                                                                  'non-conditional cases!!!!'
                     # if there is indeed one return its label
-                    else:
-                        return list(self.nodes_dict[src_node_label].dst_nodes)[0]
+                    return list(self.nodes_dict[src_node_label].dst_nodes)[0]
                 # if there is no destination node then we are in a sink state so return the source label
                 else:
                     return src_node_label
-            # in case there are conditional transitions peak the appropriate one
+            # in case there are conditional transitions pick the appropriate one
             else:
                 destinations = [(dst_node, self.nodes_dict[src_node_label].evaluate_transition(dst_node,
                                                                                                input_attributes))

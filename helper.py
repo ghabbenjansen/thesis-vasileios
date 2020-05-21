@@ -36,10 +36,9 @@ def check_ips(x, ips_dict, datatype='regular'):
     return x
 
 
-def select_hosts(init_data, threshold=50, bidirectional=False, create_features=False, datatype='regular'):
+def select_hosts(init_data, threshold=50, bidirectional=False, datatype='regular'):
     """
-    Function for keeping only the flows of source IPs with at least a threshold number of records in the data.
-    Also some extra features are added in case the create_features flag is on.
+    Function for identifying only the flows of source IPs with at least a threshold number of records in the data.
     :param init_data: the initial data
     :param threshold: the threshold number of flows per host IP
     :param bidirectional: a boolean flag for checking for host IPs in both directions (source and destination). If set
@@ -49,21 +48,13 @@ def select_hosts(init_data, threshold=50, bidirectional=False, create_features=F
     the IOT-based one (orig_ip_bytes, resp_ip_bytes)
     :return: the selected data
     """
-    host_cnts = init_data.groupby(by='src_ip').agg(['count']).reset_index()
+    # host_cnts = init_data.groupby(by='src_ip').agg(['count']).reset_index()
+    host_cnts = init_data.groupby(by='src_ip').size().reset_index().rename(columns={0: "size"})
     if bidirectional:
-        ips_counts = dict(host_cnts[['src_ip', 'dst_ip']].values.tolist())
+        ips_counts = dict(host_cnts.values.tolist())
         init_data = init_data.apply(lambda x: check_ips(x, ips_counts, datatype), axis=1)
-        host_cnts = init_data.groupby(by='src_ip').agg(['count']).reset_index()
-    sel_data = init_data.loc[(init_data['src_ip'].isin(host_cnts.loc[host_cnts[('date', 'count')] >
-                                                                     threshold]['src_ip']))].reset_index(drop=True)
-
-    if create_features:
-        sel_data['orig_packets_per_s'] = sel_data['orig_packets'] / sel_data['duration']
-        sel_data['resp_packets_per_s'] = sel_data['resp_packets'] / sel_data['duration']
-        sel_data['orig_bytes_per_s'] = sel_data['orig_ip_bytes'] / sel_data['duration']
-        sel_data['resp_bytes_per_s'] = sel_data['resp_ip_bytes'] / sel_data['duration']
-
-    return sel_data
+        host_cnts = init_data.groupby(by='src_ip').size().reset_index().rename(columns={0: "size"})
+    return host_cnts[host_cnts['size'] > threshold]
 
 
 def check_connections(x, connections_dict, datatype='regular'):
@@ -91,38 +82,25 @@ def check_connections(x, connections_dict, datatype='regular'):
     return x
 
 
-def select_connections(init_data, threshold=50, bidirectional=False, create_features=False, datatype='regular'):
+def select_connections(init_data, threshold=50, bidirectional=False, datatype='regular'):
     """
-    Function for keeping only the flows with at least a threshold number of source-destination IP pairs in the data.
-    Also some extra features are added, while the numerical representation of labels and detailed labels is introduced
+    Function for identifying only the flows with at least a threshold number of source-destination IP pairs in the data.
     :param init_data: the initial data
     :param threshold: the threshold number of flows per source-destination IP pairs
     :param bidirectional: a boolean flag for checking for connections in both directions (source and destination). If
     set to False, only the original direction will be checked
-    :param create_features: a boolean flag for creating new features in the dataset
     :param datatype: string for separating between the typical representation of column names (src_bytes, dst_bytes) to
     the IOT-based one (orig_ip_bytes, resp_ip_bytes)
     :return: the selected data
     """
-    connections_cnts = init_data.groupby(['src_ip', 'dst_ip']).agg(['count']).reset_index()
+    # connections_cnts = init_data.groupby(['src_ip', 'dst_ip']).agg(['count']).reset_index()
+    connections_cnts = init_data.groupby(['src_ip', 'dst_ip']).size().reset_index().rename(columns={0: "size"})
     if bidirectional:
-        connections_counts = dict([[triple[0] + '-' + triple[1], triple[2]] for triple in
-                                   connections_cnts[['src_ip', 'dst_ip', 'protocol']].values.tolist()])
+        connections_counts = dict([[triple[0] + '-' + triple[1], triple[2]]
+                                   for triple in connections_cnts[['src_ip', 'dst_ip', 'size']].values.tolist()])
         init_data = init_data.apply(lambda x: check_connections(x, connections_counts, datatype), axis=1)
-        connections_cnts = init_data.groupby(['src_ip', 'dst_ip']).agg(['count']).reset_index()
-    sel_data = init_data.loc[(init_data['src_ip']
-                              .isin(connections_cnts.loc[connections_cnts[('date', 'count')] > threshold]['src_ip'])) &
-                             (init_data['dst_ip'].isin(connections_cnts.
-                                                       loc[connections_cnts[('date', 'count')] > threshold]
-                                                       ['dst_ip']))].reset_index(drop=True)
-
-    if create_features:
-        sel_data['orig_packets_per_s'] = sel_data['orig_packets'] / sel_data['duration']
-        sel_data['resp_packets_per_s'] = sel_data['resp_packets'] / sel_data['duration']
-        sel_data['orig_bytes_per_s'] = sel_data['orig_ip_bytes'] / sel_data['duration']
-        sel_data['resp_bytes_per_s'] = sel_data['resp_ip_bytes'] / sel_data['duration']
-
-    return sel_data
+        connections_cnts = init_data.groupby(['src_ip', 'dst_ip']).size().reset_index().rename(columns={0: "size"})
+    return connections_cnts[connections_cnts['size'] > threshold]
 
 
 def set_windowing_vars(data):

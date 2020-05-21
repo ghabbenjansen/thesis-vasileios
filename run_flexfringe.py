@@ -90,7 +90,7 @@ def show(data, filepath):
 
 if __name__ == '__main__':
     # first set the flag of the type of dataset to be used
-    flag = 'IOT'
+    flag = 'CTU-bi'
 
     with_trace = int(input('Is there a trace file (no: 0 | yes: 1)? '))
 
@@ -123,11 +123,14 @@ if __name__ == '__main__':
             ]
         old_selected = deepcopy(selected)
 
+        # list of source ips to solely consider
+        src_ips = ['147.32.84.170', '147.32.80.9']
+
         host_level = int(input('Select the type of modelling to be conducted (connection level: 0 | host level: 1 | '
                                'mixed-adaptive: 2): '))
         if not host_level:
             analysis_type = 'connection_level'
-        elif host_level == '1':
+        elif host_level == 1:
             analysis_type = 'host_level'
         else:
             analysis_type = 'mixed_adaptive'
@@ -164,10 +167,10 @@ if __name__ == '__main__':
             # in host level analysis only host with significant number of flows are considered -> this could be
             # problematic in hosts with intractably large number of flows
             datatype = 'non-regular' if flag == 'IOT' else 'regular'
-            data = helper.select_hosts(data, 500, bidirectional=bidirectional, datatype=datatype)
-            instances = data['src_ip'].unique()
-            print('Number of hosts to be processed: ' + str(instances.shape[0]))
+            instances = helper.select_hosts(data, 100, bidirectional=bidirectional, datatype=datatype).values.tolist()
+            print('Number of hosts to be processed: ' + str(len(instances)))
         elif analysis_type == 'mixed_adaptive':
+            # TODO: remove this part since it is faulty
             # firstly create lists to include the different abstraction level data
             instances = []
             sets_of_data = []
@@ -215,8 +218,9 @@ if __name__ == '__main__':
             # this could be problematic in connections with intractably large number of flows (not so probable to happen
             # benign scenarios)
             datatype = 'non-regular' if flag == 'IOT' else 'regular'
-            data = helper.select_connections(data, 200, bidirectional=bidirectional, datatype=datatype)
-            instances = data.groupby(['src_ip', 'dst_ip']).size().reset_index().values.tolist()
+            if src_ips:
+                data = data.loc[data['src_ip'].isin(src_ips)].reset_index(drop=True)
+            instances = helper.select_connections(data, 100, bidirectional=bidirectional, datatype=datatype).values.tolist()
             print('Number of connections to be processed: ' + str(len(instances)))
 
         # initialize an empty list to hold the filepaths of the trace files for each host
@@ -228,9 +232,9 @@ if __name__ == '__main__':
         # extract the data according to the analysis level
         while j < len(instances):
             if analysis_type == 'host_level':
-                instance_name = instances[j]
+                instance_name = instances[j][0]
                 print('Extracting traces for host ' + instance_name)
-                instance_data = data.loc[data['src_ip'] == instances[j]].sort_values(by='date').reset_index(drop=True)
+                instance_data = data.loc[data['src_ip'] == instances[j][0]].sort_values(by='date').reset_index(drop=True)
                 print('The number of flows for this host are: ' + str(instance_data.shape[0]))
             elif analysis_type == 'mixed_adaptive':
                 # in case the instance is a list then we are dealing with the connection level
@@ -321,11 +325,11 @@ if __name__ == '__main__':
             instance_data['date_diff'] = instance_data['date'].sort_values().diff().astype('timedelta64[ms]') * 0.001
             instance_data['date_diff'].fillna(0, inplace=True)
 
-            # create column with the ratio of bytes to packets
-            instance_data['orig_bytes_per_packet'] = instance_data['orig_ip_bytes'] / instance_data['orig_packets']
-            instance_data['orig_bytes_per_packet'].fillna(0, inplace=True)
-            instance_data['resp_bytes_per_packet'] = instance_data['resp_ip_bytes'] / instance_data['resp_packets']
-            instance_data['resp_bytes_per_packet'].fillna(0, inplace=True)
+            # # create column with the ratio of bytes to packets
+            # instance_data['orig_bytes_per_packet'] = instance_data['orig_ip_bytes'] / instance_data['orig_packets']
+            # instance_data['orig_bytes_per_packet'].fillna(0, inplace=True)
+            # instance_data['resp_bytes_per_packet'] = instance_data['resp_ip_bytes'] / instance_data['resp_packets']
+            # instance_data['resp_bytes_per_packet'].fillna(0, inplace=True)
 
             # first ask if new features are to be added
             new_features = int(input('Are there any new features to be added (no: 0 | yes: 1)? '))
