@@ -172,7 +172,7 @@ class ModelNode:
             clusterer = hdbscan.HDBSCAN(min_cluster_size=min(ceil(x_train.shape[0]/2), 5), allow_single_cluster=True,
                                         prediction_data=True).fit(x_train)
         elif clustering_method == "isolation forest":
-            clusterer = IsolationForest(max_samples=0.1).fit(x_train)
+            clusterer = IsolationForest(max_samples=0.2).fit(x_train)
         elif clustering_method == "LOF":
             clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/10), novelty=True).\
                 fit(x_train)
@@ -257,10 +257,10 @@ class ModelNode:
         # m = m.reshape([x_train.shape[0], 1])
         # sigma = np.dot(x_train - m, (x_train - m).T) / x_train.shape[1]     # the estimated covariance matrix
         # return m, sigma
-        try:
-            kernel = gaussian_kde(np.transpose(x_train))
-        except np.linalg.LinAlgError:
-            kernel = gaussian_kde(np.transpose(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
+        # try:
+        #     kernel = gaussian_kde(np.transpose(x_train))
+        # except np.linalg.LinAlgError:
+        kernel = gaussian_kde(np.transpose(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
         return kernel, transformer
 
     def predict_on_gaussian(self, kernel, transformer=None, epsilon='auto', prediction_type='hard'):
@@ -283,8 +283,9 @@ class ModelNode:
                 x_train = np.transpose(transformer.transform(self.attributes2dataset(self.observed_attributes).values))
             else:
                 x_train = np.transpose(self.attributes2dataset(self.observed_attributes).values)
+
             train_labels = kernel.evaluate(x_train)
-            epsilon = min(train_labels) / 1000      # this value should be tuned
+            epsilon = min(train_labels) / 100      # this value should be tuned
 
         # old gaussian predictions
         # sigma_det = np.linalg.det(sigma)    # the determinant of the covariance matrix

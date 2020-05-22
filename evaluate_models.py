@@ -138,31 +138,54 @@ def dates2indices(date_dict, dates):
     return new_dict
 
 
-def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='hard', printing=True):
+def produce_evaluation_metrics(predicted_labels, true_labels, detailed_labels, dst_ips, prediction_type='hard', printing=True):
     """
     Function for calculating the evaluation metrics of the whole pipeline. Depending on the prediction type different
     metrics are calculated. For the hard type the accuracy, the precision, and the recall are provided.
     :param predicted_labels: the predicted labels as a list
     :param true_labels: the true labels as a list
+    :param detailed_labels: the detailed labels of the flows as a list
+    :param dst_ips: the destination ips of each flow as a list (or None in case of connection level analysis)
     :param prediction_type: the prediction type ("soft" | "hard")
     :param printing: a boolean flag that specifies if the results shall be printed too
     :return: the needed metrics
     """
     if prediction_type == 'hard':
         TP, TN, FP, FN = 0, 0, 0, 0
-        # floor is applied for rounding in cases of float medians
+        # round is applied for rounding in cases of float medians
         predicted_labels = list(map(round, predicted_labels))
+        # use 2 dictionaries to keep information about the connections and detailed labels
+        detailed_results = dict()
+        conn_results = None
+        if dst_ips:
+            conn_results = dict()
         for i in range(len(true_labels)):
+            if detailed_labels[i] not in detailed_results.keys():
+                detailed_results[detailed_labels[i]] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
+            if conn_results and dst_ips[i] not in conn_results.keys():
+                conn_results[dst_ips[i]] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
             if true_labels[i] == 1:
                 if true_labels[i] == predicted_labels[i]:
                     TP += 1
+                    detailed_results[detailed_labels[i]]['TP'] += 1
+                    if conn_results:
+                        conn_results[dst_ips[i]]['TP'] += 1
                 else:
                     FN += 1
+                    detailed_results[detailed_labels[i]]['FN'] += 1
+                    if conn_results:
+                        conn_results[dst_ips[i]]['FN'] += 1
             else:
                 if true_labels[i] == predicted_labels[i]:
                     TN += 1
+                    detailed_results[detailed_labels[i]]['TN'] += 1
+                    if conn_results:
+                        conn_results[dst_ips[i]]['TN'] += 1
                 else:
                     FP += 1
+                    detailed_results[detailed_labels[i]]['FP'] += 1
+                    if conn_results:
+                        conn_results[dst_ips[i]]['FP'] += 1
         accuracy = (TP + TN) / (TP + TN + FP + FN)
         precision = -1 if TP + FP == 0 else TP / (TP + FP)
         recall = -1 if TP + FN == 0 else TP / (TP + FN)
@@ -171,10 +194,10 @@ def produce_evaluation_metrics(predicted_labels, true_labels, prediction_type='h
             print('Accuracy: ' + str(accuracy))
             print('Precision: ' + str(precision))
             print('Recall: ' + str(recall))
-        return TP, TN, FP, FN, accuracy, precision, recall
+        return TP, TN, FP, FN, accuracy, precision, recall, detailed_results, conn_results
     else:
         # TODO: implement the soft prediction part
-        return 0, 0, 0
+        return 0, 0, 0, 0, 0, 0, 0, {}, {}
 
 
 def print_total_results(results):
@@ -204,8 +227,8 @@ def print_total_results(results):
 if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
-        debug_model_filepaths = sorted(glob.glob('outputs/CTU13/host_level/dst_port_protocol_num_src_bytes_dst_bytes/*_resampled_reduced_dfa.dot'))
-        debug_train_trace_filepaths = sorted(glob.glob('Datasets/CTU13/training/host_level/dst_port_protocol_num_src_bytes_dst_bytes/*-traces.txt'))
+        debug_model_filepaths = sorted(glob.glob('outputs/CTU13/host_level/dst_port_protocol_num_src_bytes_dst_bytes/scenario3*_resampled_reduced_dfa.dot'))
+        debug_train_trace_filepaths = sorted(glob.glob('Datasets/CTU13/training/host_level/dst_port_protocol_num_src_bytes_dst_bytes/scenario3*-traces_resampled_reduced.txt'))
 
         debug_methods = [
             'clustering'
@@ -274,7 +297,7 @@ if __name__ == '__main__':
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
         # get the testing traces filepath pattern through STDIN mostly so that datasets can run in parallel
-        debug_test_trace_filepaths = sorted(glob.glob('Datasets/CTU13/test/host_level/dst_port_protocol_num_src_bytes_dst_bytes/*-traces.txt'))
+        debug_test_trace_filepaths = sorted(glob.glob('Datasets/CTU13/test/host_level/dst_port_protocol_num_src_bytes_dst_bytes/scenario2*-traces.txt'))
         debug_test_set_filepaths = list(map(lambda x: '/'.join(x.split('/')[0:2]) + '/'
                                                       + '-'.join(x.split('/')[-1].split('-')[:(-3 if 'connection' in x
                                                                                                else -2)]),
@@ -335,7 +358,15 @@ if __name__ == '__main__':
                 all_data = all_data[(all_data['src_ip'] == ips[0]) & (all_data['dst_ip'] == ips[1])]\
                     .sort_values(by='date').reset_index(drop=True)
         true_labels = all_data['label'].values
-        # TODO: add different analysis level statistics in the results (host - connection) and detailed labels
+        # keep also the detailed labels for analysis reasons
+        if flag in ['IOT', 'UNSW']:
+            detailed_labels = all_data['detailed_label'].values.tolist()
+        else:
+            detailed_labels = all_data['label'].values.tolist()
+        # keep also the destination IPs in case we are on host level analysis -> again for analysis reasons
+        dst_ips = None
+        if len(ips) == 1:
+            dst_ips = all_data['dst_ip'].values.tolist()
         # needed to map datetimes to indices in case of resampled datasets
         true_datetimes = all_data['date'] if 'resampled' in test_traces_filepath else None
         # keep one dictionary to aggregate the results of each model over all flows on the test set
@@ -361,20 +392,24 @@ if __name__ == '__main__':
                 results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
                                                                                       list(map(lambda x: 1
                                                                                       if 'Botnet' in x
-                                                                                      else 0, true_labels.tolist())))
+                                                                                      else 0, true_labels.tolist())),
+                                                                                      detailed_labels, dst_ips)
             elif flag == 'IOT':
                 results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
                                                                                       list(map(lambda x: 1
                                                                                       if x == 'Malicious'
-                                                                                      else 0, true_labels.tolist())))
+                                                                                      else 0, true_labels.tolist())),
+                                                                                      detailed_labels, dst_ips)
             elif flag == 'UNSW':
                 results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
-                                                                                      true_labels.tolist())
+                                                                                      true_labels.tolist(),
+                                                                                      detailed_labels, dst_ips)
             else:
                 results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
                                                                                       list(map(lambda x: 1
                                                                                       if x != 'BENIGN'
-                                                                                      else 0, true_labels.tolist())))
+                                                                                      else 0, true_labels.tolist())),
+                                                                                      detailed_labels, dst_ips)
             # update also the accumulated results | only TP, TN, FP, FN are passed
             if len(accumulated_results[models_info[i]]):
                 accumulated_results[models_info[i]] = list(map(add, accumulated_results[models_info[i]],
