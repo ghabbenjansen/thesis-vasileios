@@ -227,8 +227,8 @@ def print_total_results(results):
 if __name__ == '__main__':
     if debugging:
         # for debugging purposes the following structures can be used
-        debug_model_filepaths = sorted(glob.glob('outputs/CTU13/host_level/dst_port_protocol_num_src_bytes_dst_bytes/scenario3*_resampled_reduced_dfa.dot'))
-        debug_train_trace_filepaths = sorted(glob.glob('Datasets/CTU13/training/host_level/dst_port_protocol_num_src_bytes_dst_bytes/scenario3*-traces_resampled_reduced.txt'))
+        debug_model_filepaths = sorted(glob.glob('outputs/CTU13/host_level/dst_port_protocol_num_src_bytes_dst_bytes/scenario*_resampled_reduced_dfa.dot'))
+        debug_train_trace_filepaths = sorted(glob.glob('Datasets/CTU13/training/host_level/dst_port_protocol_num_src_bytes_dst_bytes/scenario*-traces_resampled_reduced.txt'))
 
         debug_methods = [
             'clustering'
@@ -297,7 +297,7 @@ if __name__ == '__main__':
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
         # get the testing traces filepath pattern through STDIN mostly so that datasets can run in parallel
-        debug_test_trace_filepaths = sorted(glob.glob('Datasets/CTU13/test/host_level/dst_port_protocol_num_src_bytes_dst_bytes/scenario2*-traces.txt'))
+        debug_test_trace_filepaths = sorted(glob.glob('Datasets/CTU13/test/host_level/dst_port_protocol_num_src_bytes_dst_bytes/scenario1*-traces.txt'))
         debug_test_set_filepaths = list(map(lambda x: '/'.join(x.split('/')[0:2]) + '/'
                                                       + '-'.join(x.split('/')[-1].split('-')[:(-3 if 'connection' in x
                                                                                                else -2)]),

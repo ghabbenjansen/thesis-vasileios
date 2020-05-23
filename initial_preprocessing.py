@@ -186,7 +186,7 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, chunks=False, expl=F
 
 if __name__ == '__main__':
     # filepath = input("Enter the desired filepath: ")
-    filepath = 'Datasets/CTU13/scenario1/scenario01_ctu13.binetflow.txt'
+    filepath = 'Datasets/CTU13/scenario12/scenario12_ctu13.binetflow.txt'
 
     # Choose between the flags CTU-uni | CTU-bi | CTU-mixed | CICIDS | CIDDS | UNSW | IOT
     flag = 'CTU-bi'

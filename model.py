@@ -10,6 +10,7 @@ from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import RobustScaler
 from math import pi, sqrt, ceil
 from scipy.stats import gaussian_kde
+from random import random
 
 
 class ModelNode:
@@ -172,7 +173,7 @@ class ModelNode:
             clusterer = hdbscan.HDBSCAN(min_cluster_size=min(ceil(x_train.shape[0]/2), 5), allow_single_cluster=True,
                                         prediction_data=True).fit(x_train)
         elif clustering_method == "isolation forest":
-            clusterer = IsolationForest(max_samples=0.2).fit(x_train)
+            clusterer = IsolationForest(max_samples=0.4).fit(x_train)
         elif clustering_method == "LOF":
             clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/10), novelty=True).\
                 fit(x_train)
@@ -252,15 +253,19 @@ class ModelNode:
             transformer = RobustScaler().fit(x_train)
             x_train = transformer.transform(x_train)
 
-        # old gaussian fitting
-        # m = np.sum(x_train, axis=1) / x_train.shape[1]     # the estimated mean
-        # m = m.reshape([x_train.shape[0], 1])
-        # sigma = np.dot(x_train - m, (x_train - m).T) / x_train.shape[1]     # the estimated covariance matrix
-        # return m, sigma
-        # try:
-        #     kernel = gaussian_kde(np.transpose(x_train))
-        # except np.linalg.LinAlgError:
-        kernel = gaussian_kde(np.transpose(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
+        # case when there are more features than samples
+        if x_train.shape[1] > x_train.shape[0]:
+            flag = True
+            init_arr = np.copy(x_train)
+            while flag:
+                try:
+                    kernel = gaussian_kde(np.transpose(x_train))
+                    kernel.evaluate(np.transpose(init_arr))
+                    flag = False
+                except np.linalg.LinAlgError:
+                    x_train = np.concatenate((x_train, random()*np.mean(x_train, axis=0, keepdims=True)), axis=0)
+        else:
+            kernel = gaussian_kde(np.transpose(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
         return kernel, transformer
 
     def predict_on_gaussian(self, kernel, transformer=None, epsilon='auto', prediction_type='hard'):
@@ -283,20 +288,16 @@ class ModelNode:
                 x_train = np.transpose(transformer.transform(self.attributes2dataset(self.observed_attributes).values))
             else:
                 x_train = np.transpose(self.attributes2dataset(self.observed_attributes).values)
-
-            train_labels = kernel.evaluate(x_train)
+            try:
+                train_labels = kernel.evaluate(x_train)
+            except np.linalg.LinAlgError:
+                train_labels = kernel.evaluate(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1]))
             epsilon = min(train_labels) / 100      # this value should be tuned
 
-        # old gaussian predictions
-        # sigma_det = np.linalg.det(sigma)    # the determinant of the covariance matrix
-        # sigma_inv = np.linalg.inv(sigma)    # the inverse of the covariance matrix
-        # test_labels = np.array([np.asscalar(np.exp(-np.dot(np.dot((x_test[:, i].reshape([x_test.shape[0], 1]) - m).T,
-        #                                                           sigma_inv),
-        #                                                    x_test[:, i].reshape([x_test.shape[0], 1]) - m) / 2)
-        #                                     / ((2 * pi) ** (x_test.shape[0] / 2) * sqrt(sigma_det)))
-        #                         for i in range(x_test.shape[1])])
-
-        test_labels = kernel.evaluate(x_test)
+        try:
+            test_labels = kernel.evaluate(x_test)
+        except np.linalg.LinAlgError:
+            test_labels = kernel.evaluate(x_test + 0.0001 * np.random.randn(x_test.shape[0], x_test.shape[1]))
         if prediction_type == 'hard':
             test_labels = (test_labels < epsilon).astype(np.int)
         return test_labels
@@ -343,12 +344,13 @@ class Model:
             return list(self.nodes_dict[src_node_label].dst_nodes)[0]
         # otherwise find the appropriate destination
         else:
-            # in case there are no conditional transitions
-            if len(self.nodes_dict[src_node_label].tran_conditions.keys()) == 0:
+            # in case there is one or less records in conditions dict, there should be either one destination node with
+            # no conditions or no destination node meaning that we have to deal with a sink state
+            if len(self.nodes_dict[src_node_label].tran_conditions.keys()) <= 1:
                 # then if there are destination nodes
                 if len(self.nodes_dict[src_node_label].dst_nodes) != 0:
                     # there should be only one otherwise there would be conditions around
-                    assert (len(self.nodes_dict[src_node_label].dst_nodes) != 1), 'Something went wrong: Only one ' \
+                    assert (len(self.nodes_dict[src_node_label].dst_nodes) == 1), 'Something went wrong: Only one ' \
                                                                                   'destination state should exist in ' \
                                                                                   'non-conditional cases!!!!'
                     # if there is indeed one return its label
@@ -361,6 +363,9 @@ class Model:
                 destinations = [(dst_node, self.nodes_dict[src_node_label].evaluate_transition(dst_node,
                                                                                                input_attributes))
                                 for dst_node in self.nodes_dict[src_node_label].tran_conditions.keys()]
+                assert (len([destination[1] for destination in destinations if destination[1]]) == 1), 'More than one' \
+                                                                                                       'destinations ' \
+                                                                                                       'are possible!!'
                 return destinations[[destination[1] for destination in destinations].index(True)][0]
 
     def update_attributes(self, label, observed, attribute_type='train'):

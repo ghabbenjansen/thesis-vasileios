@@ -318,8 +318,9 @@ if __name__ == '__main__':
 
             # if the number of flows is excessive then sample from these flows to a feasible extent
             if instance_data.shape[0] > 20000:
-                instance_data = instance_data.iloc[sample(range(instance_data.shape[0]), k=20000)].\
-                    sort_values(by='date').reset_index(drop=True)
+                # instance_data = instance_data.iloc[sample(range(instance_data.shape[0]), k=20000)].\
+                #     sort_values(by='date').reset_index(drop=True)
+                instance_data = instance_data.iloc[:50000]
 
             # create a column with the time difference between consecutive flows
             instance_data['date_diff'] = instance_data['date'].sort_values().diff().astype('timedelta64[ms]') * 0.001
