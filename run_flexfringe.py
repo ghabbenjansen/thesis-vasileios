@@ -108,6 +108,8 @@ if __name__ == '__main__':
                 , 'src_bytes'
                 , 'dst_bytes'
                 # , 'date_diff'
+                # , 'total_bytes'
+                # , 'bytes_per_packet'
                         ]
         else:
             selected = [
@@ -170,7 +172,7 @@ if __name__ == '__main__':
             instances = helper.select_hosts(data, 100, bidirectional=bidirectional, datatype=datatype).values.tolist()
             print('Number of hosts to be processed: ' + str(len(instances)))
         elif analysis_type == 'mixed_adaptive':
-            # TODO: remove this part since it is faulty
+            # TODO: remove this part since it is not robust
             # firstly create lists to include the different abstraction level data
             instances = []
             sets_of_data = []
@@ -320,17 +322,32 @@ if __name__ == '__main__':
             if instance_data.shape[0] > 20000:
                 # instance_data = instance_data.iloc[sample(range(instance_data.shape[0]), k=20000)].\
                 #     sort_values(by='date').reset_index(drop=True)
-                instance_data = instance_data.iloc[:50000]
+                instance_data = instance_data.iloc[:20000]
 
             # create a column with the time difference between consecutive flows
             instance_data['date_diff'] = instance_data['date'].sort_values().diff().astype('timedelta64[ms]') * 0.001
             instance_data['date_diff'].fillna(0, inplace=True)
 
-            # # create column with the ratio of bytes to packets
-            # instance_data['orig_bytes_per_packet'] = instance_data['orig_ip_bytes'] / instance_data['orig_packets']
-            # instance_data['orig_bytes_per_packet'].fillna(0, inplace=True)
-            # instance_data['resp_bytes_per_packet'] = instance_data['resp_ip_bytes'] / instance_data['resp_packets']
-            # instance_data['resp_bytes_per_packet'].fillna(0, inplace=True)
+            # create column with the ratio of bytes to packets
+            if flag == 'CTU-bi':
+                instance_data['total_bytes'] = instance_data['src_bytes'] + instance_data['dst_bytes']
+                instance_data['bytes_per_packet'] = instance_data['total_bytes'] / instance_data['packets']
+                instance_data['bytes_per_packet'].fillna(0, inplace=True)
+            elif flag == 'UNSW':
+                instance_data['total_bytes'] = instance_data['src_bytes'] + instance_data['dst_bytes']
+                instance_data['bytes_per_packet'] = instance_data['total_bytes'] / (instance_data['src_packets'] +
+                                                                                    instance_data['dst_packets'])
+                instance_data['bytes_per_packet'].fillna(0, inplace=True)
+            elif flag == 'CICIDS':
+                instance_data['total_bytes'] = instance_data['src_bytes'] + instance_data['dst_bytes']
+                instance_data['bytes_per_packet'] = instance_data['total_bytes'] / (instance_data['total_fwd_packets'] +
+                                                                                    instance_data['total_bwd_packets'])
+                instance_data['bytes_per_packet'].fillna(0, inplace=True)
+            else:
+                instance_data['total_bytes'] = instance_data['orig_ip_bytes'] + instance_data['resp_ip_bytes']
+                instance_data['bytes_per_packet'] = instance_data['total_bytes'] / (instance_data['orig_packets'] +
+                                                                                    instance_data['resp_packets'])
+                instance_data['bytes_per_packet'].fillna(0, inplace=True)
 
             # first ask if new features are to be added
             new_features = int(input('Are there any new features to be added (no: 0 | yes: 1)? '))

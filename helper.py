@@ -249,7 +249,7 @@ def aggregate_in_windows(data, selected_features, window, timed=False, resample=
                     data['median_' + feature] = data[feature].rolling(window, min_periods=1).median()
             # check for protocol
             if 'protocol_num' in feature:
-                data['argmax_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1).\
+                data['argmax_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1). \
                     apply(lambda x: mode(x)[0], raw=False)
                 if new_features:
                     data['std_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1).std()
@@ -271,7 +271,7 @@ def aggregate_in_windows(data, selected_features, window, timed=False, resample=
             # check for destination IP in features in case new features are considered
             if 'dst_ip' in feature:
                 if new_features:
-                    data['unique_dst_ips'] = pd.DataFrame(pd.Categorical(data['dst_ip']).codes, index=data.index).\
+                    data['unique_dst_ips'] = pd.DataFrame(pd.Categorical(data['dst_ip']).codes, index=data.index). \
                         rolling(window, min_periods=1).apply(lambda x: len(set(x)), raw=False)
         data.drop(columns=old_column_names, inplace=True)
         data.bfill(axis='rows', inplace=True)
@@ -291,7 +291,7 @@ def aggregate_in_windows(data, selected_features, window, timed=False, resample=
                 new_column_names += (['argmax_protocol_num', 'std_protocol_num'] if new_features else
                                      ['argmax_protocol_num'])
                 frames += ([data['protocol_num'].resample(window).apply(lambda x: mode(x)[0]),
-                           data['protocol_num'].resample(window).std()] if new_features else
+                            data['protocol_num'].resample(window).std()] if new_features else
                            [data['protocol_num'].resample(window).apply(lambda x: mode(x)[0])])
             # check for duration in features
             if 'duration' in feature:
@@ -454,7 +454,7 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
                     # in case that the fluctuations cannot be dealt with the current values, refine them and start over
                     if magnifier <= 1:
                         magnifier = init_magnifier + 1
-                        reducer = reducer/2
+                        reducer = reducer / 2
 
                     # limit case to prevent endless loop
                     if end_date > data['date'].iloc[-1]:
@@ -471,7 +471,7 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
 
             # create aggregated features if needed (currently with a hard-coded window length)
             if aggregation:
-                aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
+                aggregation_length = '2S' if resample else min(10, int(len(windowed_data.index)))
                 timed = True if resample else False
                 windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), selected,
                                                      aggregation_length, timed, resample, new_features)
@@ -479,14 +479,14 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
                 num_of_features = len(selected)
 
             # extract the trace of this window and add it to the traces' list
-            ints = False if aggregation or 'duration' in old_selected or 'date_diff' in old_selected else True
+            ints = False if aggregation or 'duration' in old_selected or 'date_diff' in old_selected or 'bytes_per_packet' in old_selected else True
             # this case applies only on resampling in case there are no more than 1 flow per resampling window
             # TODO: maybe check if flows are missed when resampling is used
             if windowed_data.shape[0] != 0:
                 traces += [convert2flexfringe_format(windowed_data[selected], ints)]
             selected = deepcopy(old_selected)
             # store also the flow indices of the current time window
-            if windowed_data.shape[0] != 0:     # this case applies only on resampling as explained above
+            if windowed_data.shape[0] != 0:  # this case applies only on resampling as explained above
                 traces_indices += [windowed_data.index.tolist()]
 
             # old implementation of window dissimilarity (not used now)
@@ -510,7 +510,7 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
                         print('This should not happen!!!!!!!!!!!!!!!!!!!!!!!!!!')
                         start_date = data['date'].iloc[0]
                     else:
-                        start_date = data['date'].loc[max_idx[0]+1]
+                        start_date = data['date'].loc[max_idx[0] + 1]
                 # otherwise set the start date of the last visited index + 1
                 else:
                     start_date = data['date'].loc[max_idx[1] + 1]
@@ -545,18 +545,18 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
         assertion_dict.update(zip(data.index[time_mask].tolist(), len(data.index[time_mask].tolist()) * [True]))
         # check for aggregation
         if aggregation:
-            aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
+            aggregation_length = '2S' if resample else min(10, int(len(windowed_data.index)))
             timed = True if resample else False
             windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), selected, aggregation_length,
                                                  timed, resample, new_features)
             selected = windowed_data.columns.values
             num_of_features = len(selected)
         # and add the new trace
-        ints = False if aggregation or 'duration' in old_selected or 'date_diff' in old_selected else True
-        if windowed_data.shape[0] != 0:     # for the resampling case
+        ints = False if aggregation or 'duration' in old_selected or 'date_diff' in old_selected or 'bytes_per_packet' in old_selected else True
+        if windowed_data.shape[0] != 0:  # for the resampling case
             traces += [convert2flexfringe_format(windowed_data[selected], ints)]
         # store also the starting and the ending index of the current time window
-        if windowed_data.shape[0] != 0:     # for the resampling case
+        if windowed_data.shape[0] != 0:  # for the resampling case
             traces_indices += [windowed_data.index.tolist()]
 
     # evaluate correctness of the process
@@ -607,7 +607,8 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
             if max_trace_len > 1500:
                 max_trace_len = 1500
             new_traces, new_indices, num_of_features = extract_traces_from_window(windowed_data, selected, window,
-                                                                                  stride, (min_trace_len, max_trace_len),
+                                                                                  stride,
+                                                                                  (min_trace_len, max_trace_len),
                                                                                   data.shape[0], progress_list,
                                                                                   dynamic=dynamic,
                                                                                   aggregation=aggregation,

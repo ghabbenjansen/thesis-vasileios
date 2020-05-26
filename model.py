@@ -173,9 +173,9 @@ class ModelNode:
             clusterer = hdbscan.HDBSCAN(min_cluster_size=min(ceil(x_train.shape[0]/2), 5), allow_single_cluster=True,
                                         prediction_data=True).fit(x_train)
         elif clustering_method == "isolation forest":
-            clusterer = IsolationForest(max_samples=0.4).fit(x_train)
+            clusterer = IsolationForest(max_samples=ceil(0.6 * x_train.shape[0])).fit(x_train)
         elif clustering_method == "LOF":
-            clusterer = LocalOutlierFactor(n_neighbors=ceil(x_train.shape[0]/10), novelty=True).\
+            clusterer = LocalOutlierFactor(n_neighbors=ceil(0.6 * x_train.shape[0]), novelty=True).\
                 fit(x_train)
         else:
             clusterer = KMeans(n_clusters=2).fit(x_train)
@@ -259,7 +259,7 @@ class ModelNode:
             init_arr = np.copy(x_train)
             while flag:
                 try:
-                    kernel = gaussian_kde(np.transpose(x_train))
+                    kernel = gaussian_kde(np.transpose(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
                     kernel.evaluate(np.transpose(init_arr))
                     flag = False
                 except np.linalg.LinAlgError:
@@ -292,7 +292,7 @@ class ModelNode:
                 train_labels = kernel.evaluate(x_train)
             except np.linalg.LinAlgError:
                 train_labels = kernel.evaluate(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1]))
-            epsilon = min(train_labels) / 100      # this value should be tuned
+            epsilon = min(train_labels) + (max(train_labels) - min(train_labels)) / 25   # this value should be tuned
 
         try:
             test_labels = kernel.evaluate(x_test)
