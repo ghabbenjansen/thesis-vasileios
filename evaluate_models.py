@@ -8,7 +8,6 @@ import pickle
 import re
 import glob
 from collections import defaultdict
-import sys
 from operator import add
 
 debugging = 1
@@ -16,13 +15,13 @@ debugging = 1
 
 def train_model(traces_filepath, indices_filepath, model, method, clustering_method=None, transformer=None):
     """
-    Function for CTU13 an input model given some input traces stored in the provided filepath. The traces are firstly
+    Function for training an input model given some input traces stored in the provided filepath. The traces are firstly
     run on the model, so that each state of the model can be updated with the records passing from it. Subsequently, the
-    specified CTU13 method is applied on each state, so that a trained model can be created in each state.
+    specified training method is applied on each state, so that a trained model can be created in each state.
     :param traces_filepath: the filepath to the traces' file
     :param indices_filepath: the filepath to the traces' indices limits - used later for prediction
     :param model: the given model
-    :param method: the CTU13 method to be used (currently probabilistic | multivariate gaussian | clustering)
+    :param method: the training method to be used (currently probabilistic | multivariate gaussian | clustering | baseline)
     :param clustering_method: the clustering method to be used if clustering has been selected as method, otherwise None
     :param transformer: flag showing if RobustScaler should be used to normalize and scale the data
     :return: the trained model
@@ -39,9 +38,13 @@ def train_model(traces_filepath, indices_filepath, model, method, clustering_met
                 model.nodes_dict[node_label].training_vars['kernel'], \
                 model.nodes_dict[node_label].training_vars['transformer'] = \
                     model.nodes_dict[node_label].fit_multivariate_gaussian(transformer)
-            else:
+            elif method == "probabilistic":
                 model.nodes_dict[node_label].training_vars['quantile_values'] = \
                     model.nodes_dict[node_label].fit_quantiles_on_observed()
+            else:
+                model.nodes_dict[node_label].training_vars['mi'], model.nodes_dict[node_label].training_vars['si'], \
+                model.nodes_dict[node_label].training_vars['transformer'] = \
+                    model.nodes_dict[node_label].fit_baseline(transformer)
     return model
 
 
@@ -49,7 +52,7 @@ def predict_on_model(model, method, clustering_method='', weighted=True):
     """
     Function for predicting based on a model supplied with the testing traces on its states.
     :param model: the given model
-    :param method: the method that has been used for CTU13 (needed to select the appropriate prediction mechanism on
+    :param method: the method that has been used for training (needed to select the appropriate prediction mechanism on
     each state)
     :param clustering_method: the clustering method to be used if clustering has been selected as method, otherwise ''
     :param weighted: a flag indicating if weighted prediction will be applied based on the number of the observations of
@@ -68,15 +71,17 @@ def predict_on_model(model, method, clustering_method='', weighted=True):
                         model.nodes_dict[node_label].training_vars['clusterer'], clustering_method=clustering_method,
                         transformer=model.nodes_dict[node_label].training_vars['transformer'])
                 elif method == "multivariate gaussian":
-                    # pred = model.nodes_dict[node_label].predict_on_gaussian(
-                    #     model.nodes_dict[node_label].training_vars['m'],
-                    #     model.nodes_dict[node_label].training_vars['sigma'])
                     pred = model.nodes_dict[node_label].predict_on_gaussian(
                         model.nodes_dict[node_label].training_vars['kernel'],
                         model.nodes_dict[node_label].training_vars['transformer'])
-                else:
+                elif method == "probabilistic":
                     pred = model.nodes_dict[node_label].predict_on_probabilities(
                         model.nodes_dict[node_label].training_vars['quantile_values'])
+                else:
+                    pred = model.nodes_dict[node_label].predict_on_baseline(
+                        model.nodes_dict[node_label].training_vars['mi'],
+                        model.nodes_dict[node_label].training_vars['si'],
+                        model.nodes_dict[node_label].training_vars['transformer'])
             else:
                 # if this state is unseen in training predict anomaly -> this shouldn't happen though
                 print('State ' + node_label + ' has less than 3 observations!!!')
@@ -160,29 +165,29 @@ def produce_evaluation_metrics(predicted_labels, true_labels, detailed_labels, d
         for i in range(len(true_labels)):
             if detailed_labels[i] not in detailed_results.keys():
                 detailed_results[detailed_labels[i]] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
-            if conn_results and dst_ips[i] not in conn_results.keys():
+            if conn_results is not None and dst_ips[i] not in conn_results.keys():
                 conn_results[dst_ips[i]] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
             if true_labels[i] == 1:
                 if true_labels[i] == predicted_labels[i]:
                     TP += 1
                     detailed_results[detailed_labels[i]]['TP'] += 1
-                    if conn_results:
+                    if conn_results is not None:
                         conn_results[dst_ips[i]]['TP'] += 1
                 else:
                     FN += 1
                     detailed_results[detailed_labels[i]]['FN'] += 1
-                    if conn_results:
+                    if conn_results is not None:
                         conn_results[dst_ips[i]]['FN'] += 1
             else:
                 if true_labels[i] == predicted_labels[i]:
                     TN += 1
                     detailed_results[detailed_labels[i]]['TN'] += 1
-                    if conn_results:
+                    if conn_results is not None:
                         conn_results[dst_ips[i]]['TN'] += 1
                 else:
                     FP += 1
                     detailed_results[detailed_labels[i]]['FP'] += 1
-                    if conn_results:
+                    if conn_results is not None:
                         conn_results[dst_ips[i]]['FP'] += 1
         accuracy = (TP + TN) / (TP + TN + FP + FN)
         precision = -1 if TP + FP == 0 else TP / (TP + FP)

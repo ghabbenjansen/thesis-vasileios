@@ -8,8 +8,8 @@ from sklearn.cluster import KMeans
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import RobustScaler
-from math import pi, sqrt, ceil
-from scipy.stats import gaussian_kde
+from math import ceil
+from scipy.stats import gaussian_kde, mode
 from random import random
 
 
@@ -44,7 +44,7 @@ class ModelNode:
         self.observed_indices = []
         self.testing_attributes = dict(zip(self.attributes.keys(), len(self.attributes.keys()) * [[]]))
         self.testing_indices = []
-        # dictionary for storing any variables needed for CTU13
+        # dictionary for storing any variables needed for training
         self.training_vars = dict()
         # dictionary for the probabilities associated with each quantile
         # It is initialized to the number of observations in each quantile divided by the total number of observations
@@ -247,7 +247,6 @@ class ModelNode:
         :param transformer: flag showing if RobustScaler should be used to normalize and scale the data
         :return: the estimated mean and covariance matrix of the fitted distribution
         """
-        # features in rows and samples in columns
         x_train = self.attributes2dataset(self.observed_attributes).values
         if transformer is not None:
             transformer = RobustScaler().fit(x_train)
@@ -300,6 +299,57 @@ class ModelNode:
             test_labels = kernel.evaluate(x_test + 0.0001 * np.random.randn(x_test.shape[0], x_test.shape[1]))
         if prediction_type == 'hard':
             test_labels = (test_labels < epsilon).astype(np.int)
+        return test_labels
+
+    def fit_baseline(self, transformer=None):
+        """
+        Baseline method for calculating the mean and the standard deviation of each attribute of the observed data
+        points in each node.
+        :param transformer: flag showing if RobustScaler should be used to normalize and scale the data
+        :return: the mean and the standard deviation of each attribute of the observed set of points
+        """
+        # TODO: handle the case that there are no training data in the node -> should not happen
+        x_train = self.attributes2dataset(self.observed_attributes).values
+        if transformer is not None:
+            transformer = RobustScaler().fit(x_train)
+            x_train = transformer.transform(x_train)
+        mi = x_train.mean(axis=0, keepdims=True)
+        si = x_train.std(axis=0, keepdims=True)
+        return mi, si, transformer
+
+    def predict_on_baseline(self, mi, si, transformer=None, epsilon='auto', detection_type='any', prediction_type='hard'):
+        """
+        Function for naively predicting on the calculated mean and standard deviations of each attribute of the
+        observed points. An alarm is raised if a data point lies far from the estimated mean. Three levels of alarms can
+        be raised: (1) if any of the attributes seems anomalous, (2) if all attributes seem anomalous, and (3) if the
+        majority of the attributes seems anomalous
+        :param mi: the calculated mean (1 x num_attributes)
+        :param si: the calculated standard deviation (1 x num_attributes)
+        :param transformer: the normalization transformer
+        :param epsilon: the detection threshold (a multiplier on the standard deviation or 'auto')
+        :param detection_type: the level to which an alarm is raised
+        :param prediction_type: the prediction type (hard or soft)
+        :return: the prediction labels
+        """
+        if transformer is not None:
+            x_test = transformer.transform(self.attributes2dataset(self.testing_attributes).values)
+        else:
+            x_test = self.attributes2dataset(self.testing_attributes).values
+
+        # find the difference between each attribute of a data point to the mean and compare it with the std
+        if epsilon == 'auto':
+            test_labels = np.abs(x_test - mi) - 3 * si
+        else:
+            test_labels = np.abs(x_test - mi) - epsilon * si
+
+        if prediction_type == 'hard':
+            # apply each level of detection
+            if detection_type == 'any':
+                test_labels = np.any(test_labels > 0, axis=1).astype(np.int)
+            elif detection_type == 'all':
+                test_labels = np.all(test_labels > 0, axis=1).astype(np.int)
+            else:
+                test_labels = mode((test_labels > 0).astype(np.int), axis=1)[0].flatten()
         return test_labels
 
 
