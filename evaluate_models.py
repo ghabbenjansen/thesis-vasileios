@@ -48,13 +48,12 @@ def train_model(traces_filepath, indices_filepath, model, method, clustering_met
     return model
 
 
-def predict_on_model(model, method, clustering_method='', weighted=True):
+def predict_on_model(model, method, weighted=True):
     """
     Function for predicting based on a model supplied with the testing traces on its states.
     :param model: the given model
     :param method: the method that has been used for training (needed to select the appropriate prediction mechanism on
     each state)
-    :param clustering_method: the clustering method to be used if clustering has been selected as method, otherwise ''
     :param weighted: a flag indicating if weighted prediction will be applied based on the number of the observations of
     each state (meaning the robustness of the prediction of each state)
     :return: the predicted labels
@@ -68,7 +67,7 @@ def predict_on_model(model, method, clustering_method='', weighted=True):
             if len(model.nodes_dict[node_label].observed_indices) > 2:
                 if method == 'clustering':
                     pred = model.nodes_dict[node_label].predict_on_clusters(
-                        model.nodes_dict[node_label].training_vars['clusterer'], clustering_method=clustering_method,
+                        model.nodes_dict[node_label].training_vars['clusterer'],
                         transformer=model.nodes_dict[node_label].training_vars['transformer'])
                 elif method == "multivariate gaussian":
                     pred = model.nodes_dict[node_label].predict_on_gaussian(
@@ -237,14 +236,12 @@ if __name__ == '__main__':
             'clustering'
             # , 'multivariate gaussian'
             # , 'probabilistic'
+            # , 'baseline'
                          ]
 
         debug_clustering_methods = [
-            # 'hdbscan'
-            # ,
             'LOF'
             , 'isolation forest'
-            # , 'kmeans'
         ]
 
         parameters = []
@@ -383,7 +380,7 @@ if __name__ == '__main__':
             models[i].reset_attributes(attribute_type='test')
             models[i].reset_indices(attribute_type='test')
             models[i] = run_traces_on_model(test_traces_filepath, indices_filepath, models[i], 'test')
-            predictions = predict_on_model(models[i], methods[i].split('-')[0], methods[i].split('-')[1])
+            predictions = predict_on_model(models[i], methods[i].split('-')[0])
             if true_datetimes is not None:
                 predictions = dates2indices(predictions, true_datetimes)
             assert (len(predictions.keys()) == np.size(true_labels, 0)), \
@@ -430,7 +427,7 @@ if __name__ == '__main__':
     # finally save all the results for each testing trace
     if debugging:
         results_filename = '/'.join(debug_test_set_filepaths[0].split('/')[0:2]) + '/' + \
-                           '-'.join(set(map(lambda x: x.split('/')[-1], debug_test_set_filepaths))) + '_results.pkl'
+                           '-'.join(set(map(lambda x: x.split('/')[-1], debug_test_set_filepaths))) + 'dfa_results.pkl'
     else:
         results_filename = input('Provide the relative path for the filename of the results: ')
     with open(results_filename, 'wb') as f:
