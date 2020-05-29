@@ -13,6 +13,14 @@ from collections import defaultdict
 
 
 def fit_validate_VAR(train_data, validation_data):
+    """
+    Function for finding the decision thresholds for the VAR models through the use of a validation dataset. Briefly,
+    the training set is used to fit the VAR model and a prediction on the validation data is performed. The absolute
+    errors per feature are plotted, so that the anomaly threshold for each feature can be selected.
+    :param train_data: the training dataframe
+    :param validation_data: the validation dataframe
+    :return: the fitted model, along with the derived thresholds
+    """
     # first fit the model on the training data to evaluate the mse between the fitted model predictions and the
     # evaluation data points
     model = VAR(endog=train_data).fit()
@@ -36,6 +44,14 @@ def fit_validate_VAR(train_data, validation_data):
 
 
 def evaluate_VAR(data, models, method='any', printing=False):
+    """
+    Function for testing VAR on the given data both on a host and a connection level.
+    :param data: the input dataframe
+    :param models: the fitted VAR models
+    :param method: the method to be used for identifying an anomaly ('any' | 'all' | 'majority')
+    :param printing: flag for printing intermediate results
+    :return: the final results as a dictionary
+    """
     results = defaultdict(dict)
     for src_ip in data['src_ip'].unique():
         host_data = data[data['src_ip'] == src_ip].set_index('data').sort_index()
@@ -78,12 +94,21 @@ def evaluate_VAR(data, models, method='any', printing=False):
                 print('FP: ' + str(FP))
                 print('TN: ' + str(TN))
                 print('FN: ' + str(FN))
-            host_results['VAR_model_' + model_ip] = TP, FP, TN, FN, conn_results
-        results['VAR_results_' + src_ip] = host_results
+            host_results['model_' + model_ip + '_VAR'] = TP, FP, TN, FN, conn_results
+        results['results_' + src_ip + '_VAR'] = host_results
     return results
 
 
 def evaluate_clustering(data, true, ips,  quantile_limit, printing=False):
+    """
+    Function for testing hdbscan on the given data both on a host and a connection level.
+    :param data: the input data as a numpy array
+    :param true: the true labels
+    :param ips: the pairs of IP addresses of the dataset
+    :param quantile_limit: the decision limit for identifying outliers
+    :param printing: flag for printing intermediate results
+    :return: a list of 2 dictionaries with the results on a host and a connection level
+    """
     clusterer = hdbscan.HDBSCAN().fit(data)
     threshold = pd.Series(clusterer.outlier_scores_).quantile(quantile_limit)
     predicted = (clusterer.outlier_scores_ > threshold).astype(np.int)
