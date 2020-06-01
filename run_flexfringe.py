@@ -169,7 +169,7 @@ if __name__ == '__main__':
             # in host level analysis only host with significant number of flows are considered -> this could be
             # problematic in hosts with intractably large number of flows
             datatype = 'non-regular' if flag == 'IOT' else 'regular'
-            instances = helper.select_hosts(data, 100, bidirectional=bidirectional, datatype=datatype).values.tolist()
+            instances = helper.select_hosts(data, 40, bidirectional=bidirectional, datatype=datatype).values.tolist()
             print('Number of hosts to be processed: ' + str(len(instances)))
         elif analysis_type == 'mixed_adaptive':
             # TODO: remove this part since it is not robust
@@ -222,7 +222,7 @@ if __name__ == '__main__':
             datatype = 'non-regular' if flag == 'IOT' else 'regular'
             if src_ips:
                 data = data.loc[data['src_ip'].isin(src_ips)].reset_index(drop=True)
-            instances = helper.select_connections(data, 100, bidirectional=bidirectional, datatype=datatype).values.tolist()
+            instances = helper.select_connections(data, 40, bidirectional=bidirectional, datatype=datatype).values.tolist()
             print('Number of connections to be processed: ' + str(len(instances)))
 
         # initialize an empty list to hold the filepaths of the trace files for each host

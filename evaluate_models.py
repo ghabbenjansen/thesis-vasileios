@@ -234,9 +234,9 @@ if __name__ == '__main__':
 
         debug_methods = [
             'clustering'
-            # , 'multivariate gaussian'
+            , 'multivariate gaussian'
             # , 'probabilistic'
-            # , 'baseline'
+            , 'baseline'
                          ]
 
         debug_clustering_methods = [
@@ -297,7 +297,7 @@ if __name__ == '__main__':
     # start testing on each trained model - it is assumed that each testing trace corresponds to one host
     if debugging:
         # get the testing traces filepath pattern through STDIN mostly so that datasets can run in parallel
-        debug_test_trace_filepaths = sorted(glob.glob('Datasets/CTU13/test/host_level/dst_port_protocol_num_src_bytes_dst_bytes/scenario1-*-traces.txt'))
+        debug_test_trace_filepaths = sorted(glob.glob('Datasets/CTU13/test/host_level/dst_port_protocol_num_src_bytes_dst_bytes/scenario3-*-traces.txt'))
         debug_test_set_filepaths = list(map(lambda x: '/'.join(x.split('/')[0:2]) + '/'
                                                       + '-'.join(x.split('/')[-1].split('-')[:(-3 if 'connection' in x
                                                                                                else -2)]),
@@ -427,7 +427,7 @@ if __name__ == '__main__':
     # finally save all the results for each testing trace
     if debugging:
         results_filename = '/'.join(debug_test_set_filepaths[0].split('/')[0:2]) + '/' + \
-                           '-'.join(set(map(lambda x: x.split('/')[-1], debug_test_set_filepaths))) + 'dfa_results.pkl'
+                           '-'.join(set(map(lambda x: x.split('/')[-1], debug_test_set_filepaths))) + '_dfa_results.pkl'
     else:
         results_filename = input('Provide the relative path for the filename of the results: ')
     with open(results_filename, 'wb') as f:

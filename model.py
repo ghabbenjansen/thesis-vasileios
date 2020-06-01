@@ -3,8 +3,6 @@
 import operator
 import numpy as np
 import pandas as pd
-import hdbscan
-from sklearn.cluster import KMeans
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import RobustScaler
@@ -170,9 +168,9 @@ class ModelNode:
             transformer = RobustScaler().fit(x_train)
             x_train = transformer.transform(x_train)
         if clustering_method == "LOF":
-            clusterer = LocalOutlierFactor(n_neighbors=ceil(0.6 * x_train.shape[0]), novelty=True).fit(x_train)
+            clusterer = LocalOutlierFactor(n_neighbors=ceil(0.1 * x_train.shape[0]), novelty=True).fit(x_train)
         else:
-            clusterer = IsolationForest(max_samples=ceil(0.6 * x_train.shape[0])).fit(x_train)
+            clusterer = IsolationForest(max_samples=ceil(0.1 * x_train.shape[0])).fit(x_train)
         return clusterer, transformer
 
     def predict_on_clusters(self, clusterer, clustering_type='hard', transformer=None):
@@ -209,18 +207,18 @@ class ModelNode:
             x_train = transformer.transform(x_train)
 
         # case when there are more features than samples
-        if x_train.shape[1] > x_train.shape[0]:
-            flag = True
-            init_arr = np.copy(x_train)
-            while flag:
-                try:
-                    kernel = gaussian_kde(np.transpose(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
-                    kernel.evaluate(np.transpose(init_arr))
-                    flag = False
-                except np.linalg.LinAlgError:
-                    x_train = np.concatenate((x_train, random()*np.mean(x_train, axis=0, keepdims=True)), axis=0)
-        else:
-            kernel = gaussian_kde(np.transpose(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
+        # if x_train.shape[1] > x_train.shape[0]:
+        flag = True
+        init_arr = np.copy(x_train)
+        while flag:
+            try:
+                kernel = gaussian_kde(np.transpose(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
+                kernel.evaluate(np.transpose(init_arr))
+                flag = False
+            except np.linalg.LinAlgError:
+                x_train = np.concatenate((x_train, random()*np.mean(x_train, axis=0, keepdims=True)), axis=0)
+        # else:
+        #     kernel = gaussian_kde(np.transpose(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
         return kernel, transformer
 
     def predict_on_gaussian(self, kernel, transformer=None, epsilon='auto', prediction_type='hard'):
@@ -247,7 +245,7 @@ class ModelNode:
                 train_labels = kernel.evaluate(x_train)
             except np.linalg.LinAlgError:
                 train_labels = kernel.evaluate(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1]))
-            epsilon = min(train_labels) + (max(train_labels) - min(train_labels)) / 25   # this value should be tuned
+            epsilon = min(train_labels) + (max(train_labels) - min(train_labels)) / 4   # this value should be tuned
 
         try:
             test_labels = kernel.evaluate(x_test)
@@ -294,7 +292,7 @@ class ModelNode:
 
         # find the difference between each attribute of a data point to the mean and compare it with the std
         if epsilon == 'auto':
-            test_labels = np.abs(x_test - mi) - 3 * si
+            test_labels = np.abs(x_test - mi) - 1 * si
         else:
             test_labels = np.abs(x_test - mi) - epsilon * si
 
