@@ -206,8 +206,6 @@ class ModelNode:
             transformer = RobustScaler().fit(x_train)
             x_train = transformer.transform(x_train)
 
-        # case when there are more features than samples
-        # if x_train.shape[1] > x_train.shape[0]:
         flag = True
         init_arr = np.copy(x_train)
         while flag:
@@ -217,8 +215,6 @@ class ModelNode:
                 flag = False
             except np.linalg.LinAlgError:
                 x_train = np.concatenate((x_train, random()*np.mean(x_train, axis=0, keepdims=True)), axis=0)
-        # else:
-        #     kernel = gaussian_kde(np.transpose(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1])))
         return kernel, transformer
 
     def predict_on_gaussian(self, kernel, transformer=None, epsilon='auto', prediction_type='hard'):

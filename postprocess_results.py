@@ -4,6 +4,7 @@ import pickle
 import glob
 from collections import defaultdict
 import seaborn as sns
+sns.set_style("darkgrid")
 import matplotlib.pyplot as plt
 
 
@@ -19,7 +20,7 @@ def generate_thresholds_from_validation(validation_dict, min_host_flows=None, mi
     the final results
     :param min_conn_flows: if this flag is set, then only connections with at least min_conn_flows are taken into
     account in the final results
-    :return:
+    :return: 2 dictionaries with the classification thresholds for each method on each level of analysis
     """
     host_thresholds_per_method = defaultdict(list)
     connection_thresholds_per_method = defaultdict(list)
@@ -41,6 +42,9 @@ def generate_thresholds_from_validation(validation_dict, min_host_flows=None, mi
                 continue
             # otherwise the validation process is continued
             method = result_type.split('_')[-1]
+            # necessary reformatting for better presentation of some methods
+            if method[-1] == '-':
+                method = method[:-1]
             if method not in min_thresholds.keys():
                 min_thresholds[method] = 1
             anomalous_ratio = (TP + FP) / (TP + TN + FP + FN)
@@ -68,19 +72,28 @@ def generate_thresholds_from_validation(validation_dict, min_host_flows=None, mi
             for dst_ip in min_thresholds_conn[method].keys():
                 connection_thresholds_per_method[method].append(1-min_thresholds_conn[method][dst_ip])
 
+    # finally decide on the thresholds
+    final_host_thresholds = {}
+    final_conn_thresholds = {}
     for method in host_thresholds_per_method.keys():
         plt.figure()
-        ax = sns.distplot(host_thresholds_per_method[method], bins=10, kde=False)
-        ax.set_title('Threshold distribution for method {} on host level analysis'.format(method))
-        ax.set_xlabel('Threshold (%)')
-        ax.set_ylabel('Occurrence  Count')
+        sns.distplot(host_thresholds_per_method[method], bins=10, kde=False)
+        plt.title('Threshold distribution for method {} on host level analysis'.format(method))
+        plt.xlabel('Threshold (%)')
+        plt.ylabel('Occurrence  Count')
+        plt.show()
+        final_host_thresholds[method] = float(input('Give threshold for ' + method + ' on host level: '))
 
     for method in connection_thresholds_per_method.keys():
         plt.figure()
-        ax = sns.distplot(connection_thresholds_per_method[method], bins=10, kde=False)
-        ax.set_title('Threshold distribution for method {} on connection level analysis'.format(method))
-        ax.set_xlabel('Threshold (%)')
-        ax.set_ylabel('Occurrence  Count')
+        sns.distplot(connection_thresholds_per_method[method], bins=10, kde=False)
+        plt.title('Threshold distribution for method {} on connection level analysis'.format(method))
+        plt.xlabel('Threshold (%)')
+        plt.xlabel('Occurrence  Count')
+        plt.show()
+        final_conn_thresholds[method] = float(input('Give threshold for ' + method + ' on connection level: '))
+
+    return final_host_thresholds, final_conn_thresholds
 
 
 def multilevel_statistics(results_dict, host_threshold, connection_threshold, min_host_flows=None, min_conn_flows=None):
@@ -103,6 +116,9 @@ def multilevel_statistics(results_dict, host_threshold, connection_threshold, mi
     host_results_per_method = {}
     connection_results_per_method = {}
     for host in results_dict.keys():
+        # for now ignore total results - TODO: change it in the final version of the code
+        if 'total' in host:
+            continue
         # temporary dictionaries for host level analysis
         predicted = {}
         true = {}
@@ -124,6 +140,9 @@ def multilevel_statistics(results_dict, host_threshold, connection_threshold, mi
                 continue
             # otherwise the evaluation process is continued
             method = result_type.split('_')[-1]
+            # necessary reformatting for better presentation of some methods
+            if method[-1] == '-':
+                method = method[:-1]
             if method not in predicted.keys():
                 predicted[method] = 1
             benign_ratio = (TN + FN) / (TP + TN + FP + FN)
@@ -178,18 +197,18 @@ def multilevel_statistics(results_dict, host_threshold, connection_threshold, mi
             # then create results for connection level
             if method not in connection_results_per_method.keys():
                 connection_results_per_method[method] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
-                for dst_ip in conn_true[method].keys():
-                    if conn_true[method][dst_ip]:
-                        if conn_predicted[method][dst_ip]:
-                            connection_results_per_method[method]['TP'] += 1
-                        else:
-                            connection_results_per_method[method]['FN'] += 1
+            for dst_ip in conn_true[method].keys():
+                if conn_true[method][dst_ip]:
+                    if conn_predicted[method][dst_ip]:
+                        connection_results_per_method[method]['TP'] += 1
                     else:
-                        if conn_predicted[method][dst_ip]:
-                            connection_results_per_method[method]['FP'] += 1
-                        else:
-                            connection_results_per_method[method]['TN'] += 1
-        return host_results_per_method, connection_results_per_method
+                        connection_results_per_method[method]['FN'] += 1
+                else:
+                    if conn_predicted[method][dst_ip]:
+                        connection_results_per_method[method]['FP'] += 1
+                    else:
+                        connection_results_per_method[method]['TN'] += 1
+    return host_results_per_method, connection_results_per_method
 
 
 if __name__ == '__main__':
@@ -197,21 +216,21 @@ if __name__ == '__main__':
     methods = [
         'clustering-LOF'
         , 'clustering-isolation forest'
-        , 'multivariate gaussian-'
-        , 'baseline-'
+        , 'multivariate gaussian'
+        , 'baseline'
     ]
     # first set the classification thresholds using the validation data
     validation_data_filename = 'Datasets/CTU13/scenario3_dfa_results.pkl'
     with open(validation_data_filename, 'rb') as f:
         validation_dict = pickle.load(f)
-    generate_thresholds_from_validation(validation_dict, 50, 10)
+    # host_threshold, connection_threshold = generate_thresholds_from_validation(validation_dict, 50, 20)
     host_threshold = {}
     connection_threshold = {}
     for method in methods:
         host_threshold[method] = float(input('Give threshold for ' + method + ' on host level: '))
         connection_threshold[method] = float(input('Give threshold for ' + method + ' on connection level: '))
     # then produce the final results for the given testing outputs
-    result_filenames = glob.glob('Datasets/CTU13/scenario*_results.pkl')
+    result_filenames = sorted(glob.glob('Datasets/CTU13/scenario*_results.pkl'))
     host_level_results = {}
     connection_level_results = {}
     for results_filename in result_filenames:
@@ -220,7 +239,8 @@ if __name__ == '__main__':
             results_dict = pickle.load(f)
         host_level_results[scenario], connection_level_results[scenario] = multilevel_statistics(results_dict,
                                                                                                  host_threshold,
-                                                                                                 connection_threshold)
+                                                                                                 connection_threshold,
+                                                                                                 50, 5)
 
         # initialize also the entry for the total results from all scenarios
         if dataset + '_total' not in host_level_results.keys():
@@ -230,26 +250,70 @@ if __name__ == '__main__':
                 host_level_results[dataset + '_total'][method] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
                 connection_level_results[dataset + '_total'][method] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
 
-        print('Host level analysis results for ' + scenario)
+        print('===================== Host level analysis results for ' + scenario + ' =====================')
         for method in host_level_results[scenario].keys():
+            tp = host_level_results[scenario][method]['TP']
+            tn = host_level_results[scenario][method]['TN']
+            fp = host_level_results[scenario][method]['FP']
+            fn = host_level_results[scenario][method]['FN']
             print('--------------- ' + method + ' ---------------')
-            print("TP: " + str(host_level_results[scenario][method]['TP']))
-            print("TN: " + str(host_level_results[scenario][method]['TN']))
-            print("FP: " + str(host_level_results[scenario][method]['FP']))
-            print("FN: " + str(host_level_results[scenario][method]['FN']))
-            host_level_results[dataset + '_total'][method]['TP'] += host_level_results[scenario][method]['TP']
-            host_level_results[dataset + '_total'][method]['TN'] += host_level_results[scenario][method]['TN']
-            host_level_results[dataset + '_total'][method]['FP'] += host_level_results[scenario][method]['FP']
-            host_level_results[dataset + '_total'][method]['FN'] += host_level_results[scenario][method]['FN']
+            print("TP: {} TN: {} FP: {} FN: {}".format(tp, tn, fp, fn))
+            acc = (tp + tn) / (tp + tn + fp + fn)
+            prec = -1 if tp + fp == 0 else tp / (tp + fp)
+            rec = -1 if tp + fn == 0 else tp / (tp + fn)
+            print('Accuracy: ' + str(acc))
+            print('Precision: ' + str(prec))
+            print('Recall: ' + str(rec))
+            host_level_results[dataset + '_total'][method]['TP'] += tp
+            host_level_results[dataset + '_total'][method]['TN'] += tn
+            host_level_results[dataset + '_total'][method]['FP'] += fp
+            host_level_results[dataset + '_total'][method]['FN'] += fn
 
-        print('Connection level analysis results for ' + scenario)
+        print('===================== Connection level analysis results for ' + scenario + ' =====================')
         for method in connection_level_results[scenario].keys():
+            tp = connection_level_results[scenario][method]['TP']
+            tn = connection_level_results[scenario][method]['TN']
+            fp = connection_level_results[scenario][method]['FP']
+            fn = connection_level_results[scenario][method]['FN']
             print('--------------- ' + method + ' ---------------')
-            print("TP: " + str(connection_level_results[scenario][method]['TP']))
-            print("TN: " + str(connection_level_results[scenario][method]['TN']))
-            print("FP: " + str(connection_level_results[scenario][method]['FP']))
-            print("FN: " + str(connection_level_results[scenario][method]['FN']))
-            connection_level_results[dataset + '_total'][method]['TP'] += connection_level_results[scenario][method]['TP']
-            connection_level_results[dataset + '_total'][method]['TN'] += connection_level_results[scenario][method]['TN']
-            connection_level_results[dataset + '_total'][method]['FP'] += connection_level_results[scenario][method]['FP']
-            connection_level_results[dataset + '_total'][method]['FN'] += connection_level_results[scenario][method]['FN']
+            print("TP: {} TN: {} FP: {} FN: {}".format(tp, tn, fp, fn))
+            acc = (tp + tn) / (tp + tn + fp + fn)
+            prec = -1 if tp + fp == 0 else tp / (tp + fp)
+            rec = -1 if tp + fn == 0 else tp / (tp + fn)
+            print('Accuracy: ' + str(acc))
+            print('Precision: ' + str(prec))
+            print('Recall: ' + str(rec))
+            connection_level_results[dataset + '_total'][method]['TP'] += tp
+            connection_level_results[dataset + '_total'][method]['TN'] += tn
+            connection_level_results[dataset + '_total'][method]['FP'] += fp
+            connection_level_results[dataset + '_total'][method]['FN'] += fn
+
+    print('===================== Host level analysis total results for dataset ' + dataset + ' =====================')
+    for method in host_level_results[dataset + '_total'].keys():
+        tp = host_level_results[dataset + '_total'][method]['TP']
+        tn = host_level_results[dataset + '_total'][method]['TN']
+        fp = host_level_results[dataset + '_total'][method]['FP']
+        fn = host_level_results[dataset + '_total'][method]['FN']
+        print('--------------- ' + method + ' ---------------')
+        print("TP: {} TN: {} FP: {} FN: {}".format(tp, tn, fp, fn))
+        acc = (tp + tn) / (tp + tn + fp + fn)
+        prec = -1 if tp + fp == 0 else tp / (tp + fp)
+        rec = -1 if tp + fn == 0 else tp / (tp + fn)
+        print('Accuracy: ' + str(acc))
+        print('Precision: ' + str(prec))
+        print('Recall: ' + str(rec))
+
+    print('===================== Connection level analysis results for dataset ' + dataset + ' =====================')
+    for method in connection_level_results[dataset + '_total'].keys():
+        tp = connection_level_results[dataset + '_total'][method]['TP']
+        tn = connection_level_results[dataset + '_total'][method]['TN']
+        fp = connection_level_results[dataset + '_total'][method]['FP']
+        fn = connection_level_results[dataset + '_total'][method]['FN']
+        print('--------------- ' + method + ' ---------------')
+        print("TP: {} TN: {} FP: {} FN: {}".format(tp, tn, fp, fn))
+        acc = (tp + tn) / (tp + tn + fp + fn)
+        prec = -1 if tp + fp == 0 else tp / (tp + fp)
+        rec = -1 if tp + fn == 0 else tp / (tp + fn)
+        print('Accuracy: ' + str(acc))
+        print('Precision: ' + str(prec))
+        print('Recall: ' + str(rec))
