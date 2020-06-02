@@ -105,11 +105,11 @@ if __name__ == '__main__':
                 'dst_port'
                 , 'protocol_num'
                 # , 'duration'
-                , 'src_bytes'
-                , 'dst_bytes'
+                # , 'src_bytes'
+                # , 'dst_bytes'
                 # , 'date_diff'
-                # , 'total_bytes'
-                # , 'bytes_per_packet'
+                , 'total_bytes'
+                , 'bytes_per_packet'
                         ]
         else:
             selected = [

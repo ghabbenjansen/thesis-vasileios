@@ -9,6 +9,7 @@ import re
 import glob
 from collections import defaultdict
 from operator import add
+import os
 
 debugging = 1
 
@@ -426,8 +427,13 @@ if __name__ == '__main__':
 
     # finally save all the results for each testing trace
     if debugging:
-        results_filename = '/'.join(debug_test_set_filepaths[0].split('/')[0:2]) + '/' + \
+        results_filename = '/'.join(debug_test_trace_filepaths[0].split('/')[0:2]) + '/' + 'results/' + \
+                           debug_test_trace_filepaths[0].split('/')[4] + '/' + \
                            '-'.join(set(map(lambda x: x.split('/')[-1], debug_test_set_filepaths))) + '_dfa_results.pkl'
+        # create the directory if it does not exist
+        os.makedirs(os.path.dirname(results_filename), exist_ok=True)
+        # results_filename = '/'.join(debug_test_set_filepaths[0].split('/')[0:2]) + '/' + \
+        #                    '-'.join(set(map(lambda x: x.split('/')[-1], debug_test_set_filepaths))) + '_dfa_results.pkl'
     else:
         results_filename = input('Provide the relative path for the filename of the results: ')
     with open(results_filename, 'wb') as f:

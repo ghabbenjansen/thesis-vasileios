@@ -4,8 +4,8 @@ import pickle
 import glob
 from collections import defaultdict
 import seaborn as sns
-sns.set_style("darkgrid")
 import matplotlib.pyplot as plt
+sns.set_style("darkgrid")
 
 
 def generate_thresholds_from_validation(validation_dict, min_host_flows=None, min_conn_flows=None):
@@ -220,7 +220,7 @@ if __name__ == '__main__':
         , 'baseline'
     ]
     # first set the classification thresholds using the validation data
-    validation_data_filename = 'Datasets/CTU13/scenario3_dfa_results.pkl'
+    validation_data_filename = 'Datasets/CTU13/results/dst_port_protocol_num_src_bytes_dst_bytes/scenario3_dfa_results.pkl'
     with open(validation_data_filename, 'rb') as f:
         validation_dict = pickle.load(f)
     # host_threshold, connection_threshold = generate_thresholds_from_validation(validation_dict, 50, 20)
@@ -230,11 +230,11 @@ if __name__ == '__main__':
         host_threshold[method] = float(input('Give threshold for ' + method + ' on host level: '))
         connection_threshold[method] = float(input('Give threshold for ' + method + ' on connection level: '))
     # then produce the final results for the given testing outputs
-    result_filenames = sorted(glob.glob('Datasets/CTU13/scenario*_results.pkl'))
+    result_filenames = sorted(glob.glob('Datasets/CTU13/results/dst_port_protocol_num_src_bytes_dst_bytes/scenario*_results.pkl'))
     host_level_results = {}
     connection_level_results = {}
     for results_filename in result_filenames:
-        scenario = results_filename.split('/')[2].split('_')[0]
+        scenario = results_filename.split('/')[-1].split('_')[0]
         with open(results_filename, 'rb') as f:
             results_dict = pickle.load(f)
         host_level_results[scenario], connection_level_results[scenario] = multilevel_statistics(results_dict,

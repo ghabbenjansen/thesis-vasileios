@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import pickle
 from scipy.stats import mode
 from collections import defaultdict
+sns.set_style("darkgrid")
 
 
 def fit_validate_VAR(train_data, validation_data):
@@ -23,44 +24,63 @@ def fit_validate_VAR(train_data, validation_data):
     """
     # first fit the model on the training data to evaluate the mse between the fitted model predictions and the
     # evaluation data points
-    model = VAR(endog=train_data).fit()
+    try:
+        model = VAR(endog=train_data).fit(maxlags=20, ic='aic')
+    except ValueError:
+        print('ValueError occurred -> Current model is skipped')
+        return None, None
+    except np.linalg.LinAlgError:
+        print('LinAlgError occurred -> Current model is skipped')
+        return None, None
     pred = model.forecast(model.y, steps=validation_data.shape[0])
+    assert (pred.shape[0] == validation_data.shape[0]), "Rows mismatch between predicted data and validation data"
     abs_errors = np.abs(pred - validation_data.values)
     multipliers = []
     for i, col in enumerate(train_data.columns):
         plt.figure()
-        ax = sns.distplot(abs_errors[:, i], kde=False)
-        ax.set_title('Absolute Error distribution for ' + col)
-        ax.set_xlabel('Errors')
-        ax.set_ylabel('Occurrence Count')
+        sns.distplot(abs_errors[:, i], kde=False)
+        plt.title('Absolute Error distribution for ' + col)
+        plt.xlabel('Errors')
+        plt.ylabel('Occurrence Count')
+        plt.show()
         multipliers.append(float(input('Provide the multiplier of the mean absolute error: ')))
 
     # set the anomaly thresholds as a multiplied value on the MAEs of each attribute
     thresholds = np.multiply(abs_errors.mean(axis=0), np.array(multipliers))
     # then fit the model on the whole dataset
-    model = VAR(endog=pd.concat([train_data, validation_data])).fit()
+    model = VAR(endog=pd.concat([train_data, validation_data])).fit(maxlags=20, ic='aic')
     # and return both the fitted model and the mse for each feature as an anomaly indicator
     return model, thresholds
 
 
-def evaluate_VAR(data, models, method='any', printing=False):
+def evaluate_VAR(data, models, flag, method='any', printing=False):
     """
     Function for testing VAR on the given data both on a host and a connection level.
     :param data: the input dataframe
     :param models: the fitted VAR models
+    :param flag: the flag about the type of the dataset used
     :param method: the method to be used for identifying an anomaly ('any' | 'all' | 'majority')
     :param printing: flag for printing intermediate results
     :return: the final results as a dictionary
     """
     results = defaultdict(dict)
     for src_ip in data['src_ip'].unique():
-        host_data = data[data['src_ip'] == src_ip].set_index('data').sort_index()
+        host_data = data[data['src_ip'] == src_ip].set_index('date').sort_index()
         dst_ips = host_data['dst_ip'].tolist()
         true = host_data['label'].values
+        if flag == 'CTU-bi':
+            true = list(map(lambda x: 1 if 'Botnet' in x else 0, true.tolist()))
+        elif flag == 'IOT':
+            true = list(map(lambda x: 1 if x == 'Malicious' else 0, true.tolist()))
+        elif flag == 'UNSW':
+            true = true.tolist()
+        else:
+            true = list(map(lambda x: 1 if x != 'BENIGN' else 0, true.tolist()))
         host_results = {}
         for model_params in models:
             model, thresholds, model_ip = model_params
             pred = model.forecast(model.y, steps=host_data.shape[0])
+            assert (pred.shape[0] == host_data.shape[0]), "Rows mismatch between predicted data and evaluation data"
             abs_err = np.abs(pred - host_data[selected].values) > thresholds
             if method == 'any':
                 predicted = np.any(abs_err, axis=1).astype(np.int)
@@ -97,6 +117,40 @@ def evaluate_VAR(data, models, method='any', printing=False):
             host_results['model_' + model_ip + '_VAR'] = TP, FP, TN, FN, conn_results
         results['results_' + src_ip + '_VAR'] = host_results
     return results
+
+
+def create_aggregated_view(data, selected, flag):
+    """
+    Function for creating an aggregated view on the data to be used for clustering. The data are aggregated on
+    connection level and the label of each connection is assigned according to the existence of anomalous flows.
+    :param data: the input dataframe
+    :param selected:  the selected features
+    :param flag: the flag about the type of the dataset used
+    :return: the aggregated view on the data
+    """
+    if flag == 'CTU-bi':
+        data['label_num'] = data['label'].str.contains('Botnet').astype(np.int)
+    elif flag == 'IOT':
+        data['label_num'] = data['label'].str.contains('Malicious').astype(np.int)
+    elif flag == 'UNSW':
+        data['label_num'] = data['label']
+    else:
+        data['label_num'] = (~data['label'].str.contains('BENIGN')).astype(np.int)
+
+    aggregation_dict = {}
+    for feature in selected + ['label_num']:
+        if 'label' in feature:
+            # by setting max we consider as malicious any connection with at least 1 malicious flow. Other selections
+            # would be 'min' if we needed all flows to be malicious or pd.Series.mode if we were considering a majority
+            # voting scheme
+            aggregation_dict[feature] = 'max'
+        elif 'num' in feature:
+            aggregation_dict[feature] = lambda x: pd.Series.mode(x)[0]
+        else:
+            aggregation_dict[feature] = 'mean'
+
+    agg_data = data.groupby(['src_ip', 'dst_ip']).agg(aggregation_dict).reset_index()
+    return agg_data
 
 
 def evaluate_clustering(data, true, ips,  quantile_limit, printing=False):
@@ -189,39 +243,45 @@ if __name__ == '__main__':
     # first learn a VAR model on each host and store as anomaly indicators the mse of each feature
     VAR_models = []
     for src_ip in train['src_ip'].unique().tolist():
+        print("=========== Creating VAR model from " + src_ip + " ===========")
         host_data = train[train['src_ip'] == src_ip].set_index('date').sort_index()[selected]
         split_len = int(0.8 * host_data.shape[0])
-        train_data, validation_data = host_data.iloc[:split_len], host_data.iloc[split_len:]
+        train_data, validation_data = host_data.iloc[:split_len-1], host_data.iloc[split_len:]
         VAR_models.append((*fit_validate_VAR(train_data, validation_data), src_ip))
+    # filter out skipped models
+    VAR_models = list(filter(lambda x: x[0] is not None, VAR_models))
 
     # then check the outlier scores when using hdbscan clustering on the data
-    clusterer = hdbscan.HDBSCAN().fit(train[selected].values)
+    agg_train = create_aggregated_view(train, selected, flag)
+    clusterer = hdbscan.HDBSCAN().fit(agg_train[selected].values)
     plt.figure()
     sns.distplot(clusterer.outlier_scores_[np.isfinite(clusterer.outlier_scores_)], kde=False)
+    plt.show()
     quantile_lim = float(input('Give the outliers quantile value according to which a point is considered an outlier: '))
 
     # retrieve all the paths to the test sets
-    test_filepaths = glob.glob('Datasets/CTU13/scenario*/')
+    test_filepaths = sorted(glob.glob('Datasets/CTU13/scenario*/'))
     for test_filepath in test_filepaths:
         VAR_results = {}
         clustering_results = {}
         if flag == 'CTU-bi':
-            normal = pd.read_pickle(test_filepath + '/binetflow_normal.pkl')
-            anomalous = pd.read_pickle(test_filepath + '/binetflow_anomalous.pkl')
+            normal = pd.read_pickle(test_filepath + 'binetflow_normal.pkl')
+            anomalous = pd.read_pickle(test_filepath + 'binetflow_anomalous.pkl')
         else:
-            normal = pd.read_pickle(test_filepath + '/normal.pkl')
-            anomalous = pd.read_pickle(test_filepath + '/anomalous.pkl')
+            normal = pd.read_pickle(test_filepath + 'normal.pkl')
+            anomalous = pd.read_pickle(test_filepath + 'anomalous.pkl')
         all_data = pd.concat([normal, anomalous], ignore_index=True).sort_values(by='date').reset_index(drop=True)
 
         # first produce the clustering results
-        sel_data = all_data[selected].values
-        true = all_data['label'].values
-        ips = all_data[['src_ip', 'dst_ip']].values
-        filename = '/'.join(test_filepath.split('/')[:-1]) + test_filepath.split('/')[-1] + '_clustering_results.pkl'
+        agg_data = create_aggregated_view(all_data, selected, flag)
+        true = agg_data['label_num'].values
+        ips = agg_data[['src_ip', 'dst_ip']].values
+        sel_data = agg_data[selected].values
+        filename = '/'.join(test_filepath.split('/')[:-2]) + '/results/' + test_filepath.split('/')[-2] + '_clustering_results.pkl'
         with open(filename, 'wb') as f:
             pickle.dump(evaluate_clustering(sel_data, true, ips, quantile_lim), f, protocol=pickle.HIGHEST_PROTOCOL)
 
         # then produce the VAR results
-        filename = '/'.join(test_filepath.split('/')[:-1]) + test_filepath.split('/')[-1] + '_VAR_results.pkl'
+        filename = '/'.join(test_filepath.split('/')[:-2]) + '/results/' + test_filepath.split('/')[-2] + '_VAR_results.pkl'
         with open(filename, 'wb') as f:
-            pickle.dump(evaluate_VAR(all_data, VAR_models), f, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(evaluate_VAR(all_data, VAR_models, flag), f, protocol=pickle.HIGHEST_PROTOCOL)
