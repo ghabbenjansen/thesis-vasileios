@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 from pandas.tseries.offsets import DateOffset
+from pandas import Timedelta
 from copy import deepcopy
 from scipy.stats import mode
 from statistics import mean
@@ -380,6 +381,70 @@ def aggregate_in_windows(data, selected_features, window, timed=False, resample=
     return data
 
 
+def aggregate_static(data, selected_features, window, new_features=True):
+    """
+    Function for aggregating specific features of a dataframe in static non-timed windows of length window
+    Currently the following features are taken into account: source port, destination ip/port, originator's bytes,
+    responder's bytes, duration, and protocol
+    :param data: the input dataframe
+    :param selected_features: the features that are contained in the dataframe (this value is passed even if it can be
+    inferred by the columns of the dataframe for ordering purposes between different runs of the function)
+    :param window: the window length
+    :param new_features: boolean flag specifying if new features should be added to the existing ones
+    :return: a dataframe with the aggregated features
+    """
+    old_column_names = deepcopy(selected_features)
+    # can be called only if timed flag has been set to True
+    frames = []
+    new_column_names = []
+    # check for ports in features
+    for feature in old_column_names:
+        if 'port' in feature:
+            new_column_names += (['unique' + feature + 's', 'std_' + feature + 's'] if new_features else
+                                 ['median_' + feature])
+            frames += ([data[feature].groupby(data.index // window).nunique(),
+                        data[feature].groupby(data.index // window).std()] if
+                       new_features else [data[feature].groupby(data.index // window).median()])
+        # check for protocol
+        if 'protocol_num' in feature:
+            new_column_names += (['argmax_protocol_num', 'std_protocol_num'] if new_features else
+                                 ['argmax_protocol_num'])
+            frames += ([data['protocol_num'].groupby(data.index // window).apply(lambda x: mode(x)[0][0]),
+                        data['protocol_num'].groupby(data.index // window).std()] if new_features else
+                       [data['protocol_num'].groupby(data.index // window).apply(lambda x: mode(x)[0][0])])
+        # check for encoding in case of discretized input
+        if 'encoding' in feature:
+            new_column_names += (['argmax_encoding', 'std_encoding'] if new_features else
+                                 ['argmax_encoding'])
+            frames += ([data['encoding'].groupby(data.index // window).apply(lambda x: mode(x)[0][0]),
+                        data['encoding'].groupby(data.index // window).std()] if new_features else
+                       [data['encoding'].groupby(data.index // window).apply(lambda x: mode(x)[0][0])])
+        # check for duration in features
+        if 'duration' in feature:
+            new_column_names += (['median_' + feature, 'std_' + feature] if new_features else ['median_' + feature])
+            frames += ([data[feature].groupby(data.index // window).median(),
+                        data[feature].groupby(data.index // window).std()] if
+                       new_features else [data[feature].groupby(data.index // window).median()])
+        # check for bytes in features
+        if 'bytes' in feature:
+            new_column_names += (['median_' + feature, 'std_' + feature] if new_features else ['median_' + feature])
+            frames += ([data[feature].groupby(data.index // window).median(),
+                        data[feature].groupby(data.index // window).std()]
+                       if new_features else [data[feature].groupby(data.index // window).median()])
+        # check for destination IP in features in case new features are considered
+        if 'dst_ip' in feature:
+            if new_features:
+                new_column_names += ['unique_dst_ips']
+                frames += [data['dst_ip'].groupby(data.index // window).nunique()]
+        data = pd.concat(frames, axis=1)
+        data.columns = new_column_names
+        data.dropna(inplace=True)
+        # handle the case of discretized data in which the dropna is not sufficient by itself
+        if len(new_column_names) == 1:
+            data = data[data.astype(str)[new_column_names[0]] != '[]']
+    return data
+
+
 def extract_traces_from_window(data, selected, window, stride, trace_limits, total, progress_list,
                                dynamic=True, aggregation=False, resample=False, new_features=True):
     """
@@ -531,8 +596,11 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
 
             # create aggregated features if needed (currently with a hard-coded window length)
             if aggregation:
-                # TODO: check aggregation length to be less than the window length
-                aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
+                # this checks also if the window is big enough. If not then it sets the aggregation window to 1/5 of
+                # the window
+                aggregation_length = min(Timedelta(seconds=5), (min(end_date, data['date'].iloc[-1])-start_date)/5) \
+                    if resample else min(10, int(len(windowed_data.index)))
+                # aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index))) # old version
                 timed = True if resample else False
                 windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), selected,
                                                      aggregation_length, timed, resample, new_features)
@@ -603,7 +671,11 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
         assertion_dict.update(zip(data.index[time_mask].tolist(), len(data.index[time_mask].tolist()) * [True]))
         # check for aggregation
         if aggregation:
-            aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
+            # this checks also if the window is big enough. If not then it sets the aggregation window to 1/5 of
+            # the window
+            aggregation_length = min(Timedelta(seconds=5), (min(end_date, data['date'].iloc[-1]) - start_date) / 5) \
+                if resample else min(10, int(len(windowed_data.index)))
+            # aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index))) # old version
             timed = True if resample else False
             windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), selected, aggregation_length,
                                                  timed, resample, new_features)
@@ -707,7 +779,7 @@ def extract_traces(data, out_filepath, selected, alphabet_size, timed=True, dyna
     # flow version
     else:
         # set the window and stride
-        window = 20
+        window = 100
         stride = int(window/5)
         # obtain the indices residing in the processed data
         data_indices = data.index.tolist()
@@ -720,8 +792,14 @@ def extract_traces(data, out_filepath, selected, alphabet_size, timed=True, dyna
             windowed_data = data[starting_index: min(starting_index + window, len(data_indices))]
             # insert the indices of the current trace to the assertion dictionary
             assertion_dict.update(zip(windowed_data.index.tolist(), len(windowed_data.index.tolist()) * [True]))
+            # create aggregated features if needed (currently with a hard-coded window length)
+            if aggregation:
+                aggregation_length = 5
+                windowed_data = aggregate_static(windowed_data[selected].copy(deep=True), selected, aggregation_length,
+                                                 new_features)
+                selected = windowed_data.columns.values
+                num_of_features = len(selected)
             # extract the trace of this window and add it to the traces' list
-            # TODO: maybe add aggregation window
             ints = False if 'duration' in selected or 'bytes_per_packet' in selected else True
             traces += [convert2flexfringe_format(windowed_data[selected], ints)]
             # store also the flow indices of the current time window
