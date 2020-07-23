@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-from helper import parse_dot, run_traces_on_model, dict2list
+from helper import parse_dot, run_traces_on_model, dict2list, reduce_data_by_label, parse_symbolic_dot, run_traces_on_symbolic_model
 from statistics import median
 import pandas as pd
 import numpy as np
@@ -11,7 +11,8 @@ from collections import defaultdict
 from operator import add
 import os
 
-debugging = 1
+# Set debugging flag (if set to 0 the interactive version is used)
+DEBUGGING = 1
 
 
 def train_model(traces_filepath, indices_filepath, model, method, clustering_method=None, transformer=None):
@@ -28,7 +29,7 @@ def train_model(traces_filepath, indices_filepath, model, method, clustering_met
     :return: the trained model
     """
     model = run_traces_on_model(traces_filepath, indices_filepath, model)
-    model.set_all_weights(model.get_maximum_weight())
+    model.set_all_weights(model.get_maximum_weight(with_laplace=True), with_laplace=True)
     for node_label in model.nodes_dict.keys():
         if node_label != 'root' and len(model.nodes_dict[node_label].observed_indices) > 2:
             if method == 'clustering':
@@ -101,44 +102,6 @@ def predict_on_model(model, method, weighted=True):
     else:
         predictions = dict((k, median(v)) for k, v in predictions.items())
     return predictions
-
-
-def dates2indices(date_dict, dates):
-    """
-    Function for propagating the values of a dictionary with resampled date indices as its keys to the actual indices
-    before resampling using a series object containing the actual dates
-    :param date_dict: a dictionary with keys the resampled dates
-    :param dates: a Series of the actual dates
-    :return: a dictionary with the indices of the actual dates as keys and the propagated values as its values
-    """
-    # first keep the resampled dates in a dataframe and sort them
-    date_df = pd.DataFrame({'resampled_dates': list(date_dict.keys())}).sort_values(by='resampled_dates')
-    ind = 0
-    new_dict = dict()
-    for items in dates.iteritems():
-        # if the current resampled date examined is the last one then just check for lower bound for the actual dates
-        if ind == date_df.shape[0] - 1:
-            if date_df.resampled_dates[ind] <= items[1]:
-                new_dict[items[0]] = date_dict[date_df.resampled_dates[ind]]
-            else:
-                print("This clause should not be accessed -> Error !!!!!!!!!!!")
-        # otherwise check both upper and lower limits
-        else:
-            # the first clause applies only for flows in the beginning of the recording that weren't captured by the
-            # resampler. In this case our predictions are biased towards the benign class
-            if items[1] < date_df.resampled_dates[ind]:
-                new_dict[items[0]] = 0
-            # the second clause captures all flows belonging between two resampled timestamps. In this case the
-            # predicted label of the lower resampled timestamp is assigned to these flows
-            elif date_df.resampled_dates[ind] <= items[1] < date_df.resampled_dates[ind+1]:
-                new_dict[items[0]] = date_dict[date_df.resampled_dates[ind]]
-            # the third clause captures the flow that forces into a change of the resampled window that we are currently
-            # examining
-            else:
-                # and if the upper limit is violated increment the resampled dates' index
-                ind += 1
-                new_dict[items[0]] = date_dict[date_df.resampled_dates[ind]]
-    return new_dict
 
 
 def produce_evaluation_metrics(predicted_labels, true_labels, detailed_labels, dst_ips, prediction_type='hard', printing=True):
@@ -214,30 +177,44 @@ def print_total_results(results):
         print('-------------------- Total results for ' + test_set_name + ' --------------------')
         for model_name in results[test_set_name].keys():
             print('---- Model ' + model_name + ' ----')
-            model_TP = results[test_set_name][model_name][0]
-            model_TN = results[test_set_name][model_name][1]
-            model_FP = results[test_set_name][model_name][2]
-            model_FN = results[test_set_name][model_name][3]
-            model_accuracy = (model_TP + model_TN) / (model_TP + model_TN + model_FP + model_FN)
-            model_precision = -1 if model_TP + model_FP == 0 else model_TP / (model_TP + model_FP)
-            model_recall = -1 if model_TP + model_FN == 0 else model_TP / (model_TP + model_FN)
-            print('TP: ' + str(model_TP) + ' TN: ' + str(model_TN) + ' FP: ' + str(model_FP) + ' FN:' + str(model_FN))
-            print('Accuracy: ' + str(model_accuracy))
-            print('Precision: ' + str(model_precision))
-            print('Recall: ' + str(model_recall))
+            if 'symbolic' not in model_name:
+                model_TP = results[test_set_name][model_name][0]
+                model_TN = results[test_set_name][model_name][1]
+                model_FP = results[test_set_name][model_name][2]
+                model_FN = results[test_set_name][model_name][3]
+                model_accuracy = (model_TP + model_TN) / (model_TP + model_TN + model_FP + model_FN)
+                model_precision = -1 if model_TP + model_FP == 0 else model_TP / (model_TP + model_FP)
+                model_recall = -1 if model_TP + model_FN == 0 else model_TP / (model_TP + model_FN)
+                print('TP: ' + str(model_TP) + ' TN: ' + str(model_TN) + ' FP: ' + str(model_FP) + ' FN:' + str(model_FN))
+                print('Accuracy: ' + str(model_accuracy))
+                print('Precision: ' + str(model_precision))
+                print('Recall: ' + str(model_recall))
+            else:
+                model_ratio = results[test_set_name][model_name][0]
+                print('Ratio: ' + str(model_ratio))
 
 
 if __name__ == '__main__':
-    if debugging:
+    # set flag regarding the number of flows to be processed TODO: to be removed for final version
+    reduction_flag = True
+    # set flag for baseline results TODO: to be removed for final version
+    baseline_only = True
+
+    if DEBUGGING:
         # for debugging purposes the following structures can be used
-        debug_model_filepaths = sorted(glob.glob('outputs/CTU13/host_level/dst_port_protocol_num_src_bytes_dst_bytes/scenario3*_resampled_reduced_dfa.dot'))
-        debug_train_trace_filepaths = sorted(glob.glob('Datasets/CTU13/training/host_level/dst_port_protocol_num_src_bytes_dst_bytes/scenario3*-traces_resampled_reduced.txt'))
+        debug_model_filepaths = sorted(glob.glob(
+            'outputs/UNSW-NB15/host_level/encoding/UNSW-NB15-1-*_resampled_reduced_dfa.dot'),
+                                       key=lambda item: re.search('-(.+?)_', item.split('/')[-1]).group(1))
+        debug_train_trace_filepaths = sorted(glob.glob(
+            'Datasets/UNSW-NB15/training/host_level/encoding/UNSW-NB15-1-*-traces_resampled_reduced.txt'),
+                                             key=lambda item: re.search('-(.+)-', item.split('/')[-1]).group(1))
 
         debug_methods = [
-            'clustering'
-            , 'multivariate gaussian'
+            # 'clustering'
+            # , 'multivariate gaussian'
             # , 'probabilistic'
-            , 'baseline'
+            # , 'baseline multivariate'
+            'baseline symbolic'
                          ]
 
         debug_clustering_methods = [
@@ -257,7 +234,7 @@ if __name__ == '__main__':
                 else:
                     parameters += [(model_filepath, trace_filepath, method)]
 
-        flag = 'CTU-bi'
+        flag = 'UNSW'
         n = len(parameters)
     else:
         flag = int(input('Provide the type of dataset to be used: '))
@@ -266,39 +243,50 @@ if __name__ == '__main__':
     methods = []
     models_info = []
     for i in range(n):
-        if debugging:
+        if DEBUGGING:
             model_filepath = parameters[i][0]
-        else:
-            model_filepath = input('Give the relative path of the model to be used for training: ')
-        model = parse_dot(model_filepath)
-        if debugging:
             traces_filepath = parameters[i][1]
-        else:
-            traces_filepath = input('Give the relative path of the trace to be used for training on the given model: ')
-        indices_filepath = '.'.join(traces_filepath.split('.')[:-1]) + '_indices.pkl'
-        if debugging:
             method = parameters[i][2]
         else:
+            model_filepath = input('Give the relative path of the model to be used for training: ')
+            traces_filepath = input('Give the relative path of the trace to be used for training on the given model: ')
             method = input('Give the name of the training method to be used (clustering | multivariate gaussian | '
                            'probabilistic): ')
+
+        # parse the model from the model dot file
+        if method != 'baseline symbolic':
+            model = parse_dot(model_filepath)
+            indices_filepath = '.'.join(traces_filepath.split('.')[:-1]) + '_indices.pkl'
+        else:
+            model = parse_symbolic_dot(model_filepath)
+            indices_filepath = ''
         clustering_method = None
         if method == 'clustering':
-            if debugging:
+            if DEBUGGING:
                 clustering_method = parameters[i][3]
             else:
                 clustering_method = input('Provide the specific clustering method to be used (hdbscan | isolation forest '
                                           '| LOF | kmeans): ')
         # train the model
-        print('Training on ' + '.'.join(model_filepath.split('/')[-1].split('.')[0:-1]) + '_' + method + '-' + (clustering_method if clustering_method is not None else '') + '...')
-        models += [train_model(traces_filepath, indices_filepath, model, method, clustering_method=clustering_method)]
+        print('Training on ' + '.'.join(model_filepath.split('/')[-1].split('.')[0:-1]) + '_' + method + '-' +
+              (clustering_method if clustering_method is not None else '') + '...')
+        # in case the baseline symbolic method is used then there is no need of replaying the training data on the model
+        if method != 'baseline symbolic':
+            models += [train_model(traces_filepath, indices_filepath, model, method, clustering_method=clustering_method)]
+        else:
+            models += [model]
         methods += [method + '-' + (clustering_method if clustering_method is not None else '')]
         # list used for better presentation of the results later on
         models_info += ['.'.join(model_filepath.split('/')[-1].split('.')[0:-1]) + '_' + methods[-1]]
 
-    # start testing on each trained model - it is assumed that each testing trace corresponds to one host
-    if debugging:
-        # get the testing traces filepath pattern through STDIN mostly so that datasets can run in parallel
-        debug_test_trace_filepaths = sorted(glob.glob('Datasets/CTU13/test/host_level/dst_port_protocol_num_src_bytes_dst_bytes/scenario3-*-traces.txt'))
+    # start testing on each trained model
+    if DEBUGGING:
+        # get the testing traces filepath pattern
+        debug_test_trace_filepaths = sorted(glob.glob(
+            'Datasets/UNSW-NB15/test/host_level/encoding/UNSW-NB15-1-*-traces_resampled_reduced.txt'))
+        # just shortcut for huge inputs used during experimentation - TODO: remove it in final version
+        # debug_test_trace_filepaths =sorted(filter(lambda x: '147.32.84.170' not in x, glob.glob('Datasets/CTU13/test/host_level/src_port_dst_port_protocol_num_src_bytes_dst_bytes/scenario3-*-traces.txt')))
+
         debug_test_set_filepaths = list(map(lambda x: '/'.join(x.split('/')[0:2]) + '/'
                                                       + '-'.join(x.split('/')[-1].split('-')[:(-3 if 'connection' in x
                                                                                                else -2)]),
@@ -312,11 +300,14 @@ if __name__ == '__main__':
     prev_test_path = ''
     accumulated_results = defaultdict(list)
     for j in range(m):
-        if debugging:
+        if DEBUGGING:
             test_traces_filepath = debug_test_filepaths[j][0]
         else:
             test_traces_filepath = input('Give the relative path of the testing traces to be used for evaluation: ')
-        indices_filepath = '.'.join(test_traces_filepath.split('.')[:-1]) + '_indices.pkl'
+        if 'encoding' not in test_traces_filepath:
+            indices_filepath = '.'.join(test_traces_filepath.split('.')[:-1]) + '_indices.pkl'
+        else:
+            indices_filepath = ''
         # initialize the entry in the results dictionary for the current testing trace file
         test_trace_name = '.'.join(test_traces_filepath.split('/')[-1].split('.')[0:-1])
         print('-------------------------------- Evaluating on ' + test_trace_name + ' --------------------------------')
@@ -326,16 +317,13 @@ if __name__ == '__main__':
         for ip_tuple in re.findall("-(\d+\.\d+\.\d+\.\d+)|-([^-]+::[^-]+:[^-]+:[^-]+:[^-]+)", test_traces_filepath):
             ips += [ip_tuple[0] if ip_tuple[0] != '' else ip_tuple[1]]
         # retrieve the actual dataset so that the true labels can be extracted
-        if debugging:
+        if DEBUGGING:
             test_data_filepath = debug_test_filepaths[j][1]
         else:
             test_data_filepath = input('Give the relative path of the testing dataframe to be used for evaluation: ')
         if flag == 'CTU-bi':
             normal = pd.read_pickle(test_data_filepath + '/binetflow_normal.pkl')
             anomalous = pd.read_pickle(test_data_filepath + '/binetflow_anomalous.pkl')
-        elif flag == 'IOT':
-            normal = pd.read_pickle(test_data_filepath + '/zeek_normal.pkl')
-            anomalous = pd.read_pickle(test_data_filepath + '/zeek_anomalous.pkl')
         else:
             normal = pd.read_pickle(test_data_filepath + '/normal.pkl')
             anomalous = pd.read_pickle(test_data_filepath + '/anomalous.pkl')
@@ -358,9 +346,12 @@ if __name__ == '__main__':
             else:
                 all_data = all_data[(all_data['src_ip'] == ips[0]) & (all_data['dst_ip'] == ips[1])]\
                     .sort_values(by='date').reset_index(drop=True)
+        if reduction_flag:
+            print('Reducing data points...')
+            all_data = reduce_data_by_label(all_data, 10000, flag)  # 7500 for CICIDS | 10000 for UNSW
         true_labels = all_data['label'].values
         # keep also the detailed labels for analysis reasons
-        if flag in ['IOT', 'UNSW']:
+        if flag == 'UNSW':
             detailed_labels = all_data['detailed_label'].values.tolist()
         else:
             detailed_labels = all_data['label'].values.tolist()
@@ -368,8 +359,6 @@ if __name__ == '__main__':
         dst_ips = None
         if len(ips) == 1:
             dst_ips = all_data['dst_ip'].values.tolist()
-        # needed to map datetimes to indices in case of resampled datasets
-        true_datetimes = all_data['date'] if 'resampled' in test_traces_filepath else None
         # keep one dictionary to aggregate the results of each model over all flows on the test set
         if prev_test_path != test_data_filepath:
             if len(prev_test_path):
@@ -378,45 +367,61 @@ if __name__ == '__main__':
             prev_test_path = test_data_filepath
         for i in range(n):
             print("Let's use model " + models_info[i] + '!!!')
-            models[i].reset_attributes(attribute_type='test')
-            models[i].reset_indices(attribute_type='test')
-            models[i] = run_traces_on_model(test_traces_filepath, indices_filepath, models[i], 'test')
-            predictions = predict_on_model(models[i], methods[i].split('-')[0])
-            if true_datetimes is not None:
-                predictions = dates2indices(predictions, true_datetimes)
-            assert (len(predictions.keys()) == np.size(true_labels, 0)), \
-                "Dimension mismatch between true and predicted labels!!"
+            if methods[i].split('-')[0] != 'baseline symbolic':
+                models[i].reset_attributes(attribute_type='test')
+                models[i].reset_indices(attribute_type='test')
+                models[i] = run_traces_on_model(test_traces_filepath, indices_filepath, models[i], 'test')
+                predictions = predict_on_model(models[i], methods[i].split('-')[0])
+                assert (len(predictions.keys()) == np.size(true_labels, 0)), \
+                    "Dimension mismatch between true and predicted labels!!"
+                # Save the results as a dictionary of dictionaries with the first level keys being the test set name,
+                # the second level keys being the training model information, and the values being the results
+                if flag == 'CTU-bi':
+                    results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
+                                                                                          list(map(lambda x: 1
+                                                                                          if 'Botnet' in x
+                                                                                          else 0, true_labels.tolist())),
+                                                                                          detailed_labels, dst_ips)
+                elif flag == 'UNSW':
+                    results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
+                                                                                          true_labels.tolist(),
+                                                                                          detailed_labels, dst_ips)
+                else:
+                    results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
+                                                                                          list(map(lambda x: 1
+                                                                                          if x != 'BENIGN'
+                                                                                          else 0, true_labels.tolist())),
+                                                                                          detailed_labels, dst_ips)
+                # update also the accumulated results | only TP, TN, FP, FN are passed
+                if len(accumulated_results[models_info[i]]):
+                    accumulated_results[models_info[i]] = list(map(add, accumulated_results[models_info[i]],
+                                                                   results[test_trace_name][models_info[i]][0:4]))
+                else:
+                    accumulated_results[models_info[i]] = list(results[test_trace_name][models_info[i]][0:4])
+            else:
+                assert (re.search('-(.+?)_', models_info[i].split('/')[-1]).group(1) ==
+                        re.search('-(.+)-', parameters[i][1].split('/')[-1]).group(1)), \
+                    "Model-trace mismatch in symbolic version!!"
+                ratio = run_traces_on_symbolic_model(test_traces_filepath, models[i], eval_method='error',
+                                                     train_path=parameters[i][1])  # the training trace filepath
 
-            # Save the results as a dictionary of dictionaries with the first level keys being the test set name, the
-            # second level keys being the training model information, and the values being the results
-            if flag == 'CTU-bi':
-                results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
-                                                                                      list(map(lambda x: 1
-                                                                                      if 'Botnet' in x
-                                                                                      else 0, true_labels.tolist())),
-                                                                                      detailed_labels, dst_ips)
-            elif flag == 'IOT':
-                results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
-                                                                                      list(map(lambda x: 1
-                                                                                      if x == 'Malicious'
-                                                                                      else 0, true_labels.tolist())),
-                                                                                      detailed_labels, dst_ips)
-            elif flag == 'UNSW':
-                results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
-                                                                                      true_labels.tolist(),
-                                                                                      detailed_labels, dst_ips)
-            else:
-                results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
-                                                                                      list(map(lambda x: 1
-                                                                                      if x != 'BENIGN'
-                                                                                      else 0, true_labels.tolist())),
-                                                                                      detailed_labels, dst_ips)
-            # update also the accumulated results | only TP, TN, FP, FN are passed
-            if len(accumulated_results[models_info[i]]):
-                accumulated_results[models_info[i]] = list(map(add, accumulated_results[models_info[i]],
-                                                               results[test_trace_name][models_info[i]][0:4]))
-            else:
-                accumulated_results[models_info[i]] = list(results[test_trace_name][models_info[i]][0:4])
+                # in the symbolic case the label of the aggregation entity is given at this point
+                if flag == 'CTU-bi':
+                    agg_label = any(map(lambda x: 'Botnet' in x, true_labels.tolist()))
+                elif flag == 'UNSW':
+                    agg_label = any(map(lambda x: x == 1, true_labels.tolist()))
+                else:
+                    agg_label = any(map(lambda x: x != 'BENIGN', true_labels.tolist()))
+
+                print('Ratio: ' + str(ratio))
+                print('Is Malicious: ' + str(agg_label))
+                results[test_trace_name][models_info[i]] = ratio, agg_label
+
+                if len(accumulated_results[models_info[i]]):
+                    accumulated_results[models_info[i]] = list(map(add, accumulated_results[models_info[i]],
+                                                                   results[test_trace_name][models_info[i]][0:1]))
+                else:
+                    accumulated_results[models_info[i]] = list(results[test_trace_name][models_info[i]][0:1])
 
     # one last addition of the accumulated results in the results dict
     results[prev_test_path + '-total'] = accumulated_results
@@ -426,14 +431,13 @@ if __name__ == '__main__':
     print_total_results(results)
 
     # finally save all the results for each testing trace
-    if debugging:
+    if DEBUGGING:
         results_filename = '/'.join(debug_test_trace_filepaths[0].split('/')[0:2]) + '/' + 'results/' + \
                            debug_test_trace_filepaths[0].split('/')[4] + '/' + \
-                           '-'.join(set(map(lambda x: x.split('/')[-1], debug_test_set_filepaths))) + '_dfa_results.pkl'
+                           '-'.join(set(map(lambda x: x.split('/')[-1], debug_test_set_filepaths))) + \
+                           ('_baseline' if baseline_only else '') + '_dfa_results.pkl'
         # create the directory if it does not exist
         os.makedirs(os.path.dirname(results_filename), exist_ok=True)
-        # results_filename = '/'.join(debug_test_set_filepaths[0].split('/')[0:2]) + '/' + \
-        #                    '-'.join(set(map(lambda x: x.split('/')[-1], debug_test_set_filepaths))) + '_dfa_results.pkl'
     else:
         results_filename = input('Provide the relative path for the filename of the results: ')
     with open(results_filename, 'wb') as f:

@@ -168,9 +168,11 @@ class ModelNode:
             transformer = RobustScaler().fit(x_train)
             x_train = transformer.transform(x_train)
         if clustering_method == "LOF":
+            # limits per dataset: CTU -> 0.1 | CICIDS -> 0.3
             clusterer = LocalOutlierFactor(n_neighbors=ceil(0.1 * x_train.shape[0]), novelty=True).fit(x_train)
         else:
-            clusterer = IsolationForest(max_samples=ceil(0.1 * x_train.shape[0])).fit(x_train)
+            # limits per dataset: CTU -> 0.1 | CICIDS -> 0.3
+            clusterer = IsolationForest(max_samples=ceil(0.3 * x_train.shape[0])).fit(x_train)
         return clusterer, transformer
 
     def predict_on_clusters(self, clusterer, clustering_type='hard', transformer=None):
@@ -241,7 +243,8 @@ class ModelNode:
                 train_labels = kernel.evaluate(x_train)
             except np.linalg.LinAlgError:
                 train_labels = kernel.evaluate(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1]))
-            epsilon = min(train_labels) + (max(train_labels) - min(train_labels)) / 4   # this value should be tuned
+            # limits per dataset: CTU -> 4 | CICIDS -> 5
+            epsilon = min(train_labels) + (max(train_labels) - min(train_labels)) / 10   # this value should be tuned
 
         try:
             test_labels = kernel.evaluate(x_test)
@@ -258,7 +261,6 @@ class ModelNode:
         :param transformer: flag showing if RobustScaler should be used to normalize and scale the data
         :return: the mean and the standard deviation of each attribute of the observed set of points
         """
-        # TODO: handle the case that there are no training data in the node -> should not happen
         x_train = self.attributes2dataset(self.observed_attributes).values
         if transformer is not None:
             transformer = RobustScaler().fit(x_train)
@@ -288,7 +290,7 @@ class ModelNode:
 
         # find the difference between each attribute of a data point to the mean and compare it with the std
         if epsilon == 'auto':
-            test_labels = np.abs(x_test - mi) - 1 * si
+            test_labels = np.abs(x_test - mi) - 2 * si  # 1 for CTU and CICIDS
         else:
             test_labels = np.abs(x_test - mi) - epsilon * si
 
@@ -363,9 +365,9 @@ class Model:
                 destinations = [(dst_node, self.nodes_dict[src_node_label].evaluate_transition(dst_node,
                                                                                                input_attributes))
                                 for dst_node in self.nodes_dict[src_node_label].tran_conditions.keys()]
-                assert (len([destination[1] for destination in destinations if destination[1]]) == 1), 'More than one' \
-                                                                                                       'destinations ' \
-                                                                                                       'are possible!!'
+                assert (len([destination[1] for destination in destinations if destination[1]]) == 1), \
+                    'More than one  destinations  are possible in  node ' + src_node_label + '!! -> ' + \
+                    str([destination[0] for destination in destinations if destination[1]])
                 return destinations[[destination[1] for destination in destinations].index(True)][0]
 
     def update_attributes(self, label, observed, attribute_type='train'):
@@ -428,24 +430,27 @@ class Model:
             for node_label in self.nodes_dict.keys():
                 self.nodes_dict[node_label].reset_testing_indices()
 
-    def get_maximum_weight(self):
+    def get_maximum_weight(self, with_laplace=False):
         """
         Function for finding the maximum prediction weight of the model as the maximum number of observations in any of
         its states. This weight is used when weighted prediction is applied.
+        :param with_laplace: flag showing if Laplace smoothing should be used
         :return: the maximum prediction weight
         """
         maximum_weight = 0
         for node_label in self.nodes_dict.keys():
             if len(self.nodes_dict[node_label].observed_indices) > maximum_weight:
                 maximum_weight = len(self.nodes_dict[node_label].observed_indices)
-        return maximum_weight
+        return maximum_weight + (1 if with_laplace else 0)
 
-    def set_all_weights(self, maximum_weight):
+    def set_all_weights(self, maximum_weight, with_laplace=False):
         """
         Function for setting the weights in each state of the model. The weight of each state is set as the number of
         observations of the state divided by the maximum weight
         :param maximum_weight: the maximum weight of the model
+        :param with_laplace: flag showing if Laplace smoothing should be used
         :return:
         """
         for node_label in self.nodes_dict.keys():
-            self.nodes_dict[node_label].weight = len(self.nodes_dict[node_label].observed_indices) / maximum_weight
+            self.nodes_dict[node_label].weight = (len(self.nodes_dict[node_label].observed_indices) +
+                                                  (1 if with_laplace else 0)) / maximum_weight

@@ -25,7 +25,7 @@ def generate_thresholds_from_validation(validation_dict, min_host_flows=None, mi
     host_thresholds_per_method = defaultdict(list)
     connection_thresholds_per_method = defaultdict(list)
     for host in validation_dict.keys():
-        # for now ignore total results - TODO: change it in the final version of the code
+        # ignore total results in the validation process
         if 'total' in host:
             continue
         min_thresholds = {}
@@ -117,7 +117,7 @@ def multilevel_statistics(results_dict, host_threshold, connection_threshold, mi
     connection_results_per_method = {}
     for host in results_dict.keys():
         # for now ignore total results - TODO: change it in the final version of the code
-        if 'total' in host:
+        if 'total' in host or ('192.168' not in host and '172.16' not in host and '205.174' not in host):
             continue
         # temporary dictionaries for host level analysis
         predicted = {}
@@ -127,6 +127,11 @@ def multilevel_statistics(results_dict, host_threshold, connection_threshold, mi
         conn_true = {}
         # for each training model used
         for result_type in results_dict[host].keys():
+            # TODO: change it in the final version of the code
+            # if '147.32.84.164' in result_type or '147.32.87.36' in result_type:
+            # if '192.168.10.50' in result_type or '192.168.10.51' in result_type or '192.168.10.16' in result_type or '192.168.10.17' in result_type or '192.168.10.19' in result_type or '192.168.10.15' in result_type:
+            # # if '59.166.0.1' in result_type:
+            #     continue
             # The mapping in the dictionary is the following:
             # 0 -> TP, 1 -> TN, 2 -> FP, 3 -> FN,  4 -> accuracy, 5 -> precision, 6 -> recall
             # 7 -> dictionary with type of labels, 8 -> dictionary with the destination IPs
@@ -149,8 +154,8 @@ def multilevel_statistics(results_dict, host_threshold, connection_threshold, mi
             # if there is a benign match with more than some confidence threshold predict this host as benign
             if benign_ratio > host_threshold[method]:
                 predicted[method] = 0
-            # and assign the real label on the host based on a majority vote
-            if TP + FN >= TN + FP:
+            # and assign the real label on the host based on the existence of at least one malicious flow
+            if TP + FN > 0:
                 true[method] = 1
             else:
                 true[method] = 0
@@ -211,36 +216,106 @@ def multilevel_statistics(results_dict, host_threshold, connection_threshold, mi
     return host_results_per_method, connection_results_per_method
 
 
+def symbolic_statistics(results_dict, host_threshold):
+    """
+    Function for extracting result statistics on a host and connection level. To label some host or connection according
+    to ground truth, a majority voting rule is employed. For predicted values, a 95% confidence value is employed to
+    label a host or a connection as benign according to the predictions derived from the bening models on the training
+    set.
+    :param results_dict: the dictionary with the results obtained for each host by multiple trained models on different
+    training methods (LOF, Isolation Forest, Multivariate Gaussian KDE, State Machine baseline)
+    :param host_threshold: a dictionary with the classification thresholds for host level analysis for each method
+    :return: 2 dictionaries with the generated final results on a host and a connection level
+    """
+    host_results_per_method = {}
+    for host in results_dict.keys():
+        # for now ignore total results - TODO: change it in the final version of the code
+        if 'total' in host:
+            continue
+        # temporary dictionaries for host level analysis
+        predicted = {}
+        true = {}
+        # for each training model used
+        for result_type in results_dict[host].keys():
+            # TODO: change it in the final version of the code
+            # if '147.32.84.170' in result_type:
+            if '192.168.10.15' in result_type or '192.168.10.5' in result_type or '192.168.10.3' in result_type \
+                    or '192.168.10.25' in result_type: #and '192.168.10.3' not in result_type and '192.168.10.51' not in result_type:
+            # if '59.166.0.2' not in result_type and '59.166.0.5' not in result_type and '59.166.0.7' not in result_type:
+                continue
+            # The mapping in the dictionary is the following:
+            # 0 -> Accepted, 1 -> Rejected, 2 -> True Label
+            # TODO: change it to 1 number in new version
+            ratio = results_dict[host][result_type][0]
+            label = results_dict[host][result_type][1]
+            # otherwise the evaluation process is continued
+            method = result_type.split('_')[-1]
+            # necessary reformatting for better presentation of some methods
+            if method[-1] == '-':
+                method = method[:-1]
+            if method not in predicted.keys():
+                predicted[method] = 1
+            # if there is a benign match with more than some confidence threshold predict this host as benign
+            if ratio < host_threshold[method]:
+                predicted[method] = 0
+            # and assign the real label on the host based on the existence of at least one malicious flow
+            if label:
+                true[method] = 1
+            else:
+                true[method] = 0
+        for method in predicted.keys():
+            # first create results for host level analysis
+            if method not in host_results_per_method.keys():
+                host_results_per_method[method] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
+            if true[method]:
+                if predicted[method]:
+                    host_results_per_method[method]['TP'] += 1
+                else:
+                    host_results_per_method[method]['FN'] += 1
+            else:
+                if predicted[method]:
+                    host_results_per_method[method]['FP'] += 1
+                else:
+                    host_results_per_method[method]['TN'] += 1
+    return host_results_per_method
+
+
 if __name__ == '__main__':
-    dataset = 'CTU13'
+    dataset = 'CICIDS'
     methods = [
-        'clustering-LOF'
-        , 'clustering-isolation forest'
-        , 'multivariate gaussian'
-        , 'baseline'
+        # 'clustering-LOF'
+        # , 'clustering-isolation forest'
+        # , 'multivariate gaussian'
+        # , 'baseline multivariate'
+        # , 'baseline'
+        'baseline symbolic'
     ]
     # first set the classification thresholds using the validation data
-    validation_data_filename = 'Datasets/CTU13/results/dst_port_protocol_num_src_bytes_dst_bytes/scenario3_dfa_results.pkl'
-    with open(validation_data_filename, 'rb') as f:
-        validation_dict = pickle.load(f)
-    # host_threshold, connection_threshold = generate_thresholds_from_validation(validation_dict, 50, 20)
+    # validation_data_filename = 'Datasets/CTU13/results/dst_port_protocol_num_duration_src_bytes_dst_bytes/scenario3_dfa_results.pkl'
+    # with open(validation_data_filename, 'rb') as f:
+    #     validation_dict = pickle.load(f)
+    # host_threshold, connection_threshold = generate_thresholds_from_validation(validation_dict)
     host_threshold = {}
     connection_threshold = {}
     for method in methods:
         host_threshold[method] = float(input('Give threshold for ' + method + ' on host level: '))
-        connection_threshold[method] = float(input('Give threshold for ' + method + ' on connection level: '))
+        if method != 'baseline symbolic':
+            connection_threshold[method] = float(input('Give threshold for ' + method + ' on connection level: '))
     # then produce the final results for the given testing outputs
-    result_filenames = sorted(glob.glob('Datasets/CTU13/results/dst_port_protocol_num_src_bytes_dst_bytes/scenario*_results.pkl'))
+    result_filenames = sorted(glob.glob('Datasets/CICIDS2017/results/encoding/*dfa_results.pkl'))
     host_level_results = {}
     connection_level_results = {}
     for results_filename in result_filenames:
-        scenario = results_filename.split('/')[-1].split('_')[0]
+        scenario = '_'.join(results_filename.split('/')[-1].split('_')[0:-2])
         with open(results_filename, 'rb') as f:
             results_dict = pickle.load(f)
-        host_level_results[scenario], connection_level_results[scenario] = multilevel_statistics(results_dict,
-                                                                                                 host_threshold,
-                                                                                                 connection_threshold,
-                                                                                                 50, 5)
+        if 'baseline symbolic' not in methods:
+            host_level_results[scenario], connection_level_results[scenario] = multilevel_statistics(results_dict,
+                                                                                                     host_threshold,
+                                                                                                     connection_threshold,
+                                                                                                     50, 5)
+        else:
+            host_level_results[scenario] = symbolic_statistics(results_dict, host_threshold)
 
         # initialize also the entry for the total results from all scenarios
         if dataset + '_total' not in host_level_results.keys():
@@ -248,7 +323,8 @@ if __name__ == '__main__':
             connection_level_results[dataset + '_total'] = {}
             for method in methods:
                 host_level_results[dataset + '_total'][method] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
-                connection_level_results[dataset + '_total'][method] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
+                if method != 'baseline symbolic':
+                    connection_level_results[dataset + '_total'][method] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
 
         print('===================== Host level analysis results for ' + scenario + ' =====================')
         for method in host_level_results[scenario].keys():
@@ -269,24 +345,25 @@ if __name__ == '__main__':
             host_level_results[dataset + '_total'][method]['FP'] += fp
             host_level_results[dataset + '_total'][method]['FN'] += fn
 
-        print('===================== Connection level analysis results for ' + scenario + ' =====================')
-        for method in connection_level_results[scenario].keys():
-            tp = connection_level_results[scenario][method]['TP']
-            tn = connection_level_results[scenario][method]['TN']
-            fp = connection_level_results[scenario][method]['FP']
-            fn = connection_level_results[scenario][method]['FN']
-            print('--------------- ' + method + ' ---------------')
-            print("TP: {} TN: {} FP: {} FN: {}".format(tp, tn, fp, fn))
-            acc = (tp + tn) / (tp + tn + fp + fn)
-            prec = -1 if tp + fp == 0 else tp / (tp + fp)
-            rec = -1 if tp + fn == 0 else tp / (tp + fn)
-            print('Accuracy: ' + str(acc))
-            print('Precision: ' + str(prec))
-            print('Recall: ' + str(rec))
-            connection_level_results[dataset + '_total'][method]['TP'] += tp
-            connection_level_results[dataset + '_total'][method]['TN'] += tn
-            connection_level_results[dataset + '_total'][method]['FP'] += fp
-            connection_level_results[dataset + '_total'][method]['FN'] += fn
+        if 'baseline symbolic' not in methods:
+            print('===================== Connection level analysis results for ' + scenario + ' =====================')
+            for method in connection_level_results[scenario].keys():
+                tp = connection_level_results[scenario][method]['TP']
+                tn = connection_level_results[scenario][method]['TN']
+                fp = connection_level_results[scenario][method]['FP']
+                fn = connection_level_results[scenario][method]['FN']
+                print('--------------- ' + method + ' ---------------')
+                print("TP: {} TN: {} FP: {} FN: {}".format(tp, tn, fp, fn))
+                acc = (tp + tn) / (tp + tn + fp + fn)
+                prec = -1 if tp + fp == 0 else tp / (tp + fp)
+                rec = -1 if tp + fn == 0 else tp / (tp + fn)
+                print('Accuracy: ' + str(acc))
+                print('Precision: ' + str(prec))
+                print('Recall: ' + str(rec))
+                connection_level_results[dataset + '_total'][method]['TP'] += tp
+                connection_level_results[dataset + '_total'][method]['TN'] += tn
+                connection_level_results[dataset + '_total'][method]['FP'] += fp
+                connection_level_results[dataset + '_total'][method]['FN'] += fn
 
     print('===================== Host level analysis total results for dataset ' + dataset + ' =====================')
     for method in host_level_results[dataset + '_total'].keys():
@@ -303,17 +380,18 @@ if __name__ == '__main__':
         print('Precision: ' + str(prec))
         print('Recall: ' + str(rec))
 
-    print('===================== Connection level analysis results for dataset ' + dataset + ' =====================')
-    for method in connection_level_results[dataset + '_total'].keys():
-        tp = connection_level_results[dataset + '_total'][method]['TP']
-        tn = connection_level_results[dataset + '_total'][method]['TN']
-        fp = connection_level_results[dataset + '_total'][method]['FP']
-        fn = connection_level_results[dataset + '_total'][method]['FN']
-        print('--------------- ' + method + ' ---------------')
-        print("TP: {} TN: {} FP: {} FN: {}".format(tp, tn, fp, fn))
-        acc = (tp + tn) / (tp + tn + fp + fn)
-        prec = -1 if tp + fp == 0 else tp / (tp + fp)
-        rec = -1 if tp + fn == 0 else tp / (tp + fn)
-        print('Accuracy: ' + str(acc))
-        print('Precision: ' + str(prec))
-        print('Recall: ' + str(rec))
+    if 'baseline symbolic' not in methods:
+        print('===================== Connection level analysis results for dataset ' + dataset + ' =====================')
+        for method in connection_level_results[dataset + '_total'].keys():
+            tp = connection_level_results[dataset + '_total'][method]['TP']
+            tn = connection_level_results[dataset + '_total'][method]['TN']
+            fp = connection_level_results[dataset + '_total'][method]['FP']
+            fn = connection_level_results[dataset + '_total'][method]['FN']
+            print('--------------- ' + method + ' ---------------')
+            print("TP: {} TN: {} FP: {} FN: {}".format(tp, tn, fp, fn))
+            acc = (tp + tn) / (tp + tn + fp + fn)
+            prec = -1 if tp + fp == 0 else tp / (tp + fp)
+            rec = -1 if tp + fn == 0 else tp / (tp + fn)
+            print('Accuracy: ' + str(acc))
+            print('Precision: ' + str(prec))
+            print('Recall: ' + str(rec))

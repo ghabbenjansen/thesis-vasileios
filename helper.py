@@ -13,58 +13,85 @@ import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
+import sys
+from collections import defaultdict
 
 
-def check_ips(x, ips_dict, datatype='regular'):
+def reduce_data_by_label(data, threshold, flag):
+    """
+    Function for reducing the number of data points in the input dataframe in each class.
+    :param data: the input dataframe
+    :param threshold: the threshold above which data points are cut
+    :param flag: the dataset-dependent flag
+    :return: the reduced dataframe
+    """
+    if flag == 'CTU-bi':
+        normal = data[data['label'].str.contains("From-Normal")].sort_values(by='date').reset_index(drop=True)
+        anomalous = data[data['label'].str.contains("From-Botnet")].sort_values(by='date').reset_index(drop=True)
+    elif flag == 'UNSW':
+        normal = data[data['label'] == 0].sort_values(by='date').reset_index(drop=True)
+        anomalous = data[data['label'] == 1].sort_values(by='date').reset_index(drop=True)
+    else:
+        normal = data[data['label'] == 'BENIGN'].sort_values(by='date').reset_index(drop=True)
+        anomalous = data[data['label'] != 'BENIGN'].sort_values(by='date').reset_index(drop=True)
+
+    if normal.shape[0] > threshold:
+        normal = normal.iloc[:threshold]
+    if anomalous.shape[0] > threshold:
+        anomalous = anomalous.iloc[:threshold]
+
+    return pd.concat([normal, anomalous], ignore_index=True).sort_values(by='date').reset_index(drop=True)
+
+
+def keep_only_major_connection(data):
+    """
+    Function for keeping only the major connection for a host
+    :param data: the host data
+    :return: the host data containing only the flows with the major destination IP
+    """
+    major_dst_ip = data.groupby('dst_ip').size().idxmax(axis=0)
+    return data[data['dst_ip'] == major_dst_ip].sort_values(by='date').reset_index(drop=True)
+
+
+def check_ips(x, ips_dict):
     """
     Helper function for swaping the needed values when bidirectional flows are examined. This function is meant
     to be applied on each row a dataframe.
     :param x: input row of the dataframe
     :param ips_dict: a dictionary with the ips seen, when only the source IP is considered as host, and their counts
-    :param datatype: string for separating between the typical representation of column names (src_bytes, dst_bytes) to
-    the IOT-based one (orig_ip_bytes, resp_ip_bytes)
     :return: the transformed row
     """
     # if the destination IP has been seen as a host and has more flows than the current source IP, make the swap
     if x['dst_ip'] in ips_dict.keys() and ips_dict[x['dst_ip']] > ips_dict[x['src_ip']]:
         x['src_ip'], x['dst_ip'] = x['dst_ip'], x['src_ip']
         x['src_port'], x['dst_port'] = x['dst_port'], x['src_port']
-        if datatype == 'regular':
-            x['src_bytes'], x['dst_bytes'] = x['dst_bytes'], x['src_bytes']
-        else:
-            x['orig_ip_bytes'], x['resp_ip_bytes'] = x['resp_ip_bytes'], x['orig_ip_bytes']
+        x['src_bytes'], x['dst_bytes'] = x['dst_bytes'], x['src_bytes']
     return x
 
 
-def select_hosts(init_data, threshold=50, bidirectional=False, datatype='regular'):
+def select_hosts(init_data, threshold=50, bidirectional=False):
     """
     Function for identifying only the flows of source IPs with at least a threshold number of records in the data.
     :param init_data: the initial data
     :param threshold: the threshold number of flows per host IP
     :param bidirectional: a boolean flag for checking for host IPs in both directions (source and destination). If set
     to False, only source IPs will be considered as hosts
-    :param create_features: a boolean flag for creating new features in the dataset
-    :param datatype: string for separating between the typical representation of column names (src_bytes, dst_bytes) to
-    the IOT-based one (orig_ip_bytes, resp_ip_bytes)
     :return: the selected data
     """
-    # host_cnts = init_data.groupby(by='src_ip').agg(['count']).reset_index()
     host_cnts = init_data.groupby(by='src_ip').size().reset_index().rename(columns={0: "size"})
     if bidirectional:
         ips_counts = dict(host_cnts.values.tolist())
-        init_data = init_data.apply(lambda x: check_ips(x, ips_counts, datatype), axis=1)
+        init_data = init_data.apply(lambda x: check_ips(x, ips_counts), axis=1)
         host_cnts = init_data.groupby(by='src_ip').size().reset_index().rename(columns={0: "size"})
     return host_cnts[host_cnts['size'] > threshold]
 
 
-def check_connections(x, connections_dict, datatype='regular'):
+def check_connections(x, connections_dict):
     """
     Helper function for swaping the needed values when bidirectional connections are examined. This function is meant
     to be applied on each row a dataframe.
     :param x: input row of the dataframe
     :param connections_dict: a dictionary with the connections seen in the forward direction and their counts
-    :param datatype: string for separating between the typical representation of column names (src_bytes, dst_bytes) to
-    the IOT-based one (orig_ip_bytes, resp_ip_bytes)
     :return: the transformed row
     """
     connection = x['src_ip'] + '-' + x['dst_ip']
@@ -75,30 +102,24 @@ def check_connections(x, connections_dict, datatype='regular'):
             connections_dict[connection]:
         x['src_ip'], x['dst_ip'] = x['dst_ip'], x['src_ip']
         x['src_port'], x['dst_port'] = x['dst_port'], x['src_port']
-        if datatype == 'regular':
-            x['src_bytes'], x['dst_bytes'] = x['dst_bytes'], x['src_bytes']
-        else:
-            x['orig_ip_bytes'], x['resp_ip_bytes'] = x['resp_ip_bytes'], x['orig_ip_bytes']
+        x['src_bytes'], x['dst_bytes'] = x['dst_bytes'], x['src_bytes']
     return x
 
 
-def select_connections(init_data, threshold=50, bidirectional=False, datatype='regular'):
+def select_connections(init_data, threshold=50, bidirectional=False):
     """
     Function for identifying only the flows with at least a threshold number of source-destination IP pairs in the data.
     :param init_data: the initial data
     :param threshold: the threshold number of flows per source-destination IP pairs
     :param bidirectional: a boolean flag for checking for connections in both directions (source and destination). If
     set to False, only the original direction will be checked
-    :param datatype: string for separating between the typical representation of column names (src_bytes, dst_bytes) to
-    the IOT-based one (orig_ip_bytes, resp_ip_bytes)
     :return: the selected data
     """
-    # connections_cnts = init_data.groupby(['src_ip', 'dst_ip']).agg(['count']).reset_index()
     connections_cnts = init_data.groupby(['src_ip', 'dst_ip']).size().reset_index().rename(columns={0: "size"})
     if bidirectional:
         connections_counts = dict([[triple[0] + '-' + triple[1], triple[2]]
                                    for triple in connections_cnts[['src_ip', 'dst_ip', 'size']].values.tolist()])
-        init_data = init_data.apply(lambda x: check_connections(x, connections_counts, datatype), axis=1)
+        init_data = init_data.apply(lambda x: check_connections(x, connections_counts), axis=1)
         connections_cnts = init_data.groupby(['src_ip', 'dst_ip']).size().reset_index().rename(columns={0: "size"})
     return connections_cnts[connections_cnts['size'] > threshold]
 
@@ -134,6 +155,17 @@ def find_percentile(val, percentiles):
     return ind
 
 
+def check_existence(val, seen):
+    """
+    Helper function for checking if a value is in a list of seen values. If this is the case, the index of the value in
+    the list is returned. Otherwise, the length of the list is returned
+    :param val: the value to be searched
+    :param seen: the list of seen values
+    :return: the needed output given the result of the condition checked
+    """
+    return seen.index(val) if val in seen else len(seen)
+
+
 def find_discretization_clusters(data, selected):
     """
     Function for applying the ELBOW method to a number of selected features so that the appropriate number of clusters
@@ -166,6 +198,29 @@ def find_discretization_clusters(data, selected):
         discretization_limits[sel] = list(map(lambda p: np.percentile(data[sel], p), 100 *
                                               np.arange(0, 1, 1 / percentile_num)[1:]))
     return discretization_limits
+
+
+def netflow_encoding(data, selected, discretization_dict):
+    """
+    Function for calculating the encoding of each flow according to the method proposed in the paper
+    "Learning Behavioral Fingerprints From Netflows Using Timed Automata"
+    :param data: the dataframe with the input data
+    :param selected: a list with the selected features
+    :param discretization_dict: the dictionary with the discritization information
+    :return:
+    """
+    space_size = 1
+    # first calculate the total space size of the encoding
+    for k, v in discretization_dict.items():
+        space_size *= (len(v)+1)
+    # then created the encoded aggregation of all features
+    data['encoding'] = 0
+    for sel in selected:
+        sel_name = sel[:-4] if sel not in discretization_dict.keys() else sel
+        size = len(discretization_dict[sel_name]) + 1
+        data['encoding'] += data[sel] * space_size / size
+        space_size /= size
+    data['encoding'] = data['encoding'].astype(int)
 
 
 def traces_dissimilarity(trace1, trace2, multivariate=True, normalization=True):
@@ -253,6 +308,12 @@ def aggregate_in_windows(data, selected_features, window, timed=False, resample=
                     apply(lambda x: mode(x)[0], raw=False)
                 if new_features:
                     data['std_protocol_num'] = data['protocol_num'].rolling(window, min_periods=1).std()
+            # check for encoding in case of discretized input
+            if 'encoding' in feature:
+                data['argmax_encoding'] = data['encoding'].rolling(window, min_periods=1). \
+                    apply(lambda x: mode(x)[0], raw=False)
+                if new_features:
+                    data['std_encoding'] = data['encoding'].rolling(window, min_periods=1).std()
             # check for duration in features
             if 'duration' in feature:
                 data['median_' + feature] = data[feature].rolling(window, min_periods=1).median()
@@ -260,11 +321,6 @@ def aggregate_in_windows(data, selected_features, window, timed=False, resample=
                     data['std_' + feature] = data[feature].rolling(window, min_periods=1).std()
             # check for bytes in features
             if 'bytes' in feature:
-                data['median_' + feature] = data[feature].rolling(window, min_periods=1).median()
-                if new_features:
-                    data['std_' + feature] = data[feature].rolling(window, min_periods=1).std()
-            # check for date difference in features
-            if 'date_diff' in feature:
                 data['median_' + feature] = data[feature].rolling(window, min_periods=1).median()
                 if new_features:
                     data['std_' + feature] = data[feature].rolling(window, min_periods=1).std()
@@ -293,6 +349,13 @@ def aggregate_in_windows(data, selected_features, window, timed=False, resample=
                 frames += ([data['protocol_num'].resample(window).apply(lambda x: mode(x)[0]),
                             data['protocol_num'].resample(window).std()] if new_features else
                            [data['protocol_num'].resample(window).apply(lambda x: mode(x)[0])])
+            # check for encoding in case of discretized input
+            if 'encoding' in feature:
+                new_column_names += (['argmax_encoding', 'std_encoding'] if new_features else
+                                     ['argmax_encoding'])
+                frames += ([data['encoding'].resample(window).apply(lambda x: mode(x)[0]),
+                            data['encoding'].resample(window).std()] if new_features else
+                           [data['encoding'].resample(window).apply(lambda x: mode(x)[0])])
             # check for duration in features
             if 'duration' in feature:
                 new_column_names += (['median_' + feature, 'std_' + feature] if new_features else ['median_' + feature])
@@ -303,11 +366,6 @@ def aggregate_in_windows(data, selected_features, window, timed=False, resample=
                 new_column_names += (['median_' + feature, 'std_' + feature] if new_features else ['median_' + feature])
                 frames += ([data[feature].resample(window).median(), data[feature].resample(window).std()]
                            if new_features else [data[feature].resample(window).median()])
-            # check for date difference in features
-            if 'date_diff' in feature:
-                new_column_names += (['median_' + feature, 'std_' + feature] if new_features else ['median_' + feature])
-                frames += ([data[feature].resample(window).median(), data[feature].resample(window).std()] if
-                           new_features else [data[feature].resample(window).median()])
             # check for destination IP in features in case new features are considered
             if 'dst_ip' in feature:
                 if new_features:
@@ -316,6 +374,9 @@ def aggregate_in_windows(data, selected_features, window, timed=False, resample=
         data = pd.concat(frames, axis=1)
         data.columns = new_column_names
         data.dropna(inplace=True)
+        # handle the case of discretized data in which the dropna is not sufficient by itself
+        if len(new_column_names) == 1:
+            data = data[data.astype(str)[new_column_names[0]] != '[]']
     return data
 
 
@@ -409,9 +470,10 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
                     min_idx[1] = data.index[time_mask].tolist()[0]
                     max_idx[1] = data.index[time_mask].tolist()[-1]
                     # and increase the stride in case we still haven't captured new information
-                    stride *= 2
-                    if stride >= window:
-                        window = stride * 5
+                    if min_idx[0] == min_idx[1] and max_idx[0] == max_idx[1]:
+                        stride *= 2
+                        if stride >= window:
+                            window = stride * 5
 
                 # set the parameters for the length adjustment process of each trace
                 init_magnifier = 2
@@ -455,14 +517,12 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
                     if magnifier <= 1:
                         magnifier = init_magnifier + 1
                         reducer = reducer / 2
-
                     # limit case to prevent endless loop
                     if end_date > data['date'].iloc[-1]:
                         break
 
                 # set the one-time flag of the first window to False
                 first_large = False
-
                 # finally get the current window
                 windowed_data = data[time_mask]
 
@@ -471,7 +531,8 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
 
             # create aggregated features if needed (currently with a hard-coded window length)
             if aggregation:
-                aggregation_length = '2S' if resample else min(10, int(len(windowed_data.index)))
+                # TODO: check aggregation length to be less than the window length
+                aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
                 timed = True if resample else False
                 windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), selected,
                                                      aggregation_length, timed, resample, new_features)
@@ -479,18 +540,15 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
                 num_of_features = len(selected)
 
             # extract the trace of this window and add it to the traces' list
-            ints = False if aggregation or 'duration' in old_selected or 'date_diff' in old_selected or 'bytes_per_packet' in old_selected else True
+            ints = False if (aggregation and 'encoding' not in old_selected) or 'duration' in old_selected \
+                            or 'bytes_per_packet' in old_selected else True
             # this case applies only on resampling in case there are no more than 1 flow per resampling window
-            # TODO: maybe check if flows are missed when resampling is used
             if windowed_data.shape[0] != 0:
                 traces += [convert2flexfringe_format(windowed_data[selected], ints)]
             selected = deepcopy(old_selected)
             # store also the flow indices of the current time window
             if windowed_data.shape[0] != 0:  # this case applies only on resampling as explained above
                 traces_indices += [windowed_data.index.tolist()]
-
-            # old implementation of window dissimilarity (not used now)
-            # dissim = traces_dissimilarity(deepcopy(trace2list(traces[-1])), deepcopy(trace2list(traces[-2])))
 
             # update the progress variable
             cnt = data.index[time_mask].tolist()[-1]
@@ -545,14 +603,15 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
         assertion_dict.update(zip(data.index[time_mask].tolist(), len(data.index[time_mask].tolist()) * [True]))
         # check for aggregation
         if aggregation:
-            aggregation_length = '2S' if resample else min(10, int(len(windowed_data.index)))
+            aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index)))
             timed = True if resample else False
             windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), selected, aggregation_length,
                                                  timed, resample, new_features)
             selected = windowed_data.columns.values
             num_of_features = len(selected)
         # and add the new trace
-        ints = False if aggregation or 'duration' in old_selected or 'date_diff' in old_selected or 'bytes_per_packet' in old_selected else True
+        ints = False if (aggregation and 'encoding' not in old_selected) or 'duration' in old_selected \
+                        or 'bytes_per_packet' in old_selected else True
         if windowed_data.shape[0] != 0:  # for the resampling case
             traces += [convert2flexfringe_format(windowed_data[selected], ints)]
         # store also the starting and the ending index of the current time window
@@ -561,15 +620,17 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
 
     # evaluate correctness of the process
     if not all(list(assertion_dict.values())):
-        print('There are flows missed in the current high level window-- Check again the implementation!!!')
-        print([k for k, v in assertion_dict.items() if not v])
+        print('There are flows missed in the current high level window -- Check again the implementation!!!')
+        print([k for k, v in assertion_dict.items() if not v], file=sys.stderr)
+
     else:
         print('All flows correctly converted to traces in the current high level window!!!')
 
     return traces, traces_indices, num_of_features
 
 
-def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False, resample=False, new_features=True):
+def extract_traces(data, out_filepath, selected, alphabet_size, timed=True, dynamic=True, aggregation=False,
+                   resample=False, new_features=True):
     """
     Function for extracting traces from the given dataset by first applying a high-level filtering to find windows of
     significant time difference between them to be processed separately by the extract_traces_from_window function. The
@@ -577,37 +638,64 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
     :param data: the input dataframe
     :param out_filepath: the relative path of the output traces' file
     :param selected: the features to be used
+    :param alphabet_size: the size of the alphabet (positive only if discretized input is given -> 'encoding')
+    :param timed: boolean flag about the use of timed windows
     :param dynamic: boolean flag about the use of dynamically changing windows
     :param aggregation: the aggregation flag - if set to True, then aggregation windows are created
     :param resample: the resampling flag - if set to True, then resampling is used in the aggregation windows
     :param new_features: boolean flag specifying if new features should be added to the existing ones
     :return: creates and stores the traces' file extracted from the input dataframe
     """
-    medians = data['date'].sort_values().diff().dt.total_seconds()
-    high_level_window_indices = medians[medians > 1800].index.tolist()
     traces_indices = []
     traces = []
     progress_list = []
     starting_index = 0
     num_of_features = len(selected)
-    if len(high_level_window_indices) != 0:
-        print(str(len(high_level_window_indices)) + ' of high level windows identified!!')
-        for i in range(len(high_level_window_indices) + 1):
-            index = data.shape[0] if i == len(high_level_window_indices) else high_level_window_indices[i]
-            windowed_data = data[starting_index:index].copy(deep=True)
-            window, stride = set_windowing_vars(windowed_data)
+    # timed version
+    if timed:
+        medians = data['date'].sort_values().diff().dt.total_seconds()
+        high_level_window_indices = medians[medians > 1800].index.tolist()
+        if len(high_level_window_indices) != 0:
+            print(str(len(high_level_window_indices)) + ' of high level windows identified!!')
+            for i in range(len(high_level_window_indices) + 1):
+                index = data.shape[0] if i == len(high_level_window_indices) else high_level_window_indices[i]
+                windowed_data = data[starting_index:index].copy(deep=True)
+                window, stride = set_windowing_vars(windowed_data)
+                # special handle in case a zero length window has been returned
+                if window.total_seconds() == 0:
+                    window = pd.to_timedelta('25ms')
+                    stride = pd.to_timedelta('5ms')
+                min_trace_len = int(max(windowed_data.shape[0] / 10000, 10))
+                max_trace_len = int(max(windowed_data.shape[0] / 100, 1500))
+                if windowed_data.shape[0] < min_trace_len:
+                    min_trace_len = windowed_data.shape[0]
+                if max_trace_len > 1500:
+                    max_trace_len = 1500
+                new_traces, new_indices, num_of_features = extract_traces_from_window(windowed_data, selected, window,
+                                                                                      stride,
+                                                                                      (min_trace_len, max_trace_len),
+                                                                                      data.shape[0], progress_list,
+                                                                                      dynamic=dynamic,
+                                                                                      aggregation=aggregation,
+                                                                                      resample=resample,
+                                                                                      new_features=new_features)
+                traces += new_traces
+                traces_indices += new_indices
+                starting_index = index
+        else:
+            print('All the dataset is taken into account!!')
+            window, stride = set_windowing_vars(data)
             # special handle in case a zero length window has been returned
             if window.total_seconds() == 0:
                 window = pd.to_timedelta('25ms')
                 stride = pd.to_timedelta('5ms')
-            min_trace_len = int(max(windowed_data.shape[0] / 10000, 10))
-            max_trace_len = int(max(windowed_data.shape[0] / 100, 1500))
-            if windowed_data.shape[0] < min_trace_len:
-                min_trace_len = windowed_data.shape[0]
+            min_trace_len = int(max(data.shape[0] / 10000, 10))
+            max_trace_len = int(max(data.shape[0] / 100, 1500))
+            if data.shape[0] < min_trace_len:
+                min_trace_len = data.shape[0]
             if max_trace_len > 1500:
                 max_trace_len = 1500
-            new_traces, new_indices, num_of_features = extract_traces_from_window(windowed_data, selected, window,
-                                                                                  stride,
+            new_traces, new_indices, num_of_features = extract_traces_from_window(data, selected, window, stride,
                                                                                   (min_trace_len, max_trace_len),
                                                                                   data.shape[0], progress_list,
                                                                                   dynamic=dynamic,
@@ -616,36 +704,61 @@ def extract_traces(data, out_filepath, selected, dynamic=True, aggregation=False
                                                                                   new_features=new_features)
             traces += new_traces
             traces_indices += new_indices
-            starting_index = index
+    # flow version
     else:
-        print('All the dataset is taken into account!!')
-        window, stride = set_windowing_vars(data)
-        # special handle in case a zero length window has been returned
-        if window.total_seconds() == 0:
-            window = pd.to_timedelta('25ms')
-            stride = pd.to_timedelta('5ms')
-        min_trace_len = int(max(data.shape[0] / 10000, 10))
-        max_trace_len = int(max(data.shape[0] / 100, 1500))
-        if data.shape[0] < min_trace_len:
-            min_trace_len = data.shape[0]
-        if max_trace_len > 1500:
-            max_trace_len = 1500
-        new_traces, new_indices, num_of_features = extract_traces_from_window(data, selected, window, stride,
-                                                                              (min_trace_len, max_trace_len),
-                                                                              data.shape[0], progress_list,
-                                                                              dynamic=dynamic, aggregation=aggregation,
-                                                                              resample=resample,
-                                                                              new_features=new_features)
-        traces += new_traces
-        traces_indices += new_indices
+        # set the window and stride
+        window = 20
+        stride = int(window/5)
+        # obtain the indices residing in the processed data
+        data_indices = data.index.tolist()
+        # create a dict for testing if all the flows have been included in the traces
+        assertion_dict = dict(zip(data_indices, len(data_indices) * [False]))
+        # keep the maximum index
+        max_ind = data_indices[-1]
+        while starting_index < len(data_indices):
+            # retrieve the flows of the current window
+            windowed_data = data[starting_index: min(starting_index + window, len(data_indices))]
+            # insert the indices of the current trace to the assertion dictionary
+            assertion_dict.update(zip(windowed_data.index.tolist(), len(windowed_data.index.tolist()) * [True]))
+            # extract the trace of this window and add it to the traces' list
+            # TODO: maybe add aggregation window
+            ints = False if 'duration' in selected or 'bytes_per_packet' in selected else True
+            traces += [convert2flexfringe_format(windowed_data[selected], ints)]
+            # store also the flow indices of the current time window
+            traces_indices += [windowed_data.index.tolist()]
+            # increase the starting index of the window
+            starting_index += stride
+            # update the progress variable
+            cnt = windowed_data.tolist()[-1]
+            # show progress
+            prog = int((cnt / max_ind) * 100)
+            if prog // 10 != 0 and prog // 10 not in progress_list:
+                progress_list += [prog // 10]
+                print('More than ' + str((prog // 10) * 10) + '% of the data processed...')
+        # evaluate correctness of the process
+        if not all(list(assertion_dict.values())):
+            print('There are flows missed in the current high level window -- Check again the implementation!!!')
+            print([k for k, v in assertion_dict.items() if not v], file=sys.stderr)
 
     print('Finished with rolling windows!!!')
     print('Starting writing traces to file...')
     # create the traces' file in the needed format
+    # if static windows are used change the naming of the tracefile
+    if not timed:
+        out_filepath = '.'.join(out_filepath.split('.')[:-1]) + '_static.' + out_filepath.split('.')[-1]
+    elif not dynamic:
+        out_filepath = '.'.join(out_filepath.split('.')[:-1]) + '_static_timed.' + out_filepath.split('.')[-1]
     f = open(out_filepath, "w")
-    f.write(str(len(traces)) + ' ' + '100:' + str(num_of_features) + '\n')
-    for trace in traces:
-        f.write('1 ' + str(len(trace)) + ' 0:' + ' 0:'.join(trace) + '\n')
+    if alphabet_size > 0:
+        # if symbols are used
+        f.write(str(len(traces)) + ' ' + str(alphabet_size) + '\n')
+        for trace in traces:
+            f.write('1 ' + str(len(trace)) + ' ' + ' '.join(trace) + '\n')
+    else:
+        # if the multivariate version is used
+        f.write(str(len(traces)) + ' ' + '100:' + str(num_of_features) + '\n')
+        for trace in traces:
+            f.write('1 ' + str(len(trace)) + ' 0:' + ' 0:'.join(trace) + '\n')
     f.close()
     # save also the indices of each trace
     indices_filepath = '.'.join(out_filepath.split('.')[:-1]) + '_indices.pkl'
@@ -670,8 +783,9 @@ def parse_dot(dot_path):
     info_regex = r"((?P<identifier>(fin|symb|attr)+\(\d+\)):\[*(?P<values>(\d|,)+)\]*)+"
     # regular expression for parsing the transitions of a state, as well as the firing conditions
     transition_regex = r"(?P<src_state>.+) -> (?P<dst_state>\d+)( \[label=\"(?P<transition_cond>(.+))\".*\])*;$"
-    # regular expression for parsing the conditions firing a transition
-    cond_regex = r"((?P<sym>\d+) (?P<ineq_symbol>(<|>|<=|>=|==)) (?P<boundary>\d+))+"
+    # regular expression for parsing the conditions firing a transition (it can be used also in case a feature's split
+    # is on a floating value or on scientific notation
+    cond_regex = r"((?P<sym>\d+) (?P<ineq_symbol>(<|>|<=|>=|==)) (?P<boundary>\d+(\.\d+(e\+\d+){0,1}){0,1}))+"
     # boolean flag used for adding states in the model
     cached = False
     for line in re.split(r'\n\t+|\n}', dot_string):  # split the dot file in meaningful lines
@@ -743,9 +857,45 @@ def parse_dot(dot_path):
     return model
 
 
+def parse_symbolic_dot(dot_path):
+    """
+    Function for parsing a dot file describing sequential models with a symbolic alphabet
+    :param dot_path: the path to the dot file
+    :return: the parsed model
+    """
+    with open(dot_path, "r") as f:
+        dot_string = f.read()
+    model = {}
+    SYMLST_REGEX = "((?P<sym>\d+):(?P<occ>\d+))+"
+    TRAN_REGEX = "(?P<sst>.+) -> (?P<dst>.+) \[label=\"(?P<slst>(.+))\"[ style=dotted]*  \];$"
+    for line in dot_string.split('\n'):
+        matcher = re.match(TRAN_REGEX, line.strip())
+        if matcher is not None:
+            sstate = matcher.group("sst")
+            dstate = matcher.group("dst")
+            symlist = matcher.group("slst")
+            if sstate not in model:
+                model[sstate] = {}
+            for smatcher in re.finditer(SYMLST_REGEX, symlist):
+                symbol = smatcher.group("sym")
+                occurrences = int(smatcher.group("occ"))
+                model[sstate][symbol] = (dstate, occurrences)
+
+    # normalizing occurrence counts to probabilities | add Laplace smoothing for unseen symbols
+    for state in model:
+        # find the sum of all occurrences and add 1 for smoothing
+        ssum = sum(map(lambda x: x[1]+1, model[state].values()))
+        for symbol in model[state]:
+            dstate, occurrences = model[state][symbol]
+            model[state][symbol] = (dstate, occurrences, (occurrences + 1) / ssum)
+        # finally add an unseen symbol
+        model[state]['unseen'] = (state, 0, 1 / ssum)
+    return model
+
+
 def traces2list(traces_path):
     """
-    Function for converting the trace file into a list of traces ready for further processing
+    Function for converting the multivariate trace file into a list of traces ready for further processing
     :param traces_path: the filepath of the traces
     :return: the list of the traces as a list of lists (each trace) of lists (each record in each trace)
     """
@@ -760,6 +910,26 @@ def traces2list(traces_path):
                 tokens = line.split()
                 # gather the records of each trace and keep only the record values and map them to float
                 traces += [[list(map(float, t.split(':')[1].split(','))) for t in tokens[2:]]]
+    return traces
+
+
+def symbolic_traces2list(traces_path):
+    """
+    Function for converting the symbolic trace file into a list of traces ready for further processing
+    :param traces_path: the filepath of the traces
+    :return: the list of the traces as a list of lists (each trace) of lists (each record in each trace)
+    """
+    traces = []
+    with open(traces_path, "r") as fp:
+        # skip first line
+        line = fp.readline()
+        while line:
+            line = fp.readline()
+            if line != '':
+                # split lines by spaces
+                tokens = line.split()
+                # gather the symbols of each trace
+                traces += [tokens[2:]]
     return traces
 
 
@@ -784,6 +954,78 @@ def run_traces_on_model(traces_path, indices_path, model, attribute_type='train'
             model.update_indices(label, ind, attribute_type)
             label = model.fire_transition(label, observed)
     return model
+
+
+def run_traces_on_symbolic_model(traces_path, model, eval_method='acceptance', train_path=None):
+    """
+    Function for running a symbolic trace file on the provided model and returning the number of accepted and rejected
+    traces. The acceptance and rejection of a trace depends on the evaluation method provided
+    :param traces_path: the path of the trace file to run on the model
+    :param model: the given model
+    :param eval_method: the evaluation method to be used for the set of symbolic sequences given as input ('acceptance'
+    | 'error')
+    :param train_path: the path of the trace file used to create the model (provided in the error-based evaluation
+    method)
+    :return: the ratio of accepted traces (in case the acceptance method is used) or the normalised sum of pattern
+    errors between the training and testing traces (in case the error-based method is used)
+    """
+    traces = symbolic_traces2list(traces_path)
+    if eval_method == 'acceptance':
+        accepted = 0
+        rejected = 0
+        for trace in traces:
+            state = '0'
+            prob = 1
+            for event in trace:
+                # if the symbol is found at the current state, the new state is retrieved
+                if event in model[state].keys():
+                    state = model[state][event][0]
+                else:
+                    # the word is rejected
+                    prob = 0
+                    break
+            if prob == 0:   # count a rejected word
+                rejected += 1
+            else:           # count an accepted word
+                accepted += 1
+        return accepted / (accepted + rejected)
+    else:
+        err = 0
+        # retrieve the traces that created the model
+        train_traces = symbolic_traces2list(train_path)
+        # initialize the counters for the total number od pattern occurrences in each type of traces
+        total_train = 0
+        total_test = 0
+        # initialize the dictionaries of the patterns in each type of traces
+        train_dict = {}
+        test_dict = {}
+        for state in model.keys():
+            train_dict[state] = defaultdict(int)
+            test_dict[state] = defaultdict(int)
+        # set the patterns occurrences by running the tracets of each type
+        for ind, curr_traces in enumerate([train_traces, traces]):
+            for trace in curr_traces:
+                state = '0'
+                for event in trace:
+                    # if the symbol is found at the current state, the new state is retrieved
+                    if event in model[state].keys():
+                        state = model[state][event][0]
+                        if ind == 0:
+                            train_dict[state][event] += 1
+                            total_train += 1
+                        else:
+                            test_dict[state][event] += 1
+                            total_test += 1
+                    else:
+                        # the word is rejected
+                        break
+        # finally find the normalized sum of absolute differences between the normalized counts of each pattern
+        total_errors = 0
+        for state in model.keys():
+            for symbol in set(train_dict[state].keys()).union(set(test_dict[state].keys())):
+                err += abs(train_dict[state][symbol] / total_train - (0 if not total_test else test_dict[state][symbol] / total_test))
+                total_errors += 1
+        return err / total_errors
 
 
 def dict2list(d):

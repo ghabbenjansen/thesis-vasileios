@@ -8,36 +8,27 @@ import pickle
 
 if __name__ == '__main__':
     # first set the flag of the type of dataset to be used
+    # flag should be one of 'CTU-bi' | 'UNSW' | 'CICIDS'
     flag = 'CTU-bi'
     # Check if discretization is enabled
     # with_discretization = int(
     #     input('Discretize numeric features (ports, bytes, duration, packets) (no: 0 | yes: 1)? '))
-    with_discretization = 0
+    with_discretization = 1
+    # set the flag for selecting only entities with a sufficient number of flows
+    select_major = True
+    # flag for reducing the number of flows taken into account TODO: remove it later
+    reduction_flag = True
     # set the features to be used in the multivariate modelling
-    if flag in ['CTU-bi', 'UNSW', 'CICIDS']:
-        selected = [
-            # 'src_port'
-            'dst_port'
-            , 'protocol_num'
-            # , 'duration'
-            , 'src_bytes'
-            , 'dst_bytes'
-            # , 'date_diff'
-            # , 'total_bytes'
-            # , 'bytes_per_packet'
-                    ]
-    else:
-        selected = [
-            # 'src_port'
-            'dst_port'
-            , 'protocol_num'
-            # , 'duration'
-            # 'orig_ip_bytes'
-            # , 'resp_ip_bytes'
-            # , 'date_diff'
-            , 'orig_bytes_per_packet'
-            , 'resp_bytes_per_packet'
-        ]
+    selected = [
+        'src_port'
+        , 'dst_port'
+        , 'protocol_num'
+        # , 'duration'
+        , 'src_bytes'
+        , 'dst_bytes'
+        # , 'total_bytes'
+        # , 'bytes_per_packet'
+                ]
     old_selected = deepcopy(selected)
 
     # host_level = int(input('Select the type of modelling to be conducted (connection level: 0 | host level: 1): '))
@@ -45,43 +36,68 @@ if __name__ == '__main__':
     analysis_type = 'host_level' if host_level else 'connection_level'
     bidirectional = False
 
+    # alphabet size in case the discretized version is used
+    alphabet_size = -1
+
     # set the input filepath of the dataframes' directory
     testing_filepath = input('Give the relative path of the dataset to be used for testing: ')
     if flag == 'CTU-bi':
         normal = pd.read_pickle(testing_filepath + '/binetflow_normal.pkl')
         anomalous = pd.read_pickle(testing_filepath + '/binetflow_anomalous.pkl')
-    elif flag == 'IOT':
-        normal = pd.read_pickle(testing_filepath + '/zeek_normal.pkl')
-        anomalous = pd.read_pickle(testing_filepath + '/zeek_anomalous.pkl')
     else:
         normal = pd.read_pickle(testing_filepath + '/normal.pkl')
         anomalous = pd.read_pickle(testing_filepath + '/anomalous.pkl')
     data = pd.concat([normal, anomalous], ignore_index=True).reset_index(drop=True)
 
+    # create column with the ratio of bytes to packets
+    if flag == 'CTU-bi':
+        data['total_bytes'] = data['src_bytes'] + data['dst_bytes']
+        data['bytes_per_packet'] = data['total_bytes'] / data['packets']
+        data['bytes_per_packet'].fillna(0, inplace=True)
+    elif flag == 'UNSW':
+        data['total_bytes'] = data['src_bytes'] + data['dst_bytes']
+        data['bytes_per_packet'] = data['total_bytes'] / (data['src_packets'] + data['dst_packets'])
+        data['bytes_per_packet'].fillna(0, inplace=True)
+    else:
+        data['total_bytes'] = data['src_bytes'] + data['dst_bytes']
+        data['bytes_per_packet'] = data['total_bytes'] / (data['total_fwd_packets'] + data['total_bwd_packets'])
+        data['bytes_per_packet'].fillna(0, inplace=True)
+
     if with_discretization:
         # first retrieve the discretization limits to be used for each feature
-        discretization_filepath = input('Provide the filepath of the discretization limits: ')
+        # discretization_filepath = input('Provide the filepath of the discretization limits: ')
+        discretization_filepath = 'Datasets/CTU13/scenario3/discretization_limits.pkl'
         with open(discretization_filepath, 'rb') as f:
             discretization_dict = pickle.load(f)
+
+        alphabet_size = 1
         # then apply discretization to the appropriate features
         for feature in discretization_dict.keys():
-            data[feature + '_num'] = data[feature].apply(helper.find_percentile,
-                                                         args=(discretization_dict[feature],))
-            selected.remove(feature)
-            selected += [feature + '_num']
+            alphabet_size *= (len(discretization_dict[feature]) + 1)
+            if 'num' not in feature:
+                data[feature + '_num'] = data[feature].apply(helper.find_percentile,
+                                                             args=(discretization_dict[feature],))
+                selected.remove(feature)
+                selected += [feature + '_num']
+            else:
+                data[feature] = data[feature].apply(helper.check_existence, args=(discretization_dict[feature],))
+        helper.netflow_encoding(data, selected, discretization_dict)
+        selected = ['encoding']
         old_selected = deepcopy(selected)
 
-    # for testing keep only hosts that have at least 2 flows so that enough information is available
-    #  currently only ips with at least 2000 flows are used for testing
+    # for testing keep only hosts or connection that have a sufficient number of flows so that enough information is
+    # available
     if host_level:
-        # datatype = 'non-regular' if flag == 'IOT' else 'regular'
-        # data = helper.select_hosts(data, 1, bidirectional=bidirectional, datatype=datatype)
-        instances = data['src_ip'].unique()
-        print('Number of hosts to be processed: ' + str(instances.shape[0]))
+        if select_major:
+            instances = list(map(lambda item: item[0], helper.select_hosts(data, 50).values.tolist()))
+        else:
+            instances = data['src_ip'].unique().tolist()
+        print('Number of hosts to be processed: ' + str(len(instances)))
     else:
-        # datatype = 'non-regular' if flag == 'IOT' else 'regular'
-        # data = helper.select_connections(data, 1, bidirectional=bidirectional, datatype=datatype)
-        instances = data.groupby(['src_ip', 'dst_ip']).size().reset_index().values.tolist()
+        if select_major:
+            instances = helper.select_connections(data, 1000).values.tolist()
+        else:
+            instances = data.groupby(['src_ip', 'dst_ip']).size().reset_index().values.tolist()
         print('Number of connections to be processed: ' + str(len(instances)))
     # extract the data per host
     for instance in instances:
@@ -89,48 +105,32 @@ if __name__ == '__main__':
             instance_name = instance
             print('Extracting traces for host ' + instance_name)
             instance_data = data.loc[data['src_ip'] == instance].sort_values(by='date').reset_index(drop=True)
+            if reduction_flag:
+                print('Reducing data points...')
+                instance_data = helper.reduce_data_by_label(instance_data, 10000, flag)
             print('The number of flows for this host are: ' + str(instance_data.shape[0]))
         else:
             instance_name = instance[0] + '-' + instance[1]
             print('Extracting traces for connection ' + instance_name)
             instance_data = data.loc[(data['src_ip'] == instance[0]) & (data['dst_ip'] == instance[1])].\
                 sort_values(by='date').reset_index(drop=True)
+            if reduction_flag:
+                print('Reducing data points...')
+                instance_data = helper.reduce_data_by_label(instance_data, 10000, flag)
             print('The number of flows for this connection are: ' + str(instance_data.shape[0]))
 
         # create a column with the time difference between consecutive flows
         instance_data['date_diff'] = instance_data['date'].sort_values().diff().astype('timedelta64[ms]') * 0.001
         instance_data['date_diff'].fillna(0, inplace=True)
 
-        # create column with the ratio of bytes to packets
-        if flag == 'CTU-bi':
-            instance_data['total_bytes'] = instance_data['src_bytes'] + instance_data['dst_bytes']
-            instance_data['bytes_per_packet'] = instance_data['total_bytes'] / instance_data['packets']
-            instance_data['bytes_per_packet'].fillna(0, inplace=True)
-        elif flag == 'UNSW':
-            instance_data['total_bytes'] = instance_data['src_bytes'] + instance_data['dst_bytes']
-            instance_data['bytes_per_packet'] = instance_data['total_bytes'] / (instance_data['src_packets'] +
-                                                                                instance_data['dst_packets'])
-            instance_data['bytes_per_packet'].fillna(0, inplace=True)
-        elif flag == 'CICIDS':
-            instance_data['total_bytes'] = instance_data['src_bytes'] + instance_data['dst_bytes']
-            instance_data['bytes_per_packet'] = instance_data['total_bytes'] / (instance_data['total_fwd_packets'] +
-                                                                                instance_data['total_bwd_packets'])
-            instance_data['bytes_per_packet'].fillna(0, inplace=True)
-        else:
-            instance_data['total_bytes'] = instance_data['orig_ip_bytes'] + instance_data['resp_ip_bytes']
-            instance_data['bytes_per_packet'] = instance_data['total_bytes'] / (instance_data['orig_packets'] +
-                                                                                instance_data['resp_packets'])
-            instance_data['bytes_per_packet'].fillna(0, inplace=True)
-
         # first ask if new features has been added during training
         # new_features = int(input('Were there any new features added during training (no: 0 | yes: 1)? '))
         new_features = 0
 
-        if new_features:
-            # extract the traces and save them in the traces' filepath
-            aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | '
-                                    'yes-resample: 2 )? '))
-
+        # aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | '
+        #                         'yes-resample: 2 )? '))
+        aggregation = 2     # 0 for multivariate | 2 for symbolic
+        if aggregation:
             # set the traces output filepath depending on the aggregation value
             # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of
             # the helper.py file
@@ -139,11 +139,13 @@ if __name__ == '__main__':
             if resample:
                 traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + analysis_type + '/' \
                                   + '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
-                                  instance_name + '-traces_resampled' + ('_bdr' if bidirectional else '') + '.txt'
+                                  instance_name + '-traces_resampled' + ('' if new_features else '_reduced') + \
+                                  ('_bdr' if bidirectional else '') + '.txt'
             else:
                 traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + analysis_type + '/' \
                                   + '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
-                                  instance_name + '-traces_aggregated' + ('_bdr' if bidirectional else '') + '.txt'
+                                  instance_name + '-traces_aggregated' + ('' if new_features else '_reduced') + \
+                                  ('_bdr' if bidirectional else '') + '.txt'
             # add also the destination ip in case of aggregation
             if host_level:
                 selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
@@ -162,7 +164,7 @@ if __name__ == '__main__':
         os.makedirs(os.path.dirname(traces_filepath), exist_ok=True)
 
         # and extract the traces
-        helper.extract_traces(instance_data, traces_filepath, selected, dynamic=True, aggregation=aggregation,
-                              resample=resample)
+        helper.extract_traces(instance_data, traces_filepath, selected, alphabet_size, dynamic=True,
+                              aggregation=aggregation, resample=resample, new_features=bool(new_features))
         # finally reset the selected features
         selected = deepcopy(old_selected)
