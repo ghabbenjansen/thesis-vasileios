@@ -13,17 +13,17 @@ if __name__ == '__main__':
     # Check if discretization is enabled
     # with_discretization = int(
     #     input('Discretize numeric features (ports, bytes, duration, packets) (no: 0 | yes: 1)? '))
-    with_discretization = 1
+    with_discretization = 0
     # set the flag for selecting only entities with a sufficient number of flows
     select_major = True
     # flag for reducing the number of flows taken into account TODO: remove it later
-    reduction_flag = True
+    reduction_flag = False
     # set the features to be used in the multivariate modelling
     selected = [
         'src_port'
         , 'dst_port'
         , 'protocol_num'
-        # , 'duration'
+        , 'duration'
         , 'src_bytes'
         , 'dst_bytes'
         # , 'total_bytes'
@@ -65,8 +65,7 @@ if __name__ == '__main__':
 
     if with_discretization:
         # first retrieve the discretization limits to be used for each feature
-        # discretization_filepath = input('Provide the filepath of the discretization limits: ')
-        discretization_filepath = 'Datasets/CTU13/scenario3/discretization_limits.pkl'
+        discretization_filepath = input('Provide the filepath of the discretization limits: ')
         with open(discretization_filepath, 'rb') as f:
             discretization_dict = pickle.load(f)
 
@@ -95,7 +94,7 @@ if __name__ == '__main__':
         print('Number of hosts to be processed: ' + str(len(instances)))
     else:
         if select_major:
-            instances = helper.select_connections(data, 1000).values.tolist()
+            instances = helper.select_connections(data, 50).values.tolist()
         else:
             instances = data.groupby(['src_ip', 'dst_ip']).size().reset_index().values.tolist()
         print('Number of connections to be processed: ' + str(len(instances)))
@@ -123,13 +122,23 @@ if __name__ == '__main__':
         instance_data['date_diff'] = instance_data['date'].sort_values().diff().astype('timedelta64[ms]') * 0.001
         instance_data['date_diff'].fillna(0, inplace=True)
 
-        # first ask if new features has been added during training
+        # first ask about the nature of the windowing technique
+        timed = False
+        dynamic = True
+        # if static windows are used add it to the naming of the tracefile
+        timed_name = ''
+        if not timed:
+            timed_name = '_static'
+        elif not dynamic:
+            timed_name = '_static_timed'
+
+        # secondly ask if new features has been added during training
         # new_features = int(input('Were there any new features added during training (no: 0 | yes: 1)? '))
         new_features = 0
 
         # aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | '
         #                         'yes-resample: 2 )? '))
-        aggregation = 2     # 0 for multivariate | 2 for symbolic
+        aggregation = 0     # 0 for multivariate | 2 for symbolic
         if aggregation:
             # set the traces output filepath depending on the aggregation value
             # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of
@@ -140,12 +149,12 @@ if __name__ == '__main__':
                 traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + analysis_type + '/' \
                                   + '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
                                   instance_name + '-traces_resampled' + ('' if new_features else '_reduced') + \
-                                  ('_bdr' if bidirectional else '') + '.txt'
+                                  ('_bdr' if bidirectional else '') + timed_name + '.txt'
             else:
                 traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + analysis_type + '/' \
                                   + '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
                                   instance_name + '-traces_aggregated' + ('' if new_features else '_reduced') + \
-                                  ('_bdr' if bidirectional else '') + '.txt'
+                                  ('_bdr' if bidirectional else '') + timed_name + '.txt'
             # add also the destination ip in case of aggregation
             if host_level:
                 selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
@@ -156,7 +165,7 @@ if __name__ == '__main__':
         else:
             traces_filepath = '/'.join(testing_filepath.split('/')[0:2]) + '/test/' + analysis_type + '/' + \
                               '_'.join(old_selected) + '/' + testing_filepath.split('/')[2] + '-' + \
-                              instance_name + '-traces' + ('_bdr' if bidirectional else '') + '.txt'
+                              instance_name + '-traces' + ('_bdr' if bidirectional else '') + timed_name + '.txt'
             aggregation = False
             resample = False
 
@@ -164,7 +173,7 @@ if __name__ == '__main__':
         os.makedirs(os.path.dirname(traces_filepath), exist_ok=True)
 
         # and extract the traces
-        helper.extract_traces(instance_data, traces_filepath, selected, alphabet_size, dynamic=True,
+        helper.extract_traces(instance_data, traces_filepath, selected, alphabet_size, timed=timed, dynamic=dynamic,
                               aggregation=aggregation, resample=resample, new_features=bool(new_features))
         # finally reset the selected features
         selected = deepcopy(old_selected)

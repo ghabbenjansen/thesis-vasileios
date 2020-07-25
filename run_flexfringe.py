@@ -12,7 +12,7 @@ import pickle
 
 # flag for specifying which version of flexfringe shall be used. In case the symbolic approach is used the master branch
 # is used, otherwise the mutlivariate branch is used
-ENCODED = True
+ENCODED = False
 if ENCODED:
     # local filepath where the code of the master branch resides
     filepath = '/Users/vserentellos/Desktop/dfasat/'
@@ -61,6 +61,8 @@ def flexfringe(*args, **kwargs):
         extension += ('_aggregated' + ('_reduced' if 'reduced' in args[0] else ''))
     if 'resampled' in args[0]:
         extension += ('_resampled' + ('_reduced' if 'reduced' in args[0] else ''))
+    if 'static' in args[0]:
+        extension += '_static'
     new_file_name = extension + "_dfa.dot"
     new_file = os.path.join("outputs/" + dataset_name + '/' + analysis_level + '/' + features, new_file_name)
 
@@ -113,7 +115,7 @@ if __name__ == '__main__':
             'src_port'
             , 'dst_port'
             , 'protocol_num'
-            # , 'duration'
+            , 'duration'
             , 'src_bytes'
             , 'dst_bytes'
             # , 'total_bytes'
@@ -229,7 +231,18 @@ if __name__ == '__main__':
             if instance_data.shape[0] > 20000:
                 instance_data = instance_data.iloc[:20000]
 
-            # first ask if new features are to be added
+            # first ask about the nature of the windowing technique
+            timed = int(input('What type of window to use (0: non-timed | 1: static-timed | 2: dynamic-timed)? '))
+            dynamic = True if timed == 2 else False
+            timed = bool(timed)
+            # if static windows are used add it to the naming of the tracefile
+            timed_name = ''
+            if not timed:
+                timed_name = '_static'
+            elif not dynamic:
+                timed_name = '_static_timed'
+
+            # seconldy ask if new features are to be added
             new_features = int(input('Are there any new features to be added (no: 0 | yes: 1)? '))
 
             # extract the traces and save them in the traces' filepath
@@ -242,7 +255,7 @@ if __name__ == '__main__':
             if not aggregation:
                 traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type + '/' \
                                   + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' + \
-                                  instance_name + '-traces' + ('_bdr' if bidirectional else '') + '.txt'
+                                  instance_name + '-traces' + ('_bdr' if bidirectional else '') + timed_name + '.txt'
                 aggregation = False
                 resample = False
             else:
@@ -252,12 +265,12 @@ if __name__ == '__main__':
                     traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type \
                                       + '/' + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' \
                                       + instance_name + '-traces_resampled' + ('' if new_features else '_reduced') \
-                                      + ('_bdr' if bidirectional else '') + '.txt'
+                                      + ('_bdr' if bidirectional else '') + timed_name + '.txt'
                 else:
                     traces_filepath = '/'.join(training_filepath.split('/')[0:2]) + '/training/' + analysis_type \
                                       + '/' + '_'.join(old_selected) + '/' + training_filepath.split('/')[2] + '-' \
                                       + instance_name + '-traces_aggregated' + ('' if new_features else '_reduced') \
-                                      + ('_bdr' if bidirectional else '') + '.txt'
+                                      + ('_bdr' if bidirectional else '') + timed_name + '.txt'
                 # add also the destination ip in case of aggregation
                 if analysis_type == 'host_level':
                     selected += ['dst_ip'] if not resample else ['dst_ip', 'date']
@@ -269,7 +282,7 @@ if __name__ == '__main__':
             os.makedirs(os.path.dirname(traces_filepath), exist_ok=True)
 
             # and extract the traces
-            helper.extract_traces(instance_data, traces_filepath, selected, alphabet_size, dynamic=True,
+            helper.extract_traces(instance_data, traces_filepath, selected, alphabet_size, timed=timed, dynamic=dynamic,
                                   aggregation=aggregation, resample=resample, new_features=bool(new_features))
 
             # add the trace filepath of each host's traces to the list

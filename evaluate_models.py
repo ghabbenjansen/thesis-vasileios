@@ -196,25 +196,27 @@ def print_total_results(results):
 
 if __name__ == '__main__':
     # set flag regarding the number of flows to be processed TODO: to be removed for final version
-    reduction_flag = True
+    reduction_flag = False
     # set flag for baseline results TODO: to be removed for final version
-    baseline_only = True
+    baseline_only = False
+    # set flag for static window TODO: to be removed for final version
+    static = True
 
     if DEBUGGING:
         # for debugging purposes the following structures can be used
         debug_model_filepaths = sorted(glob.glob(
-            'outputs/UNSW-NB15/host_level/encoding/UNSW-NB15-1-*_resampled_reduced_dfa.dot'),
+            'outputs/CTU13/host_level/src_port_dst_port_protocol_num_duration_src_bytes_dst_bytes/scenario3-*_resampled_reduced_static_dfa.dot'),
                                        key=lambda item: re.search('-(.+?)_', item.split('/')[-1]).group(1))
         debug_train_trace_filepaths = sorted(glob.glob(
-            'Datasets/UNSW-NB15/training/host_level/encoding/UNSW-NB15-1-*-traces_resampled_reduced.txt'),
+            'Datasets/CTU13/training/host_level/src_port_dst_port_protocol_num_duration_src_bytes_dst_bytes/scenario3-*-traces_resampled_reduced_static.txt'),
                                              key=lambda item: re.search('-(.+)-', item.split('/')[-1]).group(1))
 
         debug_methods = [
             # 'clustering'
             # , 'multivariate gaussian'
             # , 'probabilistic'
-            # , 'baseline multivariate'
-            'baseline symbolic'
+            'baseline multivariate'
+            # 'baseline symbolic'
                          ]
 
         debug_clustering_methods = [
@@ -234,7 +236,7 @@ if __name__ == '__main__':
                 else:
                     parameters += [(model_filepath, trace_filepath, method)]
 
-        flag = 'UNSW'
+        flag = 'CTU-bi'
         n = len(parameters)
     else:
         flag = int(input('Provide the type of dataset to be used: '))
@@ -283,9 +285,9 @@ if __name__ == '__main__':
     if DEBUGGING:
         # get the testing traces filepath pattern
         debug_test_trace_filepaths = sorted(glob.glob(
-            'Datasets/UNSW-NB15/test/host_level/encoding/UNSW-NB15-1-*-traces_resampled_reduced.txt'))
+            'Datasets/CTU13/test/host_level/src_port_dst_port_protocol_num_duration_src_bytes_dst_bytes/scenario13-*-traces_static.txt'))
         # just shortcut for huge inputs used during experimentation - TODO: remove it in final version
-        # debug_test_trace_filepaths =sorted(filter(lambda x: '147.32.84.170' not in x, glob.glob('Datasets/CTU13/test/host_level/src_port_dst_port_protocol_num_src_bytes_dst_bytes/scenario3-*-traces.txt')))
+        # debug_test_trace_filepaths =sorted(filter(lambda x: '147.32.84.170' not in x, glob.glob('Datasets/CTU13/test/host_level/src_port_dst_port_protocol_num_duration_src_bytes_dst_bytes/scenario3-*-traces_static.txt')))
 
         debug_test_set_filepaths = list(map(lambda x: '/'.join(x.split('/')[0:2]) + '/'
                                                       + '-'.join(x.split('/')[-1].split('-')[:(-3 if 'connection' in x
@@ -435,7 +437,7 @@ if __name__ == '__main__':
         results_filename = '/'.join(debug_test_trace_filepaths[0].split('/')[0:2]) + '/' + 'results/' + \
                            debug_test_trace_filepaths[0].split('/')[4] + '/' + \
                            '-'.join(set(map(lambda x: x.split('/')[-1], debug_test_set_filepaths))) + \
-                           ('_baseline' if baseline_only else '') + '_dfa_results.pkl'
+                           ('_baseline' if baseline_only else '') + ('_static' if static else '') + '_dfa_results.pkl'
         # create the directory if it does not exist
         os.makedirs(os.path.dirname(results_filename), exist_ok=True)
     else:

@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 from pandas.tseries.offsets import DateOffset
-from pandas import Timedelta
 from copy import deepcopy
 from scipy.stats import mode
 from statistics import mean
@@ -118,8 +117,7 @@ def select_connections(init_data, threshold=50, bidirectional=False):
     """
     connections_cnts = init_data.groupby(['src_ip', 'dst_ip']).size().reset_index().rename(columns={0: "size"})
     if bidirectional:
-        connections_counts = dict([[triple[0] + '-' + triple[1], triple[2]]
-                                   for triple in connections_cnts[['src_ip', 'dst_ip', 'size']].values.tolist()])
+        connections_counts = dict([[triple[0] + '-' + triple[1], triple[2]] for triple in connections_cnts[['src_ip', 'dst_ip', 'size']].values.tolist()])
         init_data = init_data.apply(lambda x: check_connections(x, connections_counts), axis=1)
         connections_cnts = init_data.groupby(['src_ip', 'dst_ip']).size().reset_index().rename(columns={0: "size"})
     return connections_cnts[connections_cnts['size'] > threshold]
@@ -436,12 +434,12 @@ def aggregate_static(data, selected_features, window, new_features=True):
             if new_features:
                 new_column_names += ['unique_dst_ips']
                 frames += [data['dst_ip'].groupby(data.index // window).nunique()]
-        data = pd.concat(frames, axis=1)
-        data.columns = new_column_names
-        data.dropna(inplace=True)
-        # handle the case of discretized data in which the dropna is not sufficient by itself
-        if len(new_column_names) == 1:
-            data = data[data.astype(str)[new_column_names[0]] != '[]']
+    data = pd.concat(frames, axis=1)
+    data.columns = new_column_names
+    data.dropna(inplace=True)
+    # handle the case of discretized data in which the dropna is not sufficient by itself
+    if len(new_column_names) == 1:
+        data = data[data.astype(str)[new_column_names[0]] != '[]']
     return data
 
 
@@ -598,9 +596,9 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
             if aggregation:
                 # this checks also if the window is big enough. If not then it sets the aggregation window to 1/5 of
                 # the window
-                aggregation_length = min(Timedelta(seconds=5), (min(end_date, data['date'].iloc[-1])-start_date)/5) \
-                    if resample else min(10, int(len(windowed_data.index)))
-                # aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index))) # old version
+                # aggregation_length = min(Timedelta(seconds=5), (min(end_date, data['date'].iloc[-1])-start_date)/5) \
+                #     if resample else min(10, int(len(windowed_data.index)))
+                aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index))) # old version
                 timed = True if resample else False
                 windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), selected,
                                                      aggregation_length, timed, resample, new_features)
@@ -608,8 +606,7 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
                 num_of_features = len(selected)
 
             # extract the trace of this window and add it to the traces' list
-            ints = False if (aggregation and 'encoding' not in old_selected) or 'duration' in old_selected \
-                            or 'bytes_per_packet' in old_selected else True
+            ints = False if (aggregation and 'encoding' not in old_selected) or 'duration' in old_selected else True
             # this case applies only on resampling in case there are no more than 1 flow per resampling window
             if windowed_data.shape[0] != 0:
                 traces += [convert2flexfringe_format(windowed_data[selected], ints)]
@@ -673,17 +670,16 @@ def extract_traces_from_window(data, selected, window, stride, trace_limits, tot
         if aggregation:
             # this checks also if the window is big enough. If not then it sets the aggregation window to 1/5 of
             # the window
-            aggregation_length = min(Timedelta(seconds=5), (min(end_date, data['date'].iloc[-1]) - start_date) / 5) \
-                if resample else min(10, int(len(windowed_data.index)))
-            # aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index))) # old version
+            # aggregation_length = min(Timedelta(seconds=5), (min(end_date, data['date'].iloc[-1]) - start_date) / 5) \
+            #     if resample else min(10, int(len(windowed_data.index)))
+            aggregation_length = '5S' if resample else min(10, int(len(windowed_data.index))) # old version
             timed = True if resample else False
             windowed_data = aggregate_in_windows(windowed_data[selected].copy(deep=True), selected, aggregation_length,
                                                  timed, resample, new_features)
             selected = windowed_data.columns.values
             num_of_features = len(selected)
         # and add the new trace
-        ints = False if (aggregation and 'encoding' not in old_selected) or 'duration' in old_selected \
-                        or 'bytes_per_packet' in old_selected else True
+        ints = False if (aggregation and 'encoding' not in old_selected) or 'duration' in old_selected else True
         if windowed_data.shape[0] != 0:  # for the resampling case
             traces += [convert2flexfringe_format(windowed_data[selected], ints)]
         # store also the starting and the ending index of the current time window
@@ -787,11 +783,15 @@ def extract_traces(data, out_filepath, selected, alphabet_size, timed=True, dyna
         assertion_dict = dict(zip(data_indices, len(data_indices) * [False]))
         # keep the maximum index
         max_ind = data_indices[-1]
+        # keep the original features
+        old_selected = deepcopy(selected)
         while starting_index < len(data_indices):
             # retrieve the flows of the current window
             windowed_data = data[starting_index: min(starting_index + window, len(data_indices))]
             # insert the indices of the current trace to the assertion dictionary
             assertion_dict.update(zip(windowed_data.index.tolist(), len(windowed_data.index.tolist()) * [True]))
+            # update the maximum seen index (for progress visualization) purposes
+            cnt = windowed_data.index.tolist()[-1]
             # create aggregated features if needed (currently with a hard-coded window length)
             if aggregation:
                 aggregation_length = 5
@@ -800,14 +800,14 @@ def extract_traces(data, out_filepath, selected, alphabet_size, timed=True, dyna
                 selected = windowed_data.columns.values
                 num_of_features = len(selected)
             # extract the trace of this window and add it to the traces' list
-            ints = False if 'duration' in selected or 'bytes_per_packet' in selected else True
+            ints = False if aggregation or 'duration' in old_selected else True
             traces += [convert2flexfringe_format(windowed_data[selected], ints)]
             # store also the flow indices of the current time window
             traces_indices += [windowed_data.index.tolist()]
+            # retrieve the original features
+            selected = deepcopy(old_selected)
             # increase the starting index of the window
             starting_index += stride
-            # update the progress variable
-            cnt = windowed_data.tolist()[-1]
             # show progress
             prog = int((cnt / max_ind) * 100)
             if prog // 10 != 0 and prog // 10 not in progress_list:
@@ -821,11 +821,6 @@ def extract_traces(data, out_filepath, selected, alphabet_size, timed=True, dyna
     print('Finished with rolling windows!!!')
     print('Starting writing traces to file...')
     # create the traces' file in the needed format
-    # if static windows are used change the naming of the tracefile
-    if not timed:
-        out_filepath = '.'.join(out_filepath.split('.')[:-1]) + '_static.' + out_filepath.split('.')[-1]
-    elif not dynamic:
-        out_filepath = '.'.join(out_filepath.split('.')[:-1]) + '_static_timed.' + out_filepath.split('.')[-1]
     f = open(out_filepath, "w")
     if alphabet_size > 0:
         # if symbols are used
