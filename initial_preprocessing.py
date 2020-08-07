@@ -51,20 +51,6 @@ def preprocess_unidirectional_data(filepath):
     fout.close()
 
 
-def simplecount(filename):
-    """
-    Function for counting the number of lines in a file. This function is needed in the case of the IOT dataset since
-    the last row must be skipped when parsing the file into a dataframe and the option of skipfooter is not available
-    in chunking
-    :param filename: the file path of the file to be processed
-    :return: the number of lines in the file
-    """
-    lines = 0
-    for _ in open(filename):
-        lines += 1
-    return lines
-
-
 def read_data(filepath, flag='CTU-uni', preprocessing=None, chunks=False, expl=False):
     """
     Helper function to read the datasets into a Pandas dataframe
@@ -167,22 +153,21 @@ def read_data(filepath, flag='CTU-uni', preprocessing=None, chunks=False, expl=F
 
 
 if __name__ == '__main__':
-    # filepath = input("Enter the desired filepath: ")
-    filepath = 'Datasets/CTU13/scenario6/scenario06_ctu13.binetflow.txt'
+    filepath = input("Enter the desired filepath: ")
 
     # Choose between the flags CTU-uni | CTU-bi | CTU-mixed | CICIDS | UNSW
-    flag = 'CTU-bi'
-    # while True:
-    #     flag = input("Enter the desired flag (CTU-uni | CTU-bi | CTU-mixed | CICIDS | UNSW): ")
-    #     if flag in ['CTU-uni', 'CTU-bi', 'CTU-mixed', 'CICIDS', 'UNSW']:
-    #         break
+    while True:
+        flag = input("Enter the desired flag (CTU-uni | CTU-bi | CICIDS | UNSW): ")
+        if flag in ['CTU-uni', 'CTU-bi', 'CICIDS', 'UNSW']:
+            break
+
+    # flag for modifications in preprocessing for state-of-the-art experiments
+    sota = True
 
     print('Reading data from ' + filepath + '...\n')
     # to get preprocessing, necessary for unidirectional netflows, done, set the 'preprocessing' flag to True
     if flag == 'CTU-uni':
-        # data = read_data(filepath, flag=flag, preprocessing='uni' if bool(input("Enable preprocessing (for NO give no "
-        #                                                                         "answer)? ")) else None)
-        data = read_data(filepath, flag=flag, preprocessing=None)
+        data = read_data(filepath, flag=flag, preprocessing='uni' if bool(input("Enable preprocessing (for NO give no answer)? ")) else None)
     else:
         data = read_data(filepath, flag=flag, chunks=True)
 
@@ -234,8 +219,15 @@ if __name__ == '__main__':
         background.to_pickle('/'.join(filepath.split('/')[0:3]) + '/netflow_background.pkl')
     # Bidirectional flows of CTU-13 dataset
     elif flag == 'CTU-bi':
-        # for now the background data are not taken into account
-        data = data[~data['label'].str.contains("Background")]
+        # the background data are taken into account only in state-of-the-art experiments
+        if not sota:
+            data = data[~data['label'].str.contains("Background")]
+        else:
+            # only hosts from the host network with more than 150 flows in total are kept
+            data = data[data['src_ip'].str.contains("147.32.8")]
+            hosts = data.groupby('src_ip').size()
+            ips = hosts[hosts > 150].index
+            data = data[data['src_ip'].isin(ips)]
 
         # for now the state and direction features are kept but are ignored in the pipeline
         # parse packets, and bytes as integers instead of strings
@@ -254,7 +246,7 @@ if __name__ == '__main__':
         data['dst_port'].fillna('-1', inplace=True)
 
         # add the numerical representation of the categorical data
-        protocol_categories = ['udp', 'tcp', 'icmp', 'arp', 'igmp', 'rtp']
+        protocol_categories = ['udp', 'tcp', 'icmp', 'arp', 'igmp', 'rtp', 'pim', 'rtcp', 'udt', 'ipv6']
         data['protocol_num'] = pd.Categorical(data['protocol'], categories=protocol_categories).codes
         # data['state_num'] = pd.Categorical(data['state'], categories=data['state'].unique()).codes
 
@@ -267,19 +259,23 @@ if __name__ == '__main__':
         data['dst_port'] = data['dst_port'].astype(int)
 
         # split the data according to their labels and sort them by date
-        # anomalous = data[data['label'].str.contains("From-Botnet")]
-        anomalous = data[data['label'].str.contains("Botnet")]
+        anomalous = data[data['label'].str.contains("From-Botnet")]
         anomalous = anomalous.reset_index(drop=True)
         anomalous.sort_values(by=['date'], inplace=True)
 
-        # normal = data[data['label'].str.contains("From-Normal")]
-        normal = data[data['label'].str.contains("Normal")]
+        if not sota:
+            normal = data[data['label'].str.contains("From-Normal")]
+        else:
+            normal = data[~data['label'].str.contains("Botnet")]
         normal = normal.reset_index(drop=True)
         normal.sort_values(by=['date'], inplace=True)
 
         # save the separated data
         anomalous.to_pickle('/'.join(filepath.split('/')[0:3]) + '/binetflow_anomalous.pkl')
-        normal.to_pickle('/'.join(filepath.split('/')[0:3]) + '/binetflow_normal.pkl')
+        if not sota:
+            normal.to_pickle('/'.join(filepath.split('/')[0:3]) + '/binetflow_normal.pkl')
+        else:
+            normal.to_pickle('/'.join(filepath.split('/')[0:3]) + '/binetflow_normal_sota.pkl')
     # Flows of UNSW-NB15 dataset
     elif flag == 'UNSW':
         # fill appropriately columns that contain too many NaN values
