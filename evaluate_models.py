@@ -65,7 +65,6 @@ def predict_on_model(model, method, weighted=True):
     for node_label in model.nodes_dict.keys():
         # the node needs to have test set to predict on and
         if node_label != 'root' and len(model.nodes_dict[node_label].testing_indices) != 0:
-            # TODO: check why the last clause is needed
             if len(model.nodes_dict[node_label].observed_indices) > 2:
                 if method == 'clustering':
                     pred = model.nodes_dict[node_label].predict_on_clusters(
@@ -104,7 +103,7 @@ def predict_on_model(model, method, weighted=True):
     return predictions
 
 
-def produce_evaluation_metrics(predicted_labels, true_labels, detailed_labels, dst_ips, prediction_type='hard', printing=True):
+def produce_evaluation_metrics(predicted_labels, true_labels, detailed_labels, dst_ips, printing=True):
     """
     Function for calculating the evaluation metrics of the whole pipeline. Depending on the prediction type different
     metrics are calculated. For the hard type the accuracy, the precision, and the recall are provided.
@@ -112,58 +111,53 @@ def produce_evaluation_metrics(predicted_labels, true_labels, detailed_labels, d
     :param true_labels: the true labels as a list
     :param detailed_labels: the detailed labels of the flows as a list
     :param dst_ips: the destination ips of each flow as a list (or None in case of connection level analysis)
-    :param prediction_type: the prediction type ("soft" | "hard")
     :param printing: a boolean flag that specifies if the results shall be printed too
     :return: the needed metrics
     """
-    if prediction_type == 'hard':
-        TP, TN, FP, FN = 0, 0, 0, 0
-        # round is applied for rounding in cases of float medians
-        predicted_labels = list(map(round, predicted_labels))
-        # use 2 dictionaries to keep information about the connections and detailed labels
-        detailed_results = dict()
-        conn_results = None
-        if dst_ips:
-            conn_results = dict()
-        for i in range(len(true_labels)):
-            if detailed_labels[i] not in detailed_results.keys():
-                detailed_results[detailed_labels[i]] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
-            if conn_results is not None and dst_ips[i] not in conn_results.keys():
-                conn_results[dst_ips[i]] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
-            if true_labels[i] == 1:
-                if true_labels[i] == predicted_labels[i]:
-                    TP += 1
-                    detailed_results[detailed_labels[i]]['TP'] += 1
-                    if conn_results is not None:
-                        conn_results[dst_ips[i]]['TP'] += 1
-                else:
-                    FN += 1
-                    detailed_results[detailed_labels[i]]['FN'] += 1
-                    if conn_results is not None:
-                        conn_results[dst_ips[i]]['FN'] += 1
+    TP, TN, FP, FN = 0, 0, 0, 0
+    # round is applied for rounding in cases of float medians
+    predicted_labels = list(map(round, predicted_labels))
+    # use 2 dictionaries to keep information about the connections and detailed labels
+    detailed_results = dict()
+    conn_results = None
+    if dst_ips:
+        conn_results = dict()
+    for i in range(len(true_labels)):
+        if detailed_labels[i] not in detailed_results.keys():
+            detailed_results[detailed_labels[i]] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
+        if conn_results is not None and dst_ips[i] not in conn_results.keys():
+            conn_results[dst_ips[i]] = {'TP': 0, 'TN': 0, 'FP': 0, 'FN': 0}
+        if true_labels[i] == 1:
+            if true_labels[i] == predicted_labels[i]:
+                TP += 1
+                detailed_results[detailed_labels[i]]['TP'] += 1
+                if conn_results is not None:
+                    conn_results[dst_ips[i]]['TP'] += 1
             else:
-                if true_labels[i] == predicted_labels[i]:
-                    TN += 1
-                    detailed_results[detailed_labels[i]]['TN'] += 1
-                    if conn_results is not None:
-                        conn_results[dst_ips[i]]['TN'] += 1
-                else:
-                    FP += 1
-                    detailed_results[detailed_labels[i]]['FP'] += 1
-                    if conn_results is not None:
-                        conn_results[dst_ips[i]]['FP'] += 1
-        accuracy = (TP + TN) / (TP + TN + FP + FN)
-        precision = -1 if TP + FP == 0 else TP / (TP + FP)
-        recall = -1 if TP + FN == 0 else TP / (TP + FN)
-        if printing:
-            print('TP: ' + str(TP) + ' TN: ' + str(TN) + ' FP: ' + str(FP) + ' FN:' + str(FN))
-            print('Accuracy: ' + str(accuracy))
-            print('Precision: ' + str(precision))
-            print('Recall: ' + str(recall))
-        return TP, TN, FP, FN, accuracy, precision, recall, detailed_results, conn_results
-    else:
-        # TODO: implement the soft prediction part
-        return 0, 0, 0, 0, 0, 0, 0, {}, {}
+                FN += 1
+                detailed_results[detailed_labels[i]]['FN'] += 1
+                if conn_results is not None:
+                    conn_results[dst_ips[i]]['FN'] += 1
+        else:
+            if true_labels[i] == predicted_labels[i]:
+                TN += 1
+                detailed_results[detailed_labels[i]]['TN'] += 1
+                if conn_results is not None:
+                    conn_results[dst_ips[i]]['TN'] += 1
+            else:
+                FP += 1
+                detailed_results[detailed_labels[i]]['FP'] += 1
+                if conn_results is not None:
+                    conn_results[dst_ips[i]]['FP'] += 1
+    accuracy = (TP + TN) / (TP + TN + FP + FN)
+    precision = -1 if TP + FP == 0 else TP / (TP + FP)
+    recall = -1 if TP + FN == 0 else TP / (TP + FN)
+    if printing:
+        print('TP: ' + str(TP) + ' TN: ' + str(TN) + ' FP: ' + str(FP) + ' FN:' + str(FN))
+        print('Accuracy: ' + str(accuracy))
+        print('Precision: ' + str(precision))
+        print('Recall: ' + str(recall))
+    return TP, TN, FP, FN, accuracy, precision, recall, detailed_results, conn_results
 
 
 def print_total_results(results):
@@ -195,20 +189,20 @@ def print_total_results(results):
 
 
 if __name__ == '__main__':
-    # set flag regarding the number of flows to be processed TODO: to be removed for final version
-    reduction_flag = False
-    # set flag for baseline results TODO: to be removed for final version
+    # set flag for baseline results (for labelling of the results file only)
     baseline_only = False
-    # set flag for static window TODO: to be removed for final version
+    # set flag for static window (for labelling of the results file only)
     static = True
+    # flag for modifications in model evaluation for state-of-the-art experiments
+    sota = True
 
     if DEBUGGING:
         # for debugging purposes the following structures can be used
         debug_model_filepaths = sorted(glob.glob(
-            'outputs/CTU13/host_level/src_port_dst_port_protocol_num_duration_src_bytes_dst_bytes/scenario3-*_resampled_reduced_static_dfa.dot'),
+            'outputs/CTU13/host_level/src_port_dst_port_protocol_num_src_bytes_dst_bytes/scenario3-*_resampled_reduced_static_dfa.dot'),
                                        key=lambda item: re.search('-(.+?)_', item.split('/')[-1]).group(1))
         debug_train_trace_filepaths = sorted(glob.glob(
-            'Datasets/CTU13/training/host_level/src_port_dst_port_protocol_num_duration_src_bytes_dst_bytes/scenario3-*-traces_resampled_reduced_static.txt'),
+            'Datasets/CTU13/training/host_level/src_port_dst_port_protocol_num_src_bytes_dst_bytes/scenario3-*-traces_resampled_reduced_static.txt'),
                                              key=lambda item: re.search('-(.+)-', item.split('/')[-1]).group(1))
 
         debug_methods = [
@@ -284,11 +278,7 @@ if __name__ == '__main__':
     # start testing on each trained model
     if DEBUGGING:
         # get the testing traces filepath pattern
-        debug_test_trace_filepaths = sorted(glob.glob(
-            'Datasets/CTU13/test/host_level/src_port_dst_port_protocol_num_duration_src_bytes_dst_bytes/scenario13-*-traces_static.txt'))
-        # just shortcut for huge inputs used during experimentation - TODO: remove it in final version
-        # debug_test_trace_filepaths =sorted(filter(lambda x: '147.32.84.170' not in x, glob.glob('Datasets/CTU13/test/host_level/src_port_dst_port_protocol_num_duration_src_bytes_dst_bytes/scenario3-*-traces_static.txt')))
-
+        debug_test_trace_filepaths = sorted(glob.glob('Datasets/CTU13/test/host_level/src_port_dst_port_protocol_num_src_bytes_dst_bytes/scenario9-*-traces_static.txt'))
         debug_test_set_filepaths = list(map(lambda x: '/'.join(x.split('/')[0:2]) + '/'
                                                       + '-'.join(x.split('/')[-1].split('-')[:(-3 if 'connection' in x
                                                                                                else -2)]),
@@ -324,7 +314,8 @@ if __name__ == '__main__':
         else:
             test_data_filepath = input('Give the relative path of the testing dataframe to be used for evaluation: ')
         if flag == 'CTU-bi':
-            normal = pd.read_pickle(test_data_filepath + '/binetflow_normal.pkl')
+            normal = pd.read_pickle(test_data_filepath + '/binetflow_normal.pkl') if not sota else \
+                pd.read_pickle(test_data_filepath + '/binetflow_normal_sota.pkl')
             anomalous = pd.read_pickle(test_data_filepath + '/binetflow_anomalous.pkl')
         else:
             normal = pd.read_pickle(test_data_filepath + '/normal.pkl')
@@ -348,9 +339,6 @@ if __name__ == '__main__':
             else:
                 all_data = all_data[(all_data['src_ip'] == ips[0]) & (all_data['dst_ip'] == ips[1])]\
                     .sort_values(by='date').reset_index(drop=True)
-        if reduction_flag:
-            print('Reducing data points...')
-            all_data = reduce_data_by_label(all_data, 10000, flag)  # 7500 for CICIDS | 10000 for UNSW
         true_labels = all_data['label'].values
         # keep also the detailed labels for analysis reasons
         if flag == 'UNSW':
@@ -384,6 +372,11 @@ if __name__ == '__main__':
                                                                                           if 'Botnet' in x
                                                                                           else 0, true_labels.tolist())),
                                                                                           detailed_labels, dst_ips)
+                    # early stop for state-of-the-art experiments models
+                    if sota:
+                        temp_TP, temp_TN, temp_FP, temp_FN = results[test_trace_name][models_info[i]][0:4]
+                        if (temp_TN + temp_FN) / (temp_TP + temp_TN + temp_FP + temp_FN) > 0.15:
+                            break
                 elif flag == 'UNSW':
                     results[test_trace_name][models_info[i]] = produce_evaluation_metrics(dict2list(predictions),
                                                                                           true_labels.tolist(),
