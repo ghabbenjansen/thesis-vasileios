@@ -9,30 +9,32 @@ import pickle
 if __name__ == '__main__':
     # first set the flag of the type of dataset to be used
     # flag should be one of 'CTU-bi' | 'UNSW' | 'CICIDS'
-    flag = 'CTU-bi'
+    while True:
+        flag = input("Enter the desired flag (CTU-bi | CICIDS | UNSW): ")
+        if flag in ['CTU-bi', 'CICIDS', 'UNSW']:
+            break
+
     # Check if discretization is enabled
-    # with_discretization = int(
-    #     input('Discretize numeric features (ports, bytes, duration, packets) (no: 0 | yes: 1)? '))
-    with_discretization = 0
-    # set the flag for selecting only entities with a sufficient number of flows
+    with_discretization = int(input('Discretize numeric features (ports, bytes, duration, packets) (no: 0 | yes: 1)? '))
+
+    # set the flag for selecting only network entities with a sufficient number of flows
     select_major = True
-    # flag for reducing the number of flows taken into account TODO: remove it later
-    reduction_flag = False
+
+    # flag for modifications in trace extraction for state-of-the-art experiments
+    sota = True
+
     # set the features to be used in the multivariate modelling
     selected = [
         'src_port'
         , 'dst_port'
         , 'protocol_num'
-        , 'duration'
+        # , 'duration'
         , 'src_bytes'
         , 'dst_bytes'
-        # , 'total_bytes'
-        # , 'bytes_per_packet'
                 ]
     old_selected = deepcopy(selected)
 
-    # host_level = int(input('Select the type of modelling to be conducted (connection level: 0 | host level: 1): '))
-    host_level = 1
+    host_level = int(input('Select the type of modelling to be conducted (connection level: 0 | host level: 1): '))
     analysis_type = 'host_level' if host_level else 'connection_level'
     bidirectional = False
 
@@ -42,26 +44,13 @@ if __name__ == '__main__':
     # set the input filepath of the dataframes' directory
     testing_filepath = input('Give the relative path of the dataset to be used for testing: ')
     if flag == 'CTU-bi':
-        normal = pd.read_pickle(testing_filepath + '/binetflow_normal.pkl')
+        normal = pd.read_pickle(testing_filepath + '/binetflow_normal.pkl') if not sota else \
+            pd.read_pickle(testing_filepath + '/binetflow_normal_sota.pkl')
         anomalous = pd.read_pickle(testing_filepath + '/binetflow_anomalous.pkl')
     else:
         normal = pd.read_pickle(testing_filepath + '/normal.pkl')
         anomalous = pd.read_pickle(testing_filepath + '/anomalous.pkl')
     data = pd.concat([normal, anomalous], ignore_index=True).reset_index(drop=True)
-
-    # create column with the ratio of bytes to packets
-    if flag == 'CTU-bi':
-        data['total_bytes'] = data['src_bytes'] + data['dst_bytes']
-        data['bytes_per_packet'] = data['total_bytes'] / data['packets']
-        data['bytes_per_packet'].fillna(0, inplace=True)
-    elif flag == 'UNSW':
-        data['total_bytes'] = data['src_bytes'] + data['dst_bytes']
-        data['bytes_per_packet'] = data['total_bytes'] / (data['src_packets'] + data['dst_packets'])
-        data['bytes_per_packet'].fillna(0, inplace=True)
-    else:
-        data['total_bytes'] = data['src_bytes'] + data['dst_bytes']
-        data['bytes_per_packet'] = data['total_bytes'] / (data['total_fwd_packets'] + data['total_bwd_packets'])
-        data['bytes_per_packet'].fillna(0, inplace=True)
 
     if with_discretization:
         # first retrieve the discretization limits to be used for each feature
@@ -104,27 +93,18 @@ if __name__ == '__main__':
             instance_name = instance
             print('Extracting traces for host ' + instance_name)
             instance_data = data.loc[data['src_ip'] == instance].sort_values(by='date').reset_index(drop=True)
-            if reduction_flag:
-                print('Reducing data points...')
-                instance_data = helper.reduce_data_by_label(instance_data, 10000, flag)
             print('The number of flows for this host are: ' + str(instance_data.shape[0]))
         else:
             instance_name = instance[0] + '-' + instance[1]
             print('Extracting traces for connection ' + instance_name)
             instance_data = data.loc[(data['src_ip'] == instance[0]) & (data['dst_ip'] == instance[1])].\
                 sort_values(by='date').reset_index(drop=True)
-            if reduction_flag:
-                print('Reducing data points...')
-                instance_data = helper.reduce_data_by_label(instance_data, 10000, flag)
             print('The number of flows for this connection are: ' + str(instance_data.shape[0]))
 
-        # create a column with the time difference between consecutive flows
-        instance_data['date_diff'] = instance_data['date'].sort_values().diff().astype('timedelta64[ms]') * 0.001
-        instance_data['date_diff'].fillna(0, inplace=True)
-
         # first ask about the nature of the windowing technique
-        timed = False
-        dynamic = True
+        timed = int(input('What type of window to use (0: non-timed | 1: static-timed | 2: dynamic-timed)? '))
+        dynamic = True if timed == 2 else False
+        timed = bool(timed)
         # if static windows are used add it to the naming of the tracefile
         timed_name = ''
         if not timed:
@@ -133,12 +113,10 @@ if __name__ == '__main__':
             timed_name = '_static_timed'
 
         # secondly ask if new features has been added during training
-        # new_features = int(input('Were there any new features added during training (no: 0 | yes: 1)? '))
-        new_features = 0
+        new_features = int(input('Were there any new features added during training (no: 0 | yes: 1)? '))
 
-        # aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | '
-        #                         'yes-resample: 2 )? '))
-        aggregation = 0     # 0 for multivariate | 2 for symbolic
+        # 0 for multivariate | 2 for symbolic
+        aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | yes-resample: 2 )? '))
         if aggregation:
             # set the traces output filepath depending on the aggregation value
             # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of

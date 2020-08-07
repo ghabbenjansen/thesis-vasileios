@@ -124,7 +124,7 @@ if __name__ == '__main__':
                     ]
         old_selected = deepcopy(selected)
 
-        # flag for modifications in preprocessing for state-of-the-art experiments
+        # flag for modifications in trace extraction for state-of-the-art experiments
         sota = True
 
         # alphabet size in case the discretized version is used
