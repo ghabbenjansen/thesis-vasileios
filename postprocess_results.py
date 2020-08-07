@@ -116,8 +116,8 @@ def multilevel_statistics(results_dict, host_threshold, connection_threshold, mi
     host_results_per_method = {}
     connection_results_per_method = {}
     for host in results_dict.keys():
-        # for now ignore total results - TODO: change it in the final version of the code
-        if 'total' in host or ('192.168' not in host and '172.16' not in host and '205.174' not in host):
+        # ignore total results
+        if 'total' in host:
             continue
         # temporary dictionaries for host level analysis
         predicted = {}
@@ -127,11 +127,6 @@ def multilevel_statistics(results_dict, host_threshold, connection_threshold, mi
         conn_true = {}
         # for each training model used
         for result_type in results_dict[host].keys():
-            # TODO: change it in the final version of the code
-            # if '147.32.84.164' in result_type or '147.32.87.36' in result_type:
-            # if '192.168.10.50' in result_type or '192.168.10.51' in result_type or '192.168.10.16' in result_type or '192.168.10.17' in result_type or '192.168.10.19' in result_type or '192.168.10.15' in result_type:
-            # # if '59.166.0.1' in result_type:
-            #     continue
             # The mapping in the dictionary is the following:
             # 0 -> TP, 1 -> TN, 2 -> FP, 3 -> FN,  4 -> accuracy, 5 -> precision, 6 -> recall
             # 7 -> dictionary with type of labels, 8 -> dictionary with the destination IPs
@@ -218,10 +213,9 @@ def multilevel_statistics(results_dict, host_threshold, connection_threshold, mi
 
 def symbolic_statistics(results_dict, host_threshold):
     """
-    Function for extracting result statistics on a host and connection level. To label some host or connection according
-    to ground truth, a majority voting rule is employed. For predicted values, a 95% confidence value is employed to
-    label a host or a connection as benign according to the predictions derived from the bening models on the training
-    set.
+    Function for extracting result statistics on host level. To label some host or connection according to ground truth,
+    a majority voting rule is employed. For predicted values, a 95% confidence value is employed to label a host or a
+    onnection as benign according to the predictions derived from the bening models on the training set.
     :param results_dict: the dictionary with the results obtained for each host by multiple trained models on different
     training methods (LOF, Isolation Forest, Multivariate Gaussian KDE, State Machine baseline)
     :param host_threshold: a dictionary with the classification thresholds for host level analysis for each method
@@ -229,7 +223,7 @@ def symbolic_statistics(results_dict, host_threshold):
     """
     host_results_per_method = {}
     for host in results_dict.keys():
-        # for now ignore total results - TODO: change it in the final version of the code
+        # ignore total results
         if 'total' in host:
             continue
         # temporary dictionaries for host level analysis
@@ -237,15 +231,6 @@ def symbolic_statistics(results_dict, host_threshold):
         true = {}
         # for each training model used
         for result_type in results_dict[host].keys():
-            # TODO: change it in the final version of the code
-            # if '147.32.84.170' in result_type:
-            if '192.168.10.15' in result_type or '192.168.10.5' in result_type or '192.168.10.3' in result_type \
-                    or '192.168.10.25' in result_type: #and '192.168.10.3' not in result_type and '192.168.10.51' not in result_type:
-            # if '59.166.0.2' not in result_type and '59.166.0.5' not in result_type and '59.166.0.7' not in result_type:
-                continue
-            # The mapping in the dictionary is the following:
-            # 0 -> Accepted, 1 -> Rejected, 2 -> True Label
-            # TODO: change it to 1 number in new version
             ratio = results_dict[host][result_type][0]
             label = results_dict[host][result_type][1]
             # otherwise the evaluation process is continued
@@ -281,28 +266,31 @@ def symbolic_statistics(results_dict, host_threshold):
 
 
 if __name__ == '__main__':
-    dataset = 'CICIDS'
+    dataset = 'CTU-bi'
     methods = [
         # 'clustering-LOF'
         # , 'clustering-isolation forest'
         # , 'multivariate gaussian'
-        # , 'baseline multivariate'
-        # , 'baseline'
-        'baseline symbolic'
+        'baseline multivariate'
+        # 'baseline symbolic'
     ]
+    # set the threshold flag ('auto' if the validation data are to be used | 'manual' otherwise)
+    set_thresholds = 'auto'
     # first set the classification thresholds using the validation data
-    # validation_data_filename = 'Datasets/CTU13/results/dst_port_protocol_num_duration_src_bytes_dst_bytes/scenario3_dfa_results.pkl'
-    # with open(validation_data_filename, 'rb') as f:
-    #     validation_dict = pickle.load(f)
-    # host_threshold, connection_threshold = generate_thresholds_from_validation(validation_dict)
-    host_threshold = {}
-    connection_threshold = {}
-    for method in methods:
-        host_threshold[method] = float(input('Give threshold for ' + method + ' on host level: '))
-        if method != 'baseline symbolic':
-            connection_threshold[method] = float(input('Give threshold for ' + method + ' on connection level: '))
+    if set_thresholds == 'auto':
+        validation_data_filename = 'Datasets/CTU13/results/dst_port_protocol_num_duration_src_bytes_dst_bytes/scenario3_dfa_results.pkl'
+        with open(validation_data_filename, 'rb') as f:
+            validation_dict = pickle.load(f)
+        host_threshold, connection_threshold = generate_thresholds_from_validation(validation_dict)
+    else:
+        host_threshold = {}
+        connection_threshold = {}
+        for method in methods:
+            host_threshold[method] = float(input('Give threshold for ' + method + ' on host level: '))
+            if method != 'baseline symbolic':
+                connection_threshold[method] = float(input('Give threshold for ' + method + ' on connection level: '))
     # then produce the final results for the given testing outputs
-    result_filenames = sorted(glob.glob('Datasets/CICIDS2017/results/encoding/*dfa_results.pkl'))
+    result_filenames = sorted(glob.glob('Datasets/CTU13/results/src_port_dst_port_protocol_num_src_bytes_dst_bytes/*static_dfa_results.pkl'))
     host_level_results = {}
     connection_level_results = {}
     for results_filename in result_filenames:
@@ -313,7 +301,7 @@ if __name__ == '__main__':
             host_level_results[scenario], connection_level_results[scenario] = multilevel_statistics(results_dict,
                                                                                                      host_threshold,
                                                                                                      connection_threshold,
-                                                                                                     50, 5)
+                                                                                                     50, None)
         else:
             host_level_results[scenario] = symbolic_statistics(results_dict, host_threshold)
 
