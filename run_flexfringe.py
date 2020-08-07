@@ -11,7 +11,7 @@ from copy import deepcopy
 import pickle
 
 # flag for specifying which version of flexfringe shall be used. In case the symbolic approach is used the master branch
-# is used, otherwise the mutlivariate branch is used
+# is selected, otherwise the multivariate branch is used
 ENCODED = False
 if ENCODED:
     # local filepath where the code of the master branch resides
@@ -56,7 +56,7 @@ def flexfringe(*args, **kwargs):
     dataset_name = args[0].split('/')[1]
     analysis_level = args[0].split('/')[-3]
     extension = re.search('(.+?)-traces', args[0].split('/')[-1]).group(1)
-    # add this naming in case aggregation windows have been used
+    # add the appropriate naming according to the trace extraction process
     if 'aggregated' in args[0]:
         extension += ('_aggregated' + ('_reduced' if 'reduced' in args[0] else ''))
     if 'resampled' in args[0]:
@@ -101,8 +101,11 @@ def show(data, filepath):
 
 if __name__ == '__main__':
     # first set the flag of the type of dataset to be used
-    # flag should be one of 'CTU-bi' | 'UNSW' | 'CICIDS'
-    flag = 'CTU-bi'
+    # Choose between the flags CTU-bi | CTU-mixed | CICIDS | UNSW
+    while True:
+        flag = input("Enter the desired flag (CTU-bi | CICIDS | UNSW): ")
+        if flag in ['CTU-bi', 'CICIDS', 'UNSW']:
+            break
 
     with_trace = int(input('Is there a trace file (no: 0 | yes: 1)? '))
 
@@ -115,19 +118,14 @@ if __name__ == '__main__':
             'src_port'
             , 'dst_port'
             , 'protocol_num'
-            , 'duration'
+            # , 'duration'
             , 'src_bytes'
             , 'dst_bytes'
-            # , 'total_bytes'
-            # , 'bytes_per_packet'
                     ]
         old_selected = deepcopy(selected)
 
-        # list of source ips to solely consider
-        src_ips = []
-
-        # flag for keeping only major connections #TODO: remove if for final version
-        major_flag = False
+        # flag for modifications in preprocessing for state-of-the-art experiments
+        sota = True
 
         # alphabet size in case the discretized version is used
         alphabet_size = -1
@@ -143,23 +141,11 @@ if __name__ == '__main__':
         training_filepath = input('Give the relative path of the dataframe to be used for training: ')
 
         if flag == 'CTU-bi':
-            data = pd.read_pickle(training_filepath + '/binetflow_normal.pkl')
+            # read the appropriate netflow file (in case the state-of-the-art experiments are to be conducted)
+            data = pd.read_pickle(training_filepath + '/binetflow_normal.pkl') if not sota else \
+                pd.read_pickle(training_filepath + '/binetflow_normal_sota.pkl')
         else:
             data = pd.read_pickle(training_filepath + '/normal.pkl')
-
-        # create column with the ratio of bytes to packets
-        if flag == 'CTU-bi':
-            data['total_bytes'] = data['src_bytes'] + data['dst_bytes']
-            data['bytes_per_packet'] = data['total_bytes'] / data['packets']
-            data['bytes_per_packet'].fillna(0, inplace=True)
-        elif flag == 'UNSW':
-            data['total_bytes'] = data['src_bytes'] + data['dst_bytes']
-            data['bytes_per_packet'] = data['total_bytes'] / (data['src_packets'] + data['dst_packets'])
-            data['bytes_per_packet'].fillna(0, inplace=True)
-        else:
-            data['total_bytes'] = data['src_bytes'] + data['dst_bytes']
-            data['bytes_per_packet'] = data['total_bytes'] / (data['total_fwd_packets'] + data['total_bwd_packets'])
-            data['bytes_per_packet'].fillna(0, inplace=True)
 
         if with_discretization:
             # first find the discretization limits for each feature
@@ -198,10 +184,7 @@ if __name__ == '__main__':
             print('Number of hosts to be processed: ' + str(len(instances)))
         else:
             # in connection level analysis only connections with significant number of flows are considered
-            if src_ips:
-                # in case only certain IPs should be considered
-                data = data.loc[data['src_ip'].isin(src_ips)].reset_index(drop=True)
-            instances = helper.select_connections(data, 40, bidirectional=bidirectional).values.tolist()
+            instances = helper.select_connections(data, 50, bidirectional=bidirectional).values.tolist()
             print('Number of connections to be processed: ' + str(len(instances)))
 
         # initialize an empty list to hold the filepaths of the trace files for each host
@@ -216,9 +199,6 @@ if __name__ == '__main__':
                 instance_name = instances[j][0]
                 print('Extracting traces for host ' + instance_name)
                 instance_data = data.loc[data['src_ip'] == instances[j][0]].sort_values(by='date').reset_index(drop=True)
-                # check if only the major connection should be kept -> set only for CICIDS
-                if major_flag:
-                    instance_data = helper.keep_only_major_connection(instance_data)
                 print('The number of flows for this host are: ' + str(instance_data.shape[0]))
             else:
                 instance_name = instances[j][0] + '-' + instances[j][1]
@@ -246,8 +226,7 @@ if __name__ == '__main__':
             new_features = int(input('Are there any new features to be added (no: 0 | yes: 1)? '))
 
             # extract the traces and save them in the traces' filepath
-            aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | yes-resample:'
-                                    ' 2 )? '))
+            aggregation = int(input('Do you want to use aggregation windows (no: 0 | yes-rolling: 1 | yes-resample: 2 )? '))
 
             # set the traces output filepath depending on the aggregation value
             # if aggregation has been set to 1 then proper naming is conducted in the extract_traces function of the
@@ -291,7 +270,7 @@ if __name__ == '__main__':
             selected = deepcopy(old_selected)
             j += 1
     else:
-        # in case the traces' filepath already exists, provide it (in this case only one path - NOT a list
+        # in case the traces' filepath already exists, provide it (in this case only one path - NOT a list)
         traces_filepaths = [input('Give the path to the input file for flexfringe: ')]
 
     # create a model for each host
