@@ -168,10 +168,8 @@ class ModelNode:
             transformer = RobustScaler().fit(x_train)
             x_train = transformer.transform(x_train)
         if clustering_method == "LOF":
-            # limits per dataset: CTU -> 0.1 | CICIDS -> 0.3
             clusterer = LocalOutlierFactor(n_neighbors=ceil(0.1 * x_train.shape[0]), novelty=True).fit(x_train)
         else:
-            # limits per dataset: CTU -> 0.1 | CICIDS -> 0.3
             clusterer = IsolationForest(max_samples=ceil(0.3 * x_train.shape[0])).fit(x_train)
         return clusterer, transformer
 
@@ -243,7 +241,6 @@ class ModelNode:
                 train_labels = kernel.evaluate(x_train)
             except np.linalg.LinAlgError:
                 train_labels = kernel.evaluate(x_train + 0.0001 * np.random.randn(x_train.shape[0], x_train.shape[1]))
-            # limits per dataset: CTU -> 4 | CICIDS -> 5
             epsilon = min(train_labels) + (max(train_labels) - min(train_labels)) / 10   # this value should be tuned
 
         try:
@@ -290,7 +287,7 @@ class ModelNode:
 
         # find the difference between each attribute of a data point to the mean and compare it with the std
         if epsilon == 'auto':
-            test_labels = np.abs(x_test - mi) - 2 * si  # 1 for CTU and CICIDS
+            test_labels = np.abs(x_test - mi) - 2 * si
         else:
             test_labels = np.abs(x_test - mi) - epsilon * si
 

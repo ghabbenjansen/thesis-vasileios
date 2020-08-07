@@ -1,15 +1,11 @@
 #!/usr/bin/python
 
-import hdbscan
 import numpy as np
 import pandas as pd
 import glob
 import seaborn as sns
-import matplotlib.pyplot as plt
 from sklearn.neighbors import LocalOutlierFactor
-import pickle
 from helper import select_hosts
-from math import ceil
 sns.set_style("darkgrid")
 
 
@@ -50,20 +46,17 @@ def create_aggregated_view(data, selected, flag, grouping='host'):
     return agg_data
 
 
-def evaluate_clustering(data, true, ips, quantile_limit, printing=True):
+def evaluate_clustering(data, true, ips, clusterer, printing=True):
     """
-    Function for testing hdbscan on the given data both on a host and a connection level.
+    Function for testing LOF on the given data both on a host level.
     :param data: the input data as a numpy array
     :param true: the true labels
     :param ips: the pairs of IP addresses of the dataset
-    :param quantile_limit: the decision limit for identifying outliers
+    :param clusterer: the trained LOF clusterer
     :param printing: flag for printing intermediate results
-    :return: a list of 2 dictionaries with the results on a host and a connection level
+    :return: a list of 2 dictionaries with the results on a host level
     """
-    # clusterer = hdbscan.HDBSCAN().fit(data)
-    # threshold = pd.Series(clusterer.outlier_scores_).quantile(quantile_limit)
-    # predicted = (clusterer.outlier_scores_ > threshold).astype(np.int)
-    predicted = quantile_limit.predict(data)
+    predicted = clusterer.predict(data)
     # change the labels to 0: Benign 1: Malicious
     predicted[predicted == 1] = 0
     predicted[predicted == -1] = 1
@@ -114,7 +107,7 @@ def evaluate_clustering(data, true, ips, quantile_limit, printing=True):
 
 
 if __name__ == '__main__':
-    flag = 'UNSW'
+    flag = 'CTU-bi'
     training_filepath = 'Datasets/UNSW-NB15/UNSW-NB15-1'
     selected = [
         'src_port'
@@ -123,10 +116,9 @@ if __name__ == '__main__':
         # , 'duration'
         , 'src_bytes'
         , 'dst_bytes'
-        # , 'total_bytes'
-        # , 'bytes_per_packet'
     ]
 
+    # select the desired grouping level
     grouping = 'host'
 
     # Read the training set consisting only by benign data
@@ -136,38 +128,15 @@ if __name__ == '__main__':
         train = pd.read_pickle(training_filepath + '/normal.pkl')
 
     # select the major hosts as it is done in the other methods
-    train_hosts = list(map(lambda item: item[0], select_hosts(train, 10000).values.tolist()))
+    train_hosts = list(map(lambda item: item[0], select_hosts(train, 50).values.tolist()))
     train = train[train['src_ip'].isin(train_hosts)]
 
-    # create column with the ratio of bytes to packets
-    if flag == 'CTU-bi':
-        train['total_bytes'] = train['src_bytes'] + train['dst_bytes']
-        train['bytes_per_packet'] = train['total_bytes'] / train['packets']
-        train['bytes_per_packet'].fillna(0, inplace=True)
-    elif flag == 'UNSW':
-        train['total_bytes'] = train['src_bytes'] + train['dst_bytes']
-        train['bytes_per_packet'] = train['total_bytes'] / (train['src_packets'] + train['dst_packets'])
-        train['bytes_per_packet'].fillna(0, inplace=True)
-    elif flag == 'CICIDS':
-        train['total_bytes'] = train['src_bytes'] + train['dst_bytes']
-        train['bytes_per_packet'] = train['total_bytes'] / (train['total_fwd_packets'] + train['total_bwd_packets'])
-        train['bytes_per_packet'].fillna(0, inplace=True)
-    else:
-        train['total_bytes'] = train['orig_ip_bytes'] + train['resp_ip_bytes']
-        train['bytes_per_packet'] = train['total_bytes'] / (train['orig_packets'] + train['resp_packets'])
-        train['bytes_per_packet'].fillna(0, inplace=True)
-
-    # then check the outlier scores when using hdbscan clustering on the data
+    # and create an aggregated view on the data so as to cluster them
     agg_train = create_aggregated_view(train, selected, flag, grouping=grouping)
-    # clusterer = hdbscan.HDBSCAN().fit(agg_train[selected].values)
-    # plt.figure()
-    # sns.distplot(clusterer.outlier_scores_[np.isfinite(clusterer.outlier_scores_)], kde=False)
-    # plt.show()
-    # quantile_lim = float(input('Give the outliers quantile value according to which a point is considered an outlier: '))
     clusterer = LocalOutlierFactor(novelty=True).fit(agg_train[selected].values)
 
     # retrieve all the paths to the test sets
-    test_filepaths = sorted(glob.glob('Datasets/UNSW-NB15/UNSW-NB15-*/'))
+    test_filepaths = sorted(glob.glob('Datasets/CTU13/scenario*/'))
     for test_filepath in test_filepaths:
         # just to handle unwanted directories
         if 'results' in test_filepath or 'training' in test_filepath or 'test' in test_filepath:
@@ -188,26 +157,8 @@ if __name__ == '__main__':
             all_data = normal
 
         # select the major hosts as it is done in the other methods
-        hosts = list(map(lambda item: item[0], select_hosts(all_data, 3000).values.tolist()))
+        hosts = list(map(lambda item: item[0], select_hosts(all_data, 50).values.tolist()))
         all_data = all_data[all_data['src_ip'].isin(hosts)]
-
-        # create column with the ratio of bytes to packets
-        if flag == 'CTU-bi':
-            all_data['total_bytes'] = all_data['src_bytes'] + all_data['dst_bytes']
-            all_data['bytes_per_packet'] = all_data['total_bytes'] / all_data['packets']
-            all_data['bytes_per_packet'].fillna(0, inplace=True)
-        elif flag == 'UNSW':
-            all_data['total_bytes'] = all_data['src_bytes'] + all_data['dst_bytes']
-            all_data['bytes_per_packet'] = all_data['total_bytes'] / (all_data['src_packets'] + all_data['dst_packets'])
-            all_data['bytes_per_packet'].fillna(0, inplace=True)
-        elif flag == 'CICIDS':
-            all_data['total_bytes'] = all_data['src_bytes'] + all_data['dst_bytes']
-            all_data['bytes_per_packet'] = all_data['total_bytes'] / (all_data['total_fwd_packets'] + all_data['total_bwd_packets'])
-            all_data['bytes_per_packet'].fillna(0, inplace=True)
-        else:
-            all_data['total_bytes'] = all_data['orig_ip_bytes'] + all_data['resp_ip_bytes']
-            all_data['bytes_per_packet'] = all_data['total_bytes'] / (all_data['orig_packets'] + all_data['resp_packets'])
-            all_data['bytes_per_packet'].fillna(0, inplace=True)
 
         # first produce the clustering results
         agg_data = create_aggregated_view(all_data, selected, flag, grouping=grouping)
@@ -217,8 +168,5 @@ if __name__ == '__main__':
         else:
             ips = agg_data[['src_ip', 'dst_ip']].values
         sel_data = agg_data[selected].values
-        # filename = '/'.join(test_filepath.split('/')[:-2]) + '/results/' + test_filepath.split('/')[-2] + '_clustering_results.pkl'
-        # with open(filename, 'wb') as f:
-        #     # pickle.dump(evaluate_clustering(sel_data, true, ips, quantile_lim), f, protocol=pickle.HIGHEST_PROTOCOL)
         evaluate_clustering(sel_data, true, ips, clusterer)
 
