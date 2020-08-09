@@ -16,19 +16,21 @@ The problem of detecting anomalies in the recorded NetFlow traffic is dealt as a
 Before providing more information regarding the intrinsics of these phases, it shall be mentioned that most components of the proposed system are implemented in **Python**, while **Jupyter notebooks** have been used for visualization purposes. The only component of the system that does not conform to this pattern regards the multivariate state machine inference process, for which **flexfringe** was used. [Flexfringe](https://bitbucket.org/chrshmmmr/dfasat/src/master/) is a tool implemented in **C++**, thus a Python wrapper was developed to invoke it from a Python script.
 
 ## The training phase
-* Initial data preparation
-  1. Group the provided flows
-  2. Trace extraction through the use of dynamic windows
-* Benign behavioral profiles' extraction <p align="center"> <img src="https://github.com/SereV94/MasterThesis/blob/master/images/train_pipeline.png" height="200" width="600"> </p>
-  1. Multivariate FSM inference
-  2. Replay the traces on the extracted FSMs
-  3. Fit detection model on each state <p align="center"> <img src="https://github.com/SereV94/MasterThesis/blob/master/images/sample_dfa_netflow.png" height="250" width="700"> </p>
-  4. Populate the "database" of benign profiles
+The main steps followed in the training phase of the designed detection methodology, along with the associated Python scripts, can be seen as follows: 
+* **Initial data preparation**: Both the training and the testing phases start with the same two steps regarding the preparation of the input NetFlow data to be processed by the designed detection pipeline. (related scripts: *run_flexfringe.py, helper.py*)
+  1. **Group the provided flows**: Initially, the input NetFlows of the training set are grouped either according to their source IP address in case of host level analysis or according to the pair of their source and destination IP addresses in case of connection level analysis. 
+  2. **Trace extraction through the use of dynamic windows**: Subsequently, the dynamic windows extraction procedure is employed for each group of data, so that a set of traces from the NetFlows belonging to each group can be produced.
+* **Benign behavioral profiles' extraction**: The main steps adopted for extracting the bening behavioral profiles from the training set are visualized in the following image and explained in brief below. <p align="center"> <img src="https://github.com/SereV94/MasterThesis/blob/master/images/train_pipeline.png" height="200" width="550"> </p>
+  1. **Multivariate FSM inference**: The extracted traces are fed into the multivariate version of flexfringe, so that the multivariate FSM capturing the behaviour of each group can be extracted. An example of such a multivariate FSM learnt on 3 NetFlow features (communication protocol, source, and destination bytes) can be seen in following figure: <p align="center"> <img src="https://github.com/SereV94/MasterThesis/blob/master/images/sample_dfa_netflow.png" height="250" width="700"> </p>
+  2. **Replay the traces on the extracted FSMs**: After the creation of the multivariate behavioral model, the corresponding traces are run (or replayed) on the directed graph representing the structure of the model, so that each state of the derived multivariate FSM can be associated with the subset of events leading to that state.
+  3. **Fit detection model on each state**: Subsequently, the subset of events associated with each state of the model is treated as a state-local training set on which three different models (LOF, Isolation Forest, Gaussian KDE) are fitted.
+  4. **Populate the "database" of benign profiles**: Finally, each multivariate FSM with its incorporated state-local detection models is stored as a reference benign behavioral profile.
 
 ## The testing phase
-* Initial data preparation
-  1. Group the provided flows
-  2. Trace extraction through the use of dynamic windows
+Both the training and the testing phases start with the same two steps. 
+* **Initial data preparation**: As in the training phase, similar data preparation steps are followed. (related scripts: *extract_testing_traces.py, helper.py*)
+  1. **Group the provided flows**
+  2. **Trace extraction through the use of dynamic windows**
 * Anomalies identification <p align="center"> <img src="https://github.com/SereV94/MasterThesis/blob/master/images/test_pipeline.png" height="150" width="600"> </p>
   1. Replay the testing traces on each of the extracted models
   2. Make state-local predictions
