@@ -13,4 +13,24 @@ The problem of detecting anomalies in the recorded NetFlow traffic is dealt as a
 <img src="https://github.com/SereV94/MasterThesis/blob/master/images/my_pipeline.png" height="200" width="600">
 </p>
 
-Before providing more information regarding the intrinsics of these phases, it shall be mentioned that most components of the proposed system are implemented in *Python*, while *Jupyter* notebooks have been used for visualization purposes. The only component of the system that does not conform to this pattern regards the multivariate state machine inference process, for which *flexfringe* was used. [Flexfringe](https://bitbucket.org/chrshmmmr/dfasat/src/master/) is a tool implemented in *C++*, thus a *Python* wrapper was developed to invoke it from a *Python* script.
+Before providing more information regarding the intrinsics of these phases, it shall be mentioned that most components of the proposed system are implemented in **Python**, while **Jupyter notebooks** have been used for visualization purposes. The only component of the system that does not conform to this pattern regards the multivariate state machine inference process, for which **flexfringe** was used. [Flexfringe](https://bitbucket.org/chrshmmmr/dfasat/src/master/) is a tool implemented in **C++**, thus a Python wrapper was developed to invoke it from a Python script.
+
+## The training phase
+* Initial data preparation
+  1. Group the provided flows
+  2. Trace extraction through the use of dynamic windows
+* Benign behavioral profiles' extraction <p align="center"> <img src="https://github.com/SereV94/MasterThesis/blob/master/images/train_pipeline.png" height="200" width="600"> </p>
+  1. Multivariate FSM inference
+  2. Replay the traces on the extracted FSMs
+  3. Fit detection model on each state <p align="center"> <img src="https://github.com/SereV94/MasterThesis/blob/master/images/sample_dfa_netflow.png" height="250" width="700"> </p>
+  4. Populate the "database" of benign profiles
+
+## The testing phase
+* Initial data preparation
+  1. Group the provided flows
+  2. Trace extraction through the use of dynamic windows
+* Anomalies identification <p align="center"> <img src="https://github.com/SereV94/MasterThesis/blob/master/images/test_pipeline.png" height="150" width="600"> </p>
+  1. Replay the testing traces on each of the extracted models
+  2. Make state-local predictions
+  3. Aggregate and collect the weighted state-local predictions
+  4. Provide the final detection verdict by comparing the benignity score of the testing entity to the validation threshold
