@@ -39,9 +39,9 @@ The main steps followed in the testing phase of the designed detection methodolo
 
 ## Experimentation
 The detection performance of the designed system was evaluated on 3 publicly available NetFlow-based datasets, namely [the CTU-13 dataset](https://www.stratosphereips.org/datasets-ctu13), [the UNSW-NB15 dataset](https://www.unsw.adfa.edu.au/unsw-canberra-cyber/cybersecurity/ADFA-NB15-Datasets/), and [the CICIDS2017 dataset](https://www.unb.ca/cic/datasets/ids-2017.html). The designed system was evaluated on **4 types of experiments**:
-1. Among the different anomaly detection models used in each state (LOF, Isolation Forest, Gaussian KDE)
-2. Among 4 different NetFlow feature sets (*1st feature set*: protocol, source bytes, destination bytes; *2nd feature set*: destination port, protocol, source bytes, destination bytes; *3rd feature set*: source port, destination port, protocol, source bytes, destination bytes; *4th feature set*: destination port, protocol, duration, source bytes, destination bytes)
-3. In comparison to 3 baseline methods, namely a baseline multivariate approach, a symbolic sequential approach, and a naive LOF-based clustering approach
-4. In comparison to a recently published state-of-the-art detection technique, named BotFP, on the CTU-13 dataset
+1. Among **the different anomaly detection models** used in each state (LOF, Isolation Forest, Gaussian KDE)
+2. Among **4 different NetFlow feature sets** (*1st feature set*: protocol, source bytes, destination bytes; *2nd feature set*: destination port, protocol, source bytes, destination bytes; *3rd feature set*: source port, destination port, protocol, source bytes, destination bytes; *4th feature set*: destination port, protocol, duration, source bytes, destination bytes)
+3. In comparison to **3 baseline methods**, namely a baseline multivariate approach, a symbolic sequential approach, and a naive LOF-based clustering approach
+4. In comparison to **a recently published state-of-the-art detection technique**, named BotFP, on the CTU-13 dataset
 
 The results of that experimentation, along with a signifincalty more detailed presentation of the work conducted in the premises of this project can be found on [the online repository of TU Delft](https://repository.tudelft.nl).
