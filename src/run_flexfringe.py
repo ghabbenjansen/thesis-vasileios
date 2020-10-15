@@ -4,7 +4,7 @@ import subprocess
 import os
 import glob
 import graphviz
-import helper
+from src import helper
 import pandas as pd
 import re
 from copy import deepcopy
@@ -172,7 +172,7 @@ if __name__ == '__main__':
                     selected += [feature + '_num']
                 else:
                     data[feature] = data[feature].apply(helper.check_existence,
-                                                                 args=(discretization_dict[feature],))
+                                                        args=(discretization_dict[feature],))
             helper.netflow_encoding(data, selected, discretization_dict)
             selected = ['encoding']
             old_selected = deepcopy(selected)

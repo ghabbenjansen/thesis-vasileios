@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import os
-import helper
+from src import helper
 import pandas as pd
 from copy import deepcopy
 import pickle

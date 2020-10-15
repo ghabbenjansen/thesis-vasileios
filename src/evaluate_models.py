@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-from helper import parse_dot, run_traces_on_model, dict2list, reduce_data_by_label, parse_symbolic_dot, run_traces_on_symbolic_model
+from src.helper import parse_dot, run_traces_on_model, dict2list, parse_symbolic_dot, run_traces_on_symbolic_model
 from statistics import median
 import pandas as pd
 import numpy as np

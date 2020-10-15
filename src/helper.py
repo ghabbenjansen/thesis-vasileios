@@ -4,7 +4,7 @@ from pandas.tseries.offsets import DateOffset
 from copy import deepcopy
 from scipy.stats import mode
 from statistics import mean
-from model import ModelNode, Model
+from src.model import ModelNode, Model
 from tslearn.metrics import dtw
 from sklearn.preprocessing import MinMaxScaler
 import re
